@@ -11,7 +11,11 @@ from app.routers import auth, chat, devices, disciplinas, gravacoes, health, mat
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await get_pool()
+    try:
+        await get_pool()
+    except Exception as exc:
+        import logging
+        logging.getLogger("coffee").warning("DB pool not ready at startup: %s", exc)
     yield
     await close_pool()
 
