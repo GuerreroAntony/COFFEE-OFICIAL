@@ -1,0 +1,105 @@
+import tempfile
+from typing import AsyncGenerator
+from openai import AsyncOpenAI
+from app.config import settings
+
+
+class OpenAIService:
+    def __init__(self):
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+    async def generate_summary(self, transcription: str, course_name: str) -> dict:
+        response = await self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Você é um assistente acadêmico. A partir da transcrição abaixo de uma aula, "
+                        "gere um resumo estruturado.\n\n"
+                        "Retorne APENAS um JSON válido neste formato:\n"
+                        "{\n"
+                        '  "titulo": "título conciso da aula em até 6 palavras",\n'
+                        '  "topicos": [\n'
+                        '    {\n'
+                        '      "titulo": "Nome do tópico",\n'
+                        '      "conteudo": "Resumo do conteúdo desse tópico em 2-4 frases."\n'
+                        '    }\n'
+                        '  ],\n'
+                        '  "conceitos_chave": [\n'
+                        '    {"termo": "termo", "definicao": "definição"}\n'
+                        '  ],\n'
+                        '  "resumo_geral": "resumo geral aqui"\n'
+                        "}\n\n"
+                        "Regras:\n"
+                        "- Entre 3 e 6 tópicos\n"
+                        "- Linguagem clara e objetiva\n"
+                        "- Preserve termos técnicos da área\n"
+                        "- Não inclua nada fora do JSON"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Disciplina: {course_name}\n\nTranscrição:\n{transcription}",
+                },
+            ],
+            response_format={"type": "json_object"},
+        )
+        import json
+        return json.loads(response.choices[0].message.content)
+
+    async def chat_rag(
+        self,
+        messages: list,
+        context_chunks: list,
+        personality_config: dict,
+    ) -> AsyncGenerator[str, None]:
+        formatted_context = "\n\n---\n\n".join(context_chunks)
+        system_prompt = personality_config.get(
+            "system_prompt",
+            "Você é o assistente acadêmico do Coffee. Responda com profundidade moderada e tom neutro.",
+        )
+        full_system = (
+            f"{system_prompt}\n\n"
+            "Você tem acesso aos seguintes materiais de aula do aluno:\n\n"
+            f"{formatted_context}\n\n"
+            "Sempre cite a fonte quando usar informação dos materiais. "
+            "Formato de citação: [Aula DD/MM] ou [Transcrição DD/MM]. "
+            "Se não encontrar a informação nos materiais, diga isso claramente."
+        )
+
+        stream = await self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": full_system}, *messages],
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+    async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.m4a") -> str:
+        """Transcribes audio bytes using OpenAI Whisper. Returns plain text."""
+        import os
+        suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".m4a"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+        try:
+            with open(tmp_path, "rb") as f:
+                result = await self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f,
+                    language="pt",
+                )
+            text: str = result.text
+        finally:
+            os.unlink(tmp_path)
+        return text
+
+    async def create_embeddings(self, texts: list[str]) -> list[list[float]]:
+        response = await self.client.embeddings.create(
+            model="text-embedding-3-small",
+            input=texts,
+        )
+        return [item.embedding for item in response.data]

@@ -1,0 +1,718 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000000000000000000001 /* CoffeeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000001 /* CoffeeApp.swift */; };
+		AA000000000000000000002 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000002 /* AppConfig.swift */; };
+		AA000000000000000000003 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000003 /* Theme.swift */; };
+		AA000000000000000000004 /* Color+Coffee.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000004 /* Color+Coffee.swift */; };
+		AA000000000000000000005 /* View+Coffee.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000005 /* View+Coffee.swift */; };
+		AA000000000000000000006 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000006 /* ChatMessage.swift */; };
+		AA000000000000000000007 /* Disciplina.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000007 /* Disciplina.swift */; };
+		AA000000000000000000008 /* Gravacao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000008 /* Gravacao.swift */; };
+		AA000000000000000000009 /* Material.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000009 /* Material.swift */; };
+		AA00000000000000000000A /* Resumo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000A /* Resumo.swift */; };
+		AA00000000000000000000B /* Transcricao.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000B /* Transcricao.swift */; };
+		AA00000000000000000000C /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000C /* User.swift */; };
+		AA00000000000000000000D /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000D /* AudioRecorder.swift */; };
+		AA00000000000000000000E /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000E /* AuthService.swift */; };
+		AA00000000000000000000F /* DisciplinasService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000F /* DisciplinasService.swift */; };
+		AA000000000000000000010 /* ESPMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000010 /* ESPMService.swift */; };
+		AA000000000000000000011 /* GravacoesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000011 /* GravacoesService.swift */; };
+		AA000000000000000000012 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000012 /* KeychainService.swift */; };
+		AA000000000000000000013 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000013 /* NetworkService.swift */; };
+		AA000000000000000000014 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000014 /* AuthViewModel.swift */; };
+		AA000000000000000000015 /* DisciplinasViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000015 /* DisciplinasViewModel.swift */; };
+		AA000000000000000000016 /* ESPMViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000016 /* ESPMViewModel.swift */; };
+		AA000000000000000000017 /* GravacaoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000017 /* GravacaoViewModel.swift */; };
+		AA000000000000000000018 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000018 /* LoginView.swift */; };
+		AA000000000000000000019 /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000019 /* SignupView.swift */; };
+		AA00000000000000000001A /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001A /* AISettingsView.swift */; };
+		AA00000000000000000001B /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001B /* ChatView.swift */; };
+		AA00000000000000000001C /* CoffeeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001C /* CoffeeButton.swift */; };
+		AA00000000000000000001D /* CoffeeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001D /* CoffeeTextField.swift */; };
+		AA00000000000000000001E /* DisciplinaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001E /* DisciplinaCard.swift */; };
+		AA00000000000000000001F /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001F /* EmptyStateView.swift */; };
+		AA000000000000000000020 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000020 /* LoadingView.swift */; };
+		AA000000000000000000021 /* ChatTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000021 /* ChatTabView.swift */; };
+		AA000000000000000000022 /* DisciplinaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000022 /* DisciplinaDetailView.swift */; };
+		AA000000000000000000023 /* GravacoesTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000023 /* GravacoesTabView.swift */; };
+		AA000000000000000000024 /* MateriaisTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000024 /* MateriaisTabView.swift */; };
+		AA000000000000000000025 /* ESPMConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000025 /* ESPMConnectView.swift */; };
+		AA000000000000000000026 /* GravacaoConfirmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000026 /* GravacaoConfirmView.swift */; };
+		AA000000000000000000027 /* GravacaoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000027 /* GravacaoView.swift */; };
+		AA000000000000000000028 /* DisciplinasListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000028 /* DisciplinasListView.swift */; };
+		AA000000000000000000029 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000029 /* MainTabView.swift */; };
+		AA00000000000000000002A /* ResumoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000002A /* ResumoView.swift */; };
+		AA00000000000000000002B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000002B /* Assets.xcassets */; };
+		AA00000000000000000002C /* TranscricaoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000002E /* TranscricaoDetailView.swift */; };
+		AA00000000000000000002D /* ResumosService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB00000000000000000002F /* ResumosService.swift */; };
+		AA00000000000000000002E /* ResumoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000030 /* ResumoViewModel.swift */; };
+		AA00000000000000000002F /* PersonalityConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000031 /* PersonalityConfig.swift */; };
+		AA000000000000000000030 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000032 /* ChatService.swift */; };
+		AA000000000000000000031 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000033 /* ChatViewModel.swift */; };
+		AA000000000000000000032 /* NovaDisciplinaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000034 /* NovaDisciplinaView.swift */; };
+		AA000000000000000000033 /* WhisperLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000035 /* WhisperLiveService.swift */; };
+		AA000000000000000000034 /* ESPMOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000036 /* ESPMOnboardingView.swift */; };
+		AA000000000000000000040 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000040 /* PushNotificationService.swift */; };
+		AA000000000000000000041 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000041 /* OnboardingView.swift */; };
+		AA000000000000000000042 /* ClassReminderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000042 /* ClassReminderService.swift */; };
+		AA000000000000000000043 /* MateriaisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000000000000000000043 /* MateriaisService.swift */; };
+		BD0188F92F599759007FDC73 /* TTSKit in Frameworks */ = {isa = PBXBuildFile; productRef = BD0188F82F599759007FDC73 /* TTSKit */; };
+		BD0188FB2F599759007FDC73 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = BD0188FA2F599759007FDC73 /* WhisperKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AB000000000000000000001 /* CoffeeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeApp.swift; sourceTree = "<group>"; };
+		AB000000000000000000002 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		AB000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AB000000000000000000004 /* Color+Coffee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Coffee.swift"; sourceTree = "<group>"; };
+		AB000000000000000000005 /* View+Coffee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Coffee.swift"; sourceTree = "<group>"; };
+		AB000000000000000000006 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		AB000000000000000000007 /* Disciplina.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Disciplina.swift; sourceTree = "<group>"; };
+		AB000000000000000000008 /* Gravacao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gravacao.swift; sourceTree = "<group>"; };
+		AB000000000000000000009 /* Material.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Material.swift; sourceTree = "<group>"; };
+		AB00000000000000000000A /* Resumo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Resumo.swift; sourceTree = "<group>"; };
+		AB00000000000000000000B /* Transcricao.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transcricao.swift; sourceTree = "<group>"; };
+		AB00000000000000000000C /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		AB00000000000000000000D /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		AB00000000000000000000E /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		AB00000000000000000000F /* DisciplinasService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplinasService.swift; sourceTree = "<group>"; };
+		AB000000000000000000010 /* ESPMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ESPMService.swift; sourceTree = "<group>"; };
+		AB000000000000000000011 /* GravacoesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GravacoesService.swift; sourceTree = "<group>"; };
+		AB000000000000000000012 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		AB000000000000000000013 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
+		AB000000000000000000014 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000015 /* DisciplinasViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplinasViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000016 /* ESPMViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ESPMViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000017 /* GravacaoViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GravacaoViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000018 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		AB000000000000000000019 /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		AB00000000000000000001A /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
+		AB00000000000000000001B /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		AB00000000000000000001C /* CoffeeButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeButton.swift; sourceTree = "<group>"; };
+		AB00000000000000000001D /* CoffeeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeTextField.swift; sourceTree = "<group>"; };
+		AB00000000000000000001E /* DisciplinaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplinaCard.swift; sourceTree = "<group>"; };
+		AB00000000000000000001F /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		AB000000000000000000020 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		AB000000000000000000021 /* ChatTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTabView.swift; sourceTree = "<group>"; };
+		AB000000000000000000022 /* DisciplinaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplinaDetailView.swift; sourceTree = "<group>"; };
+		AB000000000000000000023 /* GravacoesTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GravacoesTabView.swift; sourceTree = "<group>"; };
+		AB000000000000000000024 /* MateriaisTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MateriaisTabView.swift; sourceTree = "<group>"; };
+		AB000000000000000000025 /* ESPMConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ESPMConnectView.swift; sourceTree = "<group>"; };
+		AB000000000000000000026 /* GravacaoConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GravacaoConfirmView.swift; sourceTree = "<group>"; };
+		AB000000000000000000027 /* GravacaoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GravacaoView.swift; sourceTree = "<group>"; };
+		AB000000000000000000028 /* DisciplinasListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplinasListView.swift; sourceTree = "<group>"; };
+		AB000000000000000000029 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		AB00000000000000000002A /* ResumoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumoView.swift; sourceTree = "<group>"; };
+		AB00000000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB00000000000000000002C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB00000000000000000002D /* Coffee.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Coffee.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB00000000000000000002E /* TranscricaoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscricaoDetailView.swift; sourceTree = "<group>"; };
+		AB00000000000000000002F /* ResumosService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumosService.swift; sourceTree = "<group>"; };
+		AB000000000000000000030 /* ResumoViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumoViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000031 /* PersonalityConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalityConfig.swift; sourceTree = "<group>"; };
+		AB000000000000000000032 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		AB000000000000000000033 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		AB000000000000000000034 /* NovaDisciplinaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaDisciplinaView.swift; sourceTree = "<group>"; };
+		AB000000000000000000035 /* WhisperLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperLiveService.swift; sourceTree = "<group>"; };
+		AB000000000000000000036 /* ESPMOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ESPMOnboardingView.swift; sourceTree = "<group>"; };
+		AB000000000000000000040 /* PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
+		AB000000000000000000041 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AB000000000000000000042 /* ClassReminderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassReminderService.swift; sourceTree = "<group>"; };
+		AB000000000000000000043 /* MateriaisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MateriaisService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AC000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BD0188FB2F599759007FDC73 /* WhisperKit in Frameworks */,
+				BD0188F92F599759007FDC73 /* TTSKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AD000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				AD000000000000000000002 /* Coffee */,
+				AD000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AD000000000000000000002 /* Coffee */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000001 /* CoffeeApp.swift */,
+				AB00000000000000000002C /* Info.plist */,
+				AD000000000000000000010 /* Config */,
+				AD000000000000000000011 /* Extensions */,
+				AD000000000000000000012 /* Models */,
+				AD000000000000000000013 /* Services */,
+				AD000000000000000000014 /* ViewModels */,
+				AD000000000000000000015 /* Views */,
+				AD000000000000000000016 /* Resources */,
+			);
+			path = Coffee;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000002D /* Coffee.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000010 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000002 /* AppConfig.swift */,
+				AB000000000000000000003 /* Theme.swift */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000011 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000004 /* Color+Coffee.swift */,
+				AB000000000000000000005 /* View+Coffee.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000012 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000006 /* ChatMessage.swift */,
+				AB000000000000000000031 /* PersonalityConfig.swift */,
+				AB000000000000000000007 /* Disciplina.swift */,
+				AB000000000000000000008 /* Gravacao.swift */,
+				AB000000000000000000009 /* Material.swift */,
+				AB00000000000000000000A /* Resumo.swift */,
+				AB00000000000000000000B /* Transcricao.swift */,
+				AB00000000000000000000C /* User.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000013 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000000D /* AudioRecorder.swift */,
+				AB00000000000000000000E /* AuthService.swift */,
+				AB00000000000000000000F /* DisciplinasService.swift */,
+				AB000000000000000000010 /* ESPMService.swift */,
+				AB000000000000000000011 /* GravacoesService.swift */,
+				AB000000000000000000012 /* KeychainService.swift */,
+				AB000000000000000000013 /* NetworkService.swift */,
+				AB00000000000000000002F /* ResumosService.swift */,
+				AB000000000000000000032 /* ChatService.swift */,
+				AB000000000000000000035 /* WhisperLiveService.swift */,
+				AB000000000000000000040 /* PushNotificationService.swift */,
+				AB000000000000000000042 /* ClassReminderService.swift */,
+				AB000000000000000000043 /* MateriaisService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000014 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000014 /* AuthViewModel.swift */,
+				AB000000000000000000015 /* DisciplinasViewModel.swift */,
+				AB000000000000000000016 /* ESPMViewModel.swift */,
+				AB000000000000000000017 /* GravacaoViewModel.swift */,
+				AB000000000000000000030 /* ResumoViewModel.swift */,
+				AB000000000000000000033 /* ChatViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000015 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AD000000000000000000020 /* Auth */,
+				AD000000000000000000021 /* Chat */,
+				AD000000000000000000022 /* Components */,
+				AD000000000000000000023 /* Disciplina */,
+				AD000000000000000000024 /* ESPM */,
+				AD000000000000000000025 /* Gravacao */,
+				AD000000000000000000028 /* Onboarding */,
+				AD000000000000000000026 /* Main */,
+				AD000000000000000000027 /* Resumo */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000016 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000002B /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000020 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000018 /* LoginView.swift */,
+				AB000000000000000000019 /* SignupView.swift */,
+				AB000000000000000000036 /* ESPMOnboardingView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000021 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000001A /* AISettingsView.swift */,
+				AB00000000000000000001B /* ChatView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000022 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000001C /* CoffeeButton.swift */,
+				AB00000000000000000001D /* CoffeeTextField.swift */,
+				AB00000000000000000001E /* DisciplinaCard.swift */,
+				AB00000000000000000001F /* EmptyStateView.swift */,
+				AB000000000000000000020 /* LoadingView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000023 /* Disciplina */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000021 /* ChatTabView.swift */,
+				AB000000000000000000022 /* DisciplinaDetailView.swift */,
+				AB000000000000000000023 /* GravacoesTabView.swift */,
+				AB000000000000000000024 /* MateriaisTabView.swift */,
+			);
+			path = Disciplina;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000024 /* ESPM */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000025 /* ESPMConnectView.swift */,
+			);
+			path = ESPM;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000025 /* Gravacao */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000026 /* GravacaoConfirmView.swift */,
+				AB000000000000000000027 /* GravacaoView.swift */,
+				AB00000000000000000002E /* TranscricaoDetailView.swift */,
+			);
+			path = Gravacao;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000026 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000028 /* DisciplinasListView.swift */,
+				AB000000000000000000029 /* MainTabView.swift */,
+				AB000000000000000000034 /* NovaDisciplinaView.swift */,
+			);
+			path = Main;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000027 /* Resumo */ = {
+			isa = PBXGroup;
+			children = (
+				AB00000000000000000002A /* ResumoView.swift */,
+			);
+			path = Resumo;
+			sourceTree = "<group>";
+		};
+		AD000000000000000000028 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				AB000000000000000000041 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AE000000000000000000001 /* Coffee */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF000000000000000000002 /* Build configuration list for PBXNativeTarget "Coffee" */;
+			buildPhases = (
+				AC000000000000000000002 /* Sources */,
+				AC000000000000000000001 /* Frameworks */,
+				AC000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Coffee;
+			productName = Coffee;
+			productReference = AB00000000000000000002D /* Coffee.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AE000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					AE000000000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = AF000000000000000000001 /* Build configuration list for PBXProject "Coffee" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AD000000000000000000001;
+			packageReferences = (
+				BD0188F72F599759007FDC73 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			productRefGroup = AD000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AE000000000000000000001 /* Coffee */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AC000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA00000000000000000002B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AC000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000000001 /* CoffeeApp.swift in Sources */,
+				AA000000000000000000002 /* AppConfig.swift in Sources */,
+				AA000000000000000000003 /* Theme.swift in Sources */,
+				AA000000000000000000004 /* Color+Coffee.swift in Sources */,
+				AA000000000000000000005 /* View+Coffee.swift in Sources */,
+				AA000000000000000000006 /* ChatMessage.swift in Sources */,
+				AA000000000000000000007 /* Disciplina.swift in Sources */,
+				AA000000000000000000008 /* Gravacao.swift in Sources */,
+				AA000000000000000000009 /* Material.swift in Sources */,
+				AA00000000000000000000A /* Resumo.swift in Sources */,
+				AA00000000000000000000B /* Transcricao.swift in Sources */,
+				AA00000000000000000000C /* User.swift in Sources */,
+				AA00000000000000000000D /* AudioRecorder.swift in Sources */,
+				AA00000000000000000000E /* AuthService.swift in Sources */,
+				AA00000000000000000000F /* DisciplinasService.swift in Sources */,
+				AA000000000000000000010 /* ESPMService.swift in Sources */,
+				AA000000000000000000011 /* GravacoesService.swift in Sources */,
+				AA000000000000000000012 /* KeychainService.swift in Sources */,
+				AA000000000000000000013 /* NetworkService.swift in Sources */,
+				AA000000000000000000014 /* AuthViewModel.swift in Sources */,
+				AA000000000000000000015 /* DisciplinasViewModel.swift in Sources */,
+				AA000000000000000000016 /* ESPMViewModel.swift in Sources */,
+				AA000000000000000000017 /* GravacaoViewModel.swift in Sources */,
+				AA000000000000000000018 /* LoginView.swift in Sources */,
+				AA000000000000000000019 /* SignupView.swift in Sources */,
+				AA00000000000000000001A /* AISettingsView.swift in Sources */,
+				AA00000000000000000001B /* ChatView.swift in Sources */,
+				AA00000000000000000001C /* CoffeeButton.swift in Sources */,
+				AA00000000000000000001D /* CoffeeTextField.swift in Sources */,
+				AA00000000000000000001E /* DisciplinaCard.swift in Sources */,
+				AA00000000000000000001F /* EmptyStateView.swift in Sources */,
+				AA000000000000000000020 /* LoadingView.swift in Sources */,
+				AA000000000000000000021 /* ChatTabView.swift in Sources */,
+				AA000000000000000000022 /* DisciplinaDetailView.swift in Sources */,
+				AA000000000000000000023 /* GravacoesTabView.swift in Sources */,
+				AA000000000000000000024 /* MateriaisTabView.swift in Sources */,
+				AA000000000000000000025 /* ESPMConnectView.swift in Sources */,
+				AA000000000000000000026 /* GravacaoConfirmView.swift in Sources */,
+				AA000000000000000000027 /* GravacaoView.swift in Sources */,
+				AA000000000000000000028 /* DisciplinasListView.swift in Sources */,
+				AA000000000000000000029 /* MainTabView.swift in Sources */,
+				AA00000000000000000002A /* ResumoView.swift in Sources */,
+				AA00000000000000000002C /* TranscricaoDetailView.swift in Sources */,
+				AA00000000000000000002D /* ResumosService.swift in Sources */,
+				AA00000000000000000002E /* ResumoViewModel.swift in Sources */,
+				AA00000000000000000002F /* PersonalityConfig.swift in Sources */,
+				AA000000000000000000030 /* ChatService.swift in Sources */,
+				AA000000000000000000031 /* ChatViewModel.swift in Sources */,
+				AA000000000000000000032 /* NovaDisciplinaView.swift in Sources */,
+				AA000000000000000000033 /* WhisperLiveService.swift in Sources */,
+				AA000000000000000000034 /* ESPMOnboardingView.swift in Sources */,
+				AA000000000000000000040 /* PushNotificationService.swift in Sources */,
+				AA000000000000000000041 /* OnboardingView.swift in Sources */,
+				AA000000000000000000042 /* ClassReminderService.swift in Sources */,
+				AA000000000000000000043 /* MateriaisService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AF000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AF000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AF000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = KLC26SHF5C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Coffee/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = br.com.leomillan.coffee;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AF000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = KLC26SHF5C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Coffee/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = br.com.leomillan.coffee;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AF000000000000000000001 /* Build configuration list for PBXProject "Coffee" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AF000000000000000000010 /* Debug */,
+				AF000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AF000000000000000000002 /* Build configuration list for PBXNativeTarget "Coffee" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AF000000000000000000012 /* Debug */,
+				AF000000000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BD0188F72F599759007FDC73 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BD0188F82F599759007FDC73 /* TTSKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BD0188F72F599759007FDC73 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = TTSKit;
+		};
+		BD0188FA2F599759007FDC73 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BD0188F72F599759007FDC73 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AE000000000000000000002 /* Project object */;
+}

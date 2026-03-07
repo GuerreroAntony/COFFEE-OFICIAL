@@ -1,0 +1,8 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "./Dockerfile"
+
+[deploy]
+startCommand = "python -m scraper.main"
+cronSchedule = "0 6 * * 1-5"
+healthcheckPath = ""

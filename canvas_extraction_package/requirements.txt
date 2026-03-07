@@ -1,0 +1,7 @@
+# Canvas ESPM Scraper — Dependencies
+# ====================================
+# Install: pip install -r requirements.txt
+# Then:    playwright install chromium
+
+playwright>=1.49.0       # Browser automation (Chromium)
+python-dotenv>=1.0.0     # Load .env file
