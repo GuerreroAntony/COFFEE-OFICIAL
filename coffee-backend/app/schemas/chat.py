@@ -1,46 +1,52 @@
 from uuid import UUID
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import Optional
+from pydantic import BaseModel, Field
 
 
-class PersonalityConfigSchema(BaseModel):
-    profundidade: int = 50
-    linguagem: int = 50
-    exemplos: int = 50
-    questionamento: int = 50
-    foco: int = 50
+class PersonalityConfig(BaseModel):
+    profundidade: int = Field(default=50, ge=0, le=100)
+    linguagem: int = Field(default=50, ge=0, le=100)
+    exemplos: int = Field(default=50, ge=0, le=100)
+    questionamento: int = Field(default=50, ge=0, le=100)
+    foco: int = Field(default=50, ge=0, le=100)
 
 
-class ChatSendRequest(BaseModel):
-    mensagem: str
-    chat_id: Optional[UUID] = None
-    disciplina_id: Optional[UUID] = None
-    modo: str = "disciplina"
-    personality: Optional[PersonalityConfigSchema] = None
+class CreateChatRequest(BaseModel):
+    source_type: str = Field(pattern="^(disciplina|repositorio)$")
+    source_id: UUID
 
 
-class MensagemResponse(BaseModel):
+class SendMessageRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    personality: Optional[PersonalityConfig] = None
+
+
+class SourceReference(BaseModel):
+    type: str  # "transcription" ou "material"
+    gravacao_id: Optional[UUID] = None  # se type=transcription
+    material_id: Optional[UUID] = None  # se type=material
+    title: str
+    date: Optional[str] = None
+    excerpt: str
+    similarity: float
+
+
+class MessageResponse(BaseModel):
     id: UUID
-    chat_id: UUID
-    role: str
-    conteudo: str
-    fontes: list
+    sender: str  # "user" ou "ai"
+    text: str
+    label: Optional[str] = None  # "Barista de Marketing" (só pra ai)
+    sources: Optional[list[SourceReference]] = None  # só pra ai
     created_at: datetime
 
 
-class ChatSummaryResponse(BaseModel):
+class ChatSummary(BaseModel):
     id: UUID
-    disciplina_id: Optional[UUID] = None
-    disciplina_nome: Optional[str] = None
-    modo: str
-    last_message_preview: Optional[str] = None
-    created_at: datetime
-
-
-class HistoryResponse(BaseModel):
-    messages: List[MensagemResponse]
-
-
-class ChatsListResponse(BaseModel):
-    chats: List[ChatSummaryResponse]
+    source_type: str
+    source_id: UUID
+    source_name: str
+    source_icon: Optional[str] = None
+    last_message: Optional[str] = None
+    message_count: int
+    updated_at: datetime

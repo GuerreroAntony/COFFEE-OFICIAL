@@ -14,8 +14,11 @@ class DisciplinaResponse(BaseSchema):
     nome: str
     professor: Optional[str] = None
     horario: Optional[str] = None
+    sala: Optional[str] = None
     semestre: Optional[str] = None
     gravacoes_count: int = 0
+    materiais_count: int = 0
+    ai_active: bool = False
     horarios: Optional[list[Any]] = None
 
     @field_validator("horarios", mode="before")
@@ -34,17 +37,3 @@ class DisciplinaDetailResponse(BaseSchema):
     disciplina: DisciplinaResponse
     gravacoes_count: int = 0
     materiais_count: int = 0
-
-
-class CriarDisciplinaRequest(BaseSchema):
-    nome: str
-    professor: Optional[str] = ""
-    semestre: Optional[str] = ""
-
-
-class VincularRequest(BaseSchema):
-    disciplina_id: UUID
-
-
-class SeedRequest(BaseSchema):
-    user_id: UUID

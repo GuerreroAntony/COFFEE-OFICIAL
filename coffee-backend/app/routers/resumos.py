@@ -4,9 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.database import fetch_all, fetch_one, execute_query
+from app.database import fetch_all, fetch_one
 from app.dependencies import get_current_user
-from app.schemas.resumos import AtualizarTituloRequest, GerarResumoRequest, ResumoListResponse, ResumoResponse
+from app.schemas.base import error_response, success_response
+from app.schemas.resumos import AtualizarTituloRequest, GerarResumoRequest, ResumoResponse
 from app.services.openai_service import OpenAIService
 
 router = APIRouter(prefix="/api/v1/resumos", tags=["resumos"])
@@ -16,11 +17,9 @@ _openai = OpenAIService()
 
 def _row_to_resumo(row) -> ResumoResponse:
     data = dict(row)
-    # asyncpg returns JSONB as str or dict depending on driver; normalize both
     topicos_raw = data["topicos"]
     if isinstance(topicos_raw, str):
         topicos_raw = json.loads(topicos_raw)
-    # retrocompat: old data stored topicos as list of strings
     topicos = [
         t if isinstance(t, dict) else {"titulo": t, "conteudo": ""}
         for t in (topicos_raw or [])
@@ -45,13 +44,12 @@ def _row_to_resumo(row) -> ResumoResponse:
 
 # ── POST /api/v1/resumos ──────────────────────────────────────────────────────
 
-@router.post("", response_model=ResumoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def gerar_resumo(
     body: GerarResumoRequest,
     user_id: UUID = Depends(get_current_user),
 ):
     """Gera um resumo estruturado via GPT-4o-mini para uma transcrição."""
-    # Buscar transcrição + checar ownership
     trans_row = await fetch_one(
         """
         SELECT t.id, t.texto, g.user_id, g.disciplina_id
@@ -62,32 +60,31 @@ async def gerar_resumo(
         body.transcricao_id,
     )
     if not trans_row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcrição não encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=error_response("NOT_FOUND", "Transcrição não encontrada"))
     if trans_row["user_id"] != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=error_response("ACCESS_DENIED", "Acesso negado"))
 
-    # Verificar se resumo já existe → 409
     existing = await fetch_one(
         "SELECT * FROM resumos WHERE transcricao_id = $1",
         body.transcricao_id,
     )
     if existing:
-        return _row_to_resumo(existing)
+        return success_response(_row_to_resumo(existing).model_dump(mode="json"))
 
-    # Buscar nome da disciplina
     disc_row = await fetch_one(
         "SELECT nome FROM disciplinas WHERE id = $1",
         trans_row["disciplina_id"],
     )
     course_name = disc_row["nome"] if disc_row else "Disciplina"
 
-    # Gerar resumo via GPT-4o-mini
     try:
         summary = await _openai.generate_summary(trans_row["texto"], course_name)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Erro ao gerar resumo: {exc}",
+            detail=error_response("AI_ERROR", "Erro ao gerar resumo"),
         )
 
     topicos = summary.get("topicos", [])
@@ -110,12 +107,12 @@ async def gerar_resumo(
         summary.get("resumo_geral", ""),
         tokens_usados,
     )
-    return _row_to_resumo(row)
+    return success_response(_row_to_resumo(row).model_dump(mode="json"))
 
 
 # ── GET /api/v1/resumos/{transcricao_id} ─────────────────────────────────────
 
-@router.get("/{transcricao_id}", response_model=ResumoResponse)
+@router.get("/{transcricao_id}")
 async def get_resumo(
     transcricao_id: UUID,
     user_id: UUID = Depends(get_current_user),
@@ -133,13 +130,14 @@ async def get_resumo(
         user_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resumo não encontrado")
-    return _row_to_resumo(row)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=error_response("NOT_FOUND", "Resumo não encontrado"))
+    return success_response(_row_to_resumo(row).model_dump(mode="json"))
 
 
 # ── PATCH /api/v1/resumos/{resumo_id}/titulo ─────────────────────────────────
 
-@router.patch("/{resumo_id}/titulo", response_model=ResumoResponse)
+@router.patch("/{resumo_id}/titulo")
 async def atualizar_titulo(
     resumo_id: UUID,
     body: AtualizarTituloRequest,
@@ -153,13 +151,14 @@ async def atualizar_titulo(
         body.titulo, resumo_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resumo não encontrado")
-    return _row_to_resumo(row)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=error_response("NOT_FOUND", "Resumo não encontrado"))
+    return success_response(_row_to_resumo(row).model_dump(mode="json"))
 
 
 # ── GET /api/v1/resumos?disciplina_id= ───────────────────────────────────────
 
-@router.get("", response_model=ResumoListResponse)
+@router.get("")
 async def listar_resumos(
     disciplina_id: Optional[UUID] = None,
     user_id: UUID = Depends(get_current_user),
@@ -190,4 +189,4 @@ async def listar_resumos(
             """,
             user_id,
         )
-    return ResumoListResponse(resumos=[_row_to_resumo(r) for r in rows])
+    return success_response([_row_to_resumo(r).model_dump(mode="json") for r in rows])

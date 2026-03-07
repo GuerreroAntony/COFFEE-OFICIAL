@@ -12,13 +12,19 @@ class Settings(BaseSettings):
     # Firebase Admin SDK (replaces legacy FCM_SERVER_KEY)
     GOOGLE_APPLICATION_CREDENTIALS: str = "firebase-service-account.json"
     FIREBASE_PROJECT_ID: str = ""
-    ESPM_PORTAL_URL: str = "https://portal.espm.br"
-    ESPM_USERNAME: str = ""
-    ESPM_PASSWORD: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "materiais"
+    SUPABASE_MEDIA_BUCKET: str = "gravacao-media"
     ENVIRONMENT: str = "development"
-    secret_key: str = ""
+    SECRET_KEY: str = ""
+    # App limits
+    APPLE_SHARED_SECRET: str = ""
+    TRIAL_DAYS: int = 7
+    REFERRAL_BONUS_DAYS: int = 7
+    QUESTION_LIMIT_TRIAL: int = 10
+    QUESTION_LIMIT_PREMIUM: int = -1
+    SYNC_COOLDOWN_HOURS: int = 4
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

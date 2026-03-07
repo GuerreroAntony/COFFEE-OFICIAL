@@ -1,4 +1,3 @@
-import tempfile
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
 from app.config import settings
@@ -77,25 +76,6 @@ class OpenAIService:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
-
-    async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.m4a") -> str:
-        """Transcribes audio bytes using OpenAI Whisper. Returns plain text."""
-        import os
-        suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".m4a"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
-        try:
-            with open(tmp_path, "rb") as f:
-                result = await self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=f,
-                    language="pt",
-                )
-            text: str = result.text
-        finally:
-            os.unlink(tmp_path)
-        return text
 
     async def create_embeddings(self, texts: list[str]) -> list[list[float]]:
         response = await self.client.embeddings.create(

@@ -7,11 +7,12 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.database import execute_query, fetch_all, fetch_one
+from app.database import execute_query, fetch_all
 from app.dependencies import get_current_user
+from app.schemas.base import success_response
 
 router = APIRouter(prefix="/api/v1/notificacoes", tags=["notificacoes"])
 
@@ -26,15 +27,7 @@ class NotificacaoOut(BaseModel):
     data_payload: Optional[Any] = None
 
 
-class NotificacoesListResponse(BaseModel):
-    notificacoes: list[NotificacaoOut]
-
-
-class MarkReadResponse(BaseModel):
-    success: bool
-
-
-@router.get("", response_model=NotificacoesListResponse)
+@router.get("")
 async def list_notificacoes(
     user_id: UUID = Depends(get_current_user),
 ):
@@ -47,12 +40,11 @@ async def list_notificacoes(
            LIMIT 50""",
         user_id,
     )
-    return NotificacoesListResponse(
-        notificacoes=[NotificacaoOut(**dict(r)) for r in rows]
-    )
+    items = [NotificacaoOut(**dict(r)).model_dump(mode="json") for r in rows]
+    return success_response(items)
 
 
-@router.patch("/{notificacao_id}/read", response_model=MarkReadResponse)
+@router.patch("/{notificacao_id}/read")
 async def mark_read(
     notificacao_id: UUID,
     user_id: UUID = Depends(get_current_user),
@@ -63,4 +55,4 @@ async def mark_read(
         notificacao_id,
         user_id,
     )
-    return MarkReadResponse(success=True)
+    return success_response(None, "Notificação marcada como lida")

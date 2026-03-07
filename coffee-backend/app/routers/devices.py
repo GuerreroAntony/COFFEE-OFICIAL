@@ -5,11 +5,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 
-from app.database import execute_query, fetch_one
+from app.database import execute_query
 from app.dependencies import get_current_user
+from app.schemas.base import success_response
 
 router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
 
@@ -19,11 +20,7 @@ class DeviceTokenRequest(BaseModel):
     platform: str = "ios"
 
 
-class DeviceTokenResponse(BaseModel):
-    success: bool
-
-
-@router.post("", response_model=DeviceTokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def register_device(
     body: DeviceTokenRequest,
     user_id: UUID = Depends(get_current_user),
@@ -38,10 +35,10 @@ async def register_device(
         body.token,
         body.platform,
     )
-    return DeviceTokenResponse(success=True)
+    return success_response(None, "Device registrado")
 
 
-@router.delete("/{token}", response_model=DeviceTokenResponse)
+@router.delete("/{token}")
 async def unregister_device(
     token: str,
     user_id: UUID = Depends(get_current_user),
@@ -52,4 +49,4 @@ async def unregister_device(
         token,
         user_id,
     )
-    return DeviceTokenResponse(success=True)
+    return success_response(None, "Device removido")

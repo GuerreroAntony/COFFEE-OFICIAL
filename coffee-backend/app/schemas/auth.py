@@ -1,15 +1,15 @@
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
-from pydantic import EmailStr, Field, field_validator
-
-from app.schemas.base import BaseSchema
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
-class SignupRequest(BaseSchema):
+class SignupRequest(BaseModel):
     nome: str = Field(min_length=2, max_length=255)
     email: EmailStr
-    senha: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
+    referral_code: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -17,9 +17,9 @@ class SignupRequest(BaseSchema):
         return v.lower()
 
 
-class LoginRequest(BaseSchema):
+class LoginRequest(BaseModel):
     email: EmailStr
-    senha: str
+    password: str
 
     @field_validator("email")
     @classmethod
@@ -27,13 +27,30 @@ class LoginRequest(BaseSchema):
         return v.lower()
 
 
-class UserResponse(BaseSchema):
+class LogoutRequest(BaseModel):
+    device_token: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class UserResponse(BaseModel):
     id: UUID
     nome: str
     email: str
+    plano: str
+    trial_end: Optional[datetime] = None
+    subscription_active: bool
+    espm_connected: bool
+    referral_code: Optional[str] = None
     created_at: datetime
 
 
-class AuthResponse(BaseSchema):
+class AuthResponse(BaseModel):
     user: UserResponse
+    token: str
+
+
+class TokenResponse(BaseModel):
     token: str

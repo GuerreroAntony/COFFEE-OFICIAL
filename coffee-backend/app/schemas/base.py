@@ -1,27 +1,16 @@
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any
 from pydantic import BaseModel, ConfigDict
-
-T = TypeVar("T")
 
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SuccessResponse(BaseSchema, Generic[T]):
-    success: bool = True
-    data: T
+def success_response(data: Any = None, message: str = "ok") -> dict:
+    """Envelope de sucesso padrão."""
+    return {"data": data, "error": None, "message": message}
 
 
-class ErrorResponse(BaseSchema):
-    success: bool = False
-    error: str
-    detail: Optional[Any] = None
-
-
-class PaginatedResponse(BaseSchema, Generic[T]):
-    success: bool = True
-    data: list[T]
-    total: int
-    page: int
-    page_size: int
+def error_response(error: str, message: str) -> dict:
+    """Envelope de erro padrão."""
+    return {"data": None, "error": error, "message": message}

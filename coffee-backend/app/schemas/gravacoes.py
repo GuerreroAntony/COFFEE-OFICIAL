@@ -1,33 +1,92 @@
 from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
-
-from app.schemas.base import BaseSchema
-
-
-class CriarGravacaoRequest(BaseSchema):
-    disciplina_id: UUID
-    data_aula: date
+from pydantic import BaseModel, Field
 
 
-class TranscricaoResponse(BaseSchema):
+class CriarGravacaoRequest(BaseModel):
+    source_type: str = Field(pattern="^(disciplina|repositorio)$")
+    source_id: UUID
+    transcription: str = Field(min_length=10)
+    duration_seconds: int = Field(gt=0)
+    date: Optional[date] = None  # default: today
+
+
+class MoverGravacaoRequest(BaseModel):
+    source_type: str = Field(pattern="^(disciplina|repositorio)$")
+    source_id: UUID
+
+
+class MediaUploadResponse(BaseModel):
     id: UUID
-    gravacao_id: UUID
-    texto: str
-    idioma: str
-    confianca: float
+    type: str
+    label: Optional[str]
+    timestamp_seconds: int
+    timestamp_label: str
+    url: str
     created_at: datetime
 
 
-class GravacaoResponse(BaseSchema):
+class GravacaoSummarySection(BaseModel):
+    title: str
+    bullets: list[str]
+
+
+class GravacaoMediaItem(BaseModel):
     id: UUID
-    disciplina_id: UUID
-    data_aula: date
-    duracao_segundos: int
+    type: str
+    label: Optional[str]
+    timestamp_seconds: int
+    timestamp_label: str
+    url: str
+
+
+class GravacaoMaterialItem(BaseModel):
+    id: UUID
+    nome: str
+    tipo: str
+    size_label: str
+    url: Optional[str]
+
+
+class GravacaoListItem(BaseModel):
+    id: UUID
+    source_type: str
+    source_id: UUID
+    date: date
+    date_label: str
+    duration_seconds: int
+    duration_label: str
+    status: str
+    short_summary: Optional[str]
+    media_count: int
+    materials_count: int
+
+
+class GravacaoDetail(BaseModel):
+    id: UUID
+    source_type: str
+    source_id: UUID
+    date: date
+    date_label: str
+    duration_seconds: int
+    duration_label: str
+    status: str
+    short_summary: Optional[str]
+    full_summary: Optional[list[GravacaoSummarySection]]
+    transcription: Optional[str]
+    media: list[GravacaoMediaItem]
+    materials: list[GravacaoMaterialItem]
+    created_at: datetime
+
+
+class GravacaoCreatedResponse(BaseModel):
+    id: UUID
+    source_type: str
+    source_id: UUID
+    date: date
+    date_label: str
+    duration_seconds: int
+    duration_label: str
     status: str
     created_at: datetime
-    transcricao: Optional[TranscricaoResponse] = None
-
-
-class GravacaoListResponse(BaseSchema):
-    gravacoes: list[GravacaoResponse]

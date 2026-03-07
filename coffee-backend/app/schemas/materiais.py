@@ -1,32 +1,31 @@
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+from pydantic import BaseModel
 
-from app.schemas.base import BaseSchema
 
-
-class MaterialResponse(BaseSchema):
+class MaterialResponse(BaseModel):
     id: UUID
     disciplina_id: UUID
-    tipo: str
+    tipo: Optional[str] = None
     nome: str
     url_storage: Optional[str] = None
     fonte: str
     ai_enabled: bool
+    size_bytes: Optional[int] = None
+    size_label: Optional[str] = None
     created_at: datetime
 
 
-class MaterialListResponse(BaseSchema):
+class MaterialListResponse(BaseModel):
     materiais: list[MaterialResponse]
 
 
-class ToggleAIResponse(BaseSchema):
+class ToggleAIResponse(BaseModel):
     id: UUID
     ai_enabled: bool
 
 
-class SyncStatusResponse(BaseSchema):
+class SyncStatusResponse(BaseModel):
     status: str  # "triggered" | "fresh"
     last_scraped_at: Optional[datetime] = None
