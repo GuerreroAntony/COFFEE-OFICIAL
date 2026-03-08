@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import close_pool, get_pool
 from app.modules.espm import router as espm_router
-from app.routers import auth, chat, devices, disciplinas, gravacoes, health, materiais, notificacoes, profile, referral, repositorios, resumos, settings, subscription
+from app.routers import auth, chat, devices, disciplinas, gravacoes, health, materiais, notificacoes, profile, referral, repositorios, settings, subscription
 
 
 @asynccontextmanager
@@ -38,7 +38,6 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(disciplinas.router)
 app.include_router(gravacoes.router)
-app.include_router(resumos.router)
 app.include_router(chat.router)
 app.include_router(devices.router)
 app.include_router(materiais.router)

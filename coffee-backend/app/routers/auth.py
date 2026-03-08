@@ -2,6 +2,7 @@ import hashlib
 import random
 import string
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -146,8 +147,8 @@ async def login(body: LoginRequest):
 @router.post("/logout")
 async def logout(
     request: Request,
-    body: LogoutRequest,
     user_id: UUID = Depends(get_current_user),
+    body: Optional[LogoutRequest] = None,
 ):
     # Blacklist current token
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
@@ -160,7 +161,7 @@ async def logout(
             token_hash, exp,
         )
 
-    if body.device_token:
+    if body and body.device_token:
         await execute_query(
             "DELETE FROM device_tokens WHERE fcm_token = $1 AND user_id = $2",
             body.device_token, user_id,

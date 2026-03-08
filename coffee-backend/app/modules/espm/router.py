@@ -77,6 +77,9 @@ async def espm_connect(
     Requer JWT do Coffee (o aluno já tem conta no Coffee).
     Na primeira vez, extrai disciplinas e vincula ao aluno.
     """
+    if not settings.SECRET_KEY:
+        raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
+
     auth = ESPMAuthenticator(settings.SECRET_KEY)
     logs: list[str] = []
 
@@ -153,6 +156,9 @@ async def sync_schedule(
     Força re-sincronização da grade horária.
     Faz login novo no portal (ignora sessão salva) e extrai disciplinas.
     """
+    if not settings.SECRET_KEY:
+        raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
+
     auth = ESPMAuthenticator(settings.SECRET_KEY)
     extractor = ScheduleExtractor()
     logs: list[str] = []
