@@ -3,18 +3,21 @@ Embedding service — gerar e remover embeddings no pgvector.
 Usado por: gravacoes (transcrições), materiais (toggle ai_enabled), scraper.
 """
 import json
+import logging
+from typing import Optional
 from uuid import UUID
 from app.database import fetch_all, execute_query
 from app.utils.embedding import chunk_text, generate_embeddings
 from app.services.openai_service import OpenAIService
 
+logger = logging.getLogger("embedding_service")
 _openai = OpenAIService()
 
 
 async def generate_transcription_embeddings(
     transcription: str,
     gravacao_id: UUID,
-    disciplina_id: UUID,
+    disciplina_id: Optional[UUID],
 ) -> int:
     """
     Chunk a transcrição, gera embeddings, salva no pgvector.
@@ -24,26 +27,30 @@ async def generate_transcription_embeddings(
     Para gravações em repositórios, disciplina_id é NULL no pgvector
     e a busca filtra por fonte_id diretamente.
     """
-    if not transcription or not transcription.strip():
+    try:
+        if not transcription or not transcription.strip():
+            return 0
+
+        chunks = chunk_text(transcription)  # 500 palavras, 100 overlap
+        if not chunks:
+            return 0
+
+        embeddings = await _openai.create_embeddings(chunks)
+
+        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            vec_str = "[" + ",".join(str(x) for x in emb) + "]"
+            metadata = json.dumps({"gravacao_id": str(gravacao_id), "chunk_index": i})
+            await execute_query(
+                """INSERT INTO embeddings
+                   (disciplina_id, fonte_tipo, fonte_id, chunk_index, texto_chunk, embedding, metadata)
+                   VALUES ($1, 'transcricao', $2, $3, $4, $5::vector, $6::jsonb)""",
+                disciplina_id, gravacao_id, i, chunk, vec_str, metadata,
+            )
+
+        return len(chunks)
+    except Exception as e:
+        logger.error("Erro ao gerar embeddings para gravação %s: %s", gravacao_id, e)
         return 0
-
-    chunks = chunk_text(transcription)  # 500 palavras, 100 overlap
-    if not chunks:
-        return 0
-
-    embeddings = await _openai.create_embeddings(chunks)
-
-    for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-        vec_str = "[" + ",".join(str(x) for x in emb) + "]"
-        metadata = json.dumps({"gravacao_id": str(gravacao_id), "chunk_index": i})
-        await execute_query(
-            """INSERT INTO embeddings
-               (disciplina_id, fonte_tipo, fonte_id, chunk_index, texto_chunk, embedding, metadata)
-               VALUES ($1, 'transcricao', $2, $3, $4, $5::vector, $6::jsonb)""",
-            disciplina_id, gravacao_id, i, chunk, vec_str, metadata,
-        )
-
-    return len(chunks)
 
 
 async def generate_material_embeddings(

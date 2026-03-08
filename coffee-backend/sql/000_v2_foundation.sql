@@ -158,7 +158,7 @@ CREATE INDEX idx_msg_chat ON mensagens(chat_id);
 -- ============================================================
 CREATE TABLE embeddings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    disciplina_id UUID NOT NULL REFERENCES disciplinas(id) ON DELETE CASCADE,
+    disciplina_id UUID REFERENCES disciplinas(id) ON DELETE CASCADE,
     fonte_tipo VARCHAR(20) NOT NULL CHECK (fonte_tipo IN ('transcricao', 'material')),
     fonte_id UUID NOT NULL,
     chunk_index INTEGER NOT NULL,
