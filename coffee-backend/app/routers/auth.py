@@ -1,9 +1,10 @@
+import hashlib
 import random
 import string
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.database import execute_query, fetch_one
 from app.dependencies import get_current_user
@@ -17,7 +18,7 @@ from app.schemas.auth import (
     UserResponse,
 )
 from app.schemas.base import error_response, success_response
-from app.utils.security import create_jwt, hash_password, verify_password
+from app.utils.security import create_jwt, decode_jwt, hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -144,9 +145,21 @@ async def login(body: LoginRequest):
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     body: LogoutRequest,
     user_id: UUID = Depends(get_current_user),
 ):
+    # Blacklist current token
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if token:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        payload = decode_jwt(token)
+        exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+        await execute_query(
+            "INSERT INTO token_blacklist (token_hash, expires_at) VALUES ($1, $2)",
+            token_hash, exp,
+        )
+
     if body.device_token:
         await execute_query(
             "DELETE FROM device_tokens WHERE fcm_token = $1 AND user_id = $2",
@@ -157,7 +170,7 @@ async def logout(
             "DELETE FROM device_tokens WHERE user_id = $1",
             user_id,
         )
-    return success_response(None)
+    return success_response(None, "Logged out")
 
 
 # ── POST /forgot-password ────────────────────────────────────

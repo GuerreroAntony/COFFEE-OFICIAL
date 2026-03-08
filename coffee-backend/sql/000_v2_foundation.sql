@@ -244,3 +244,14 @@ CREATE TABLE user_settings (
     summary_language VARCHAR(10) DEFAULT 'pt-BR'
 );
 CREATE INDEX idx_settings_user ON user_settings(user_id);
+
+-- ============================================================
+-- 16. token_blacklist [NOVA]
+-- ============================================================
+CREATE TABLE token_blacklist (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX idx_blacklist_hash ON token_blacklist(token_hash);

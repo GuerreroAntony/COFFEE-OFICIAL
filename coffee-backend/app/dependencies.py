@@ -1,3 +1,4 @@
+import hashlib
 from uuid import UUID
 from typing import AsyncGenerator
 
@@ -7,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import structlog
 
-from app.database import get_pool
+from app.database import fetch_one, get_pool
 from app.utils.security import decode_jwt
 
 bearer_scheme = HTTPBearer()
@@ -27,7 +28,23 @@ async def get_current_user(
     try:
         payload = decode_jwt(token)
         user_id = UUID(payload["sub"])
+
+        # Check token blacklist
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        blacklisted = await fetch_one(
+            "SELECT 1 FROM token_blacklist WHERE token_hash = $1",
+            token_hash,
+        )
+        if blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         return user_id
+    except HTTPException:
+        raise
     except Exception as exc:
         _log.warning("auth.jwt.invalid", error=str(exc), token_prefix=token[:20] if token else "")
         raise HTTPException(

@@ -33,7 +33,7 @@ logger = structlog.get_logger(__name__)
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class ESPMConnectRequest(BaseModel):
-    login: str = Field(description="Email ESPM (ex: aluno@espm.br)")
+    matricula: str = Field(description="Email ESPM (ex: aluno@espm.br)")
     password: str = Field(description="Senha do portal ESPM")
 
 class ESPMConnectResponse(BaseModel):
@@ -43,7 +43,7 @@ class ESPMConnectResponse(BaseModel):
     logs: List[str] = []
 
 class ESPMSyncRequest(BaseModel):
-    login: str
+    matricula: str
     password: str
 
 class ESPMSyncResponse(BaseModel):
@@ -90,17 +90,20 @@ async def espm_connect(
     try:
         if row["encrypted_portal_session"]:
             result_auth, logs = await auth.get_or_refresh_session(
-                row["encrypted_portal_session"], body.login, body.password
+                row["encrypted_portal_session"], body.matricula, body.password
             )
             state = result_auth["state"]
         else:
-            result_auth = await auth.login(body.login, body.password)
+            result_auth = await auth.login(body.matricula, body.password)
             state = result_auth["state"]
             logs = result_auth.get("logs", [])
     except AuthenticationError as exc:
         raise HTTPException(status_code=401, detail=error_response("ESPM_AUTH_FAILED", str(exc)))
-    except PlaywrightTimeoutError as exc:
+    except PlaywrightTimeoutError:
         raise HTTPException(status_code=504, detail=error_response("ESPM_TIMEOUT", "Timeout no portal ESPM"))
+    except Exception as exc:
+        logger.error("espm.connect.error", error=str(exc))
+        raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", str(exc)))
 
     # Salvar sessão criptografada + senha para scraper credential pool
     encrypted = auth.encrypt_session(state)
@@ -111,7 +114,7 @@ async def espm_connect(
                espm_login = $2,
                encrypted_espm_password = $3
            WHERE id = $4""",
-        encrypted, body.login, encrypted_password, user_id,
+        encrypted, body.matricula, encrypted_password, user_id,
     )
 
     # Verificar se já tem disciplinas vinculadas
@@ -155,14 +158,17 @@ async def sync_schedule(
     logs: list[str] = []
 
     try:
-        result = await auth.login_and_extract(body.login, body.password, extractor)
+        result = await auth.login_and_extract(body.matricula, body.password, extractor)
         state = result["state"]
         disciplines = result["disciplines"]
         logs = result.get("logs", [])
     except AuthenticationError as exc:
         raise HTTPException(status_code=401, detail=error_response("ESPM_AUTH_FAILED", str(exc)))
-    except PlaywrightTimeoutError as exc:
+    except PlaywrightTimeoutError:
         raise HTTPException(status_code=504, detail=error_response("ESPM_TIMEOUT", "Timeout no portal ESPM"))
+    except Exception as exc:
+        logger.error("espm.sync.error", error=str(exc))
+        raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", str(exc)))
 
     # Salvar sessão + senha para scraper credential pool
     encrypted = auth.encrypt_session(state)
@@ -173,7 +179,7 @@ async def sync_schedule(
                espm_login = $2,
                encrypted_espm_password = $3
            WHERE id = $4""",
-        encrypted, body.login, encrypted_password, user_id,
+        encrypted, body.matricula, encrypted_password, user_id,
     )
 
     synced = await _upsert_disciplinas(user_id, disciplines)

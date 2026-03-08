@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -183,6 +183,7 @@ async def listar_gravacoes(
 @router.get("/{gravacao_id}")
 async def get_gravacao(
     gravacao_id: UUID,
+    background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
     """Detalhe completo de uma gravação."""
@@ -195,6 +196,12 @@ async def get_gravacao(
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Gravação não encontrada"))
+
+    # Reprocess stuck gravações (processing > 5 min)
+    if row["status"] == "processing" and row["created_at"]:
+        age = datetime.now(timezone.utc) - row["created_at"]
+        if age > timedelta(minutes=5):
+            background_tasks.add_task(generate_summary_for_gravacao, row["id"])
 
     # Parse full_summary JSONB → list[GravacaoSummarySection]
     full_summary = None

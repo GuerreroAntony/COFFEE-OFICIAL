@@ -35,7 +35,7 @@ async def register_device(
         body.token,
         body.platform,
     )
-    return success_response(None, "Device registrado")
+    return success_response({"success": True})
 
 
 @router.delete("/{token}")
@@ -49,4 +49,4 @@ async def unregister_device(
         token,
         user_id,
     )
-    return success_response(None, "Device removido")
+    return success_response({"success": True})
