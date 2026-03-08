@@ -83,15 +83,13 @@ def _build_sources(chunk_rows) -> list[dict]:
         similarity = float(row["similarity"])
 
         if row["fonte_tipo"] == "transcricao":
-            gravacao_id = meta.get("gravacao_id")
-            # Try to format date from metadata or use generic title
-            title = f"Transcrição"
+            title = "Transcrição"
             if row.get("gravacao_date"):
                 d = row["gravacao_date"]
                 title = f"Aula {d.strftime('%d/%m')}" if hasattr(d, 'strftime') else title
             sources.append({
                 "type": "transcription",
-                "gravacao_id": gravacao_id,
+                "gravacao_id": str(row["fonte_id"]),
                 "material_id": None,
                 "title": title,
                 "date": str(row.get("gravacao_date", "")),

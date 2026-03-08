@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date as DateType, datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ class CriarGravacaoRequest(BaseModel):
     source_id: UUID
     transcription: str = Field(min_length=10)
     duration_seconds: int = Field(gt=0)
-    date: Optional[date] = None  # default: today
+    date: Optional[DateType] = None  # default: today
 
 
 class MoverGravacaoRequest(BaseModel):
@@ -53,7 +53,7 @@ class GravacaoListItem(BaseModel):
     id: UUID
     source_type: str
     source_id: UUID
-    date: date
+    date: DateType
     date_label: str
     duration_seconds: int
     duration_label: str
@@ -67,7 +67,7 @@ class GravacaoDetail(BaseModel):
     id: UUID
     source_type: str
     source_id: UUID
-    date: date
+    date: DateType
     date_label: str
     duration_seconds: int
     duration_label: str
@@ -84,7 +84,7 @@ class GravacaoCreatedResponse(BaseModel):
     id: UUID
     source_type: str
     source_id: UUID
-    date: date
+    date: DateType
     date_label: str
     duration_seconds: int
     duration_label: str

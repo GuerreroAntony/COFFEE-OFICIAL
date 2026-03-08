@@ -28,14 +28,15 @@ router = APIRouter(prefix="/api/v1/gravacoes", tags=["gravacoes"])
 
 # ── Helpers ──────────────────────────────────────────────────
 
+_DAYS = {"Monday": "Segunda", "Tuesday": "Terça", "Wednesday": "Quarta", "Thursday": "Quinta", "Friday": "Sexta", "Saturday": "Sábado", "Sunday": "Domingo"}
+_MONTHS = {"January": "janeiro", "February": "fevereiro", "March": "março", "April": "abril", "May": "maio", "June": "junho", "July": "julho", "August": "agosto", "September": "setembro", "October": "outubro", "November": "novembro", "December": "dezembro"}
+
+
 def _format_date_label(d: date) -> str:
     """'2026-02-25' → 'Terça, 25 de fevereiro'"""
-    import locale
-    try:
-        locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
-    except locale.Error:
-        locale.setlocale(locale.LC_TIME, "")
-    return d.strftime("%A, %d de %B").capitalize()
+    day_name = _DAYS.get(d.strftime("%A"), d.strftime("%A"))
+    month_name = _MONTHS.get(d.strftime("%B"), d.strftime("%B"))
+    return f"{day_name}, {d.day} de {month_name}"
 
 
 def _format_duration(seconds: int) -> str:
