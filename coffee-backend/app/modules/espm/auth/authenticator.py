@@ -345,6 +345,14 @@ class ESPMAuthenticator:
                     await page.wait_for_timeout(5000)
                     continue
 
+                # Check for MFA/ProofUp redirect ("Avançar" / "Next")
+                proofup_btn = await page.query_selector("#idSubmit_ProofUp_Redirect")
+                if proofup_btn and await proofup_btn.is_visible():
+                    logs.append("MFA/ProofUp page — clicando 'Avançar'...")
+                    await proofup_btn.click()
+                    await page.wait_for_timeout(5000)
+                    continue
+
                 # Check for KMSi / any submit button
                 btn = await page.query_selector(self.MS_SUBMIT_ID)
                 if btn and await btn.is_visible():
@@ -359,6 +367,15 @@ class ESPMAuthenticator:
                         continue
                     logs.append(f"Botão encontrado, clicando (attempt {attempt+1})...")
                     await btn.click()
+                    await page.wait_for_timeout(3000)
+                    continue
+
+                # Generic: click any visible submit/button we find
+                any_submit = await page.query_selector("input[type=submit]:visible, button[type=submit]:visible")
+                if any_submit:
+                    btn_text = await any_submit.get_attribute("value") or await any_submit.text_content() or ""
+                    logs.append(f"Botão genérico encontrado: '{btn_text[:30]}'. Clicando...")
+                    await any_submit.click()
                     await page.wait_for_timeout(3000)
                     continue
             except Exception as e:
