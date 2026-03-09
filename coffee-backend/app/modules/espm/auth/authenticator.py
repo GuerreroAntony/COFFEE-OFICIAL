@@ -168,130 +168,91 @@ class ESPMAuthenticator:
     async def _run_login_steps(
         self, page, context, login: str, password: str, logs: List[str]
     ) -> None:
-        """Executa os passos de login numa page/context já abertos."""
+        """Executa os passos de login seguindo o fluxo comprovado do scraper."""
         # 1. Abrir portal
         logs.append("Navegando para portal.espm.br...")
-        await page.goto(self.PORTAL_URL, timeout=self.TIMEOUT)
-        await self._wait_idle(page)
+        await page.goto(self.PORTAL_URL, wait_until="networkidle", timeout=30000)
 
-        # 2. Clicar em "Conectar com sua conta ESPM"
-        await self._click_espm_provider(page, logs)
-        await page.wait_for_load_state("networkidle", timeout=self.TIMEOUT)
+        # Se já estiver no portal autenticado, pular
+        if self._is_espm_portal(page.url) and "login" not in page.url.lower():
+            logs.append("Já autenticado no portal.")
+            return
 
-        # 3. Preencher e-mail Microsoft
+        # 2. Clicar "Conectar com sua conta ESPM" (busca robusta por texto)
+        logs.append("Procurando botão 'Conectar com sua conta ESPM'...")
+        try:
+            buttons = await page.query_selector_all("button")
+            for btn in buttons:
+                text = await btn.text_content()
+                if "Conectar" in (text or "").strip():
+                    logs.append("Botão encontrado. Clicando...")
+                    await btn.click()
+                    break
+        except Exception:
+            logs.append("WARN: Botão 'Conectar' não encontrado — tentando prosseguir...")
+
+        # 3. Aguardar campo de email Microsoft B2C
+        try:
+            await page.wait_for_selector(
+                self.MS_EMAIL_SEL, state="visible", timeout=20000
+            )
+        except Exception:
+            raise AuthenticationError(
+                f"Campo de e-mail B2C ({self.MS_EMAIL_SEL}) não encontrado. URL: {page.url}"
+            )
+
+        # 4. Preencher email e clicar Next
         logs.append("Preenchendo email Microsoft...")
-        await self._ms_fill_email(page, login, logs)
+        await page.fill(self.MS_EMAIL_SEL, login)
+        submit_btn = await page.query_selector(self.MS_SUBMIT_ID)
+        if submit_btn:
+            await submit_btn.click()
+            await page.wait_for_timeout(2000)
 
-        # 4. Clicar Next
-        await self._ms_click_submit(page, logs, label="Next")
-        await page.wait_for_load_state("networkidle", timeout=self.TIMEOUT)
-
-        # 5. Aguardar campo de senha visível e preencher
-        await page.wait_for_selector(self.MS_PASSWORD_SEL, state="visible", timeout=self.TIMEOUT)
-        await asyncio.sleep(1)  # aguarda animação Microsoft
+        # 5. Preencher senha e clicar Sign In
+        logs.append("Preenchendo senha...")
         await page.fill(self.MS_PASSWORD_SEL, password)
-        logs.append("Senha preenchida, submetendo...")
+        sign_in_btn = await page.query_selector(self.MS_SUBMIT_ID)
+        if sign_in_btn:
+            await sign_in_btn.click()
 
-        # 6. Clicar Sign in
-        await asyncio.sleep(1)  # aguarda antes de submeter
-        await self._ms_click_submit(page, logs, label="Sign in")
+        # 6. Aguardar redirect
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=30000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(5000)
 
-        # 7. Aguardar portal.espm.br
-        logs.append("Aguardando redirecionamento ao portal...")
-        reached = await self._wait_for_portal(page, logs)
+        # 7. Handle "Stay signed in?"
+        try:
+            stay_btn = await page.query_selector(self.MS_SUBMIT_ID)
+            if stay_btn:
+                logs.append("Confirmando 'Stay signed in'...")
+                await stay_btn.click()
+                await page.wait_for_timeout(3000)
+                try:
+                    await page.wait_for_load_state("domcontentloaded", timeout=15000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(3000)
+        except Exception:
+            pass
 
-        if not reached:
+        # 8. Se não está no portal, navegar explicitamente
+        if not self._is_espm_portal(page.url):
+            logs.append("Navegando explicitamente para portal.espm.br...")
+            await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(5000)
+
+        # 9. Check final
+        if not self._is_espm_portal(page.url):
             raise AuthenticationError(
                 f"Autenticação falhou — não redirecionou ao portal. URL: {page.url}"
             )
 
-        # 8. Aguardar MSAL.js processar tokens
-        await self._wait_idle(page)
         logs.append("Login concluído com sucesso.")
 
-    # ── Wait for portal ───────────────────────────────────────────────────────
-
-    async def _wait_for_portal(self, page, logs: List[str]) -> bool:
-        """
-        Aguarda até portal.espm.br — loop com timeout de 120s.
-        Dispensa "Stay signed in?" automaticamente se aparecer.
-        """
-        last_url = ""
-        max_attempts = 60  # 60 * 2s = 120s max
-
-        for _ in range(max_attempts):
-            await asyncio.sleep(2)
-            url = page.url
-
-            if url != last_url:
-                last_url = url
-
-            if self._is_espm_portal(url):
-                return True
-
-            # Dispensar "Stay signed in?" se aparecer
-            for sel in [
-                self.MS_SUBMIT_ID,
-                'button:has-text("Yes")',
-                'button:has-text("Sim")',
-            ]:
-                try:
-                    btn = page.locator(sel).first
-                    if await btn.is_visible(timeout=2000):
-                        await btn.click()
-                        logs.append("Dispensou popup 'Stay signed in?'")
-                        await asyncio.sleep(3)
-                        break
-                except Exception:
-                    pass
-
-        # Fallback: se SSO completou mas não redirecionou, navegar explicitamente
-        if not self._is_espm_portal(page.url):
-            logs.append("Fallback: navegando explicitamente para portal.espm.br...")
-            try:
-                await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
-                await asyncio.sleep(5)
-            except Exception:
-                pass
-
-        return self._is_espm_portal(page.url)
-
     # ── Helpers ───────────────────────────────────────────────────────────────
-
-    async def _click_espm_provider(self, page, logs: List[str]) -> None:
-        for sel in [
-            "#ESPMExchange",
-            "button.accountButton.firstButton",
-            "button:has-text('Conectar com sua conta ESPM')",
-        ]:
-            try:
-                btn = await page.wait_for_selector(sel, timeout=5000, state="visible")
-                await btn.click()
-                logs.append("Clicou no provedor ESPM (SSO).")
-                return
-            except Exception:
-                continue
-        logs.append("WARN: Nenhum seletor ESPM encontrado, tentando prosseguir...")
-
-    async def _ms_fill_email(self, page, email: str, logs: List[str]) -> None:
-        try:
-            await page.wait_for_selector(
-                self.MS_EMAIL_SEL, state="visible", timeout=60000
-            )
-            await page.fill(self.MS_EMAIL_SEL, email)
-        except Exception:
-            raise AuthenticationError("Campo de e-mail Microsoft não encontrado.")
-
-    async def _ms_click_submit(self, page, logs: List[str], label: str = "") -> None:
-        """Clica no botão submit Microsoft pelo id #idSIButton9."""
-        for sel in [self.MS_SUBMIT_ID, 'input[type="submit"]']:
-            try:
-                btn = await page.wait_for_selector(sel, state="visible", timeout=5000)
-                await btn.click()
-                return
-            except Exception:
-                continue
-        await page.keyboard.press("Enter")
 
     @staticmethod
     def _is_espm_portal(url: str) -> bool:
