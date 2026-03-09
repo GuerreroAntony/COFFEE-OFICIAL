@@ -91,9 +91,10 @@ class ESPMAuthenticator:
                 page = await context.new_page()
                 try:
                     await self._run_login_steps(page, context, login, password, logs)
-                except AuthenticationError:
+                except AuthenticationError as exc:
                     logger.error("auth.login_failed", logs=logs)
-                    raise
+                    # Return partial result with logs for debugging (don't lose logs)
+                    return {"state": {}, "logs": logs, "disciplines": [], "auth_error": str(exc)}
                 storage_state = await context.storage_state()
                 logger.info("auth.login.success", login=login)
                 try:

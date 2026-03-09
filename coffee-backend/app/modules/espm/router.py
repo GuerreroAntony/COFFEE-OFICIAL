@@ -96,6 +96,9 @@ async def espm_connect(
         result = await auth.login_and_extract(body.matricula, body.password, extractor)
         logs = result.get("logs", [])
         disciplines = result.get("disciplines", [])
+        # Check for auth error (returned with logs for debugging instead of raised)
+        if result.get("auth_error"):
+            logs.append(f"AUTH ERROR: {result['auth_error']}")
     except AuthenticationError as exc:
         raise HTTPException(status_code=401, detail=error_response("ESPM_AUTH_FAILED", str(exc)))
     except PlaywrightTimeoutError:
