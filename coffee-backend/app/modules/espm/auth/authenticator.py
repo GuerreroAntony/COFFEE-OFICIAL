@@ -91,7 +91,7 @@ class ESPMAuthenticator:
                 await self._run_login_steps(page, context, login, password, logs)
                 storage_state = await context.storage_state()
                 logger.info("auth.login.success", login=login)
-                disciplines = await extractor.extract_with_context(context, logs)
+                disciplines = await extractor.extract_with_context(context, logs, page=page)
                 return {"state": storage_state, "logs": logs, "disciplines": disciplines}
             finally:
                 await browser.close()

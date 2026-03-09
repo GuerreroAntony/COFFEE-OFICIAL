@@ -48,14 +48,15 @@ class ScheduleExtractor:
             finally:
                 await browser.close()
 
-    async def extract_with_context(self, context, logs: List[str]) -> List[Dict]:
+    async def extract_with_context(self, context, logs: List[str], page=None) -> List[Dict]:
         """Extrai a grade reutilizando um contexto já autenticado (mesma janela do login)."""
-        return await self._do_extract(context, logs)
+        return await self._do_extract(context, logs, page=page)
 
     # ── Core ──────────────────────────────────────────────────────────────────
 
-    async def _do_extract(self, context, logs: List[str]) -> List[Dict]:
-        page = await context.new_page()
+    async def _do_extract(self, context, logs: List[str], page=None) -> List[Dict]:
+        if page is None:
+            page = await context.new_page()
 
         await page.goto(MY_COURSES_URL, wait_until="domcontentloaded", timeout=60000)
         await self._wait_idle(page)
