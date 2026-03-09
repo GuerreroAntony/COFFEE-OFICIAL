@@ -16,6 +16,8 @@ from typing import Dict, List, Optional, Tuple
 
 from playwright.async_api import async_playwright
 
+from app.modules.espm.auth.authenticator import _USER_AGENT, _BROWSER_HEADERS, _CHROMIUM_ARGS
+
 _HEADLESS = os.getenv("PLAYWRIGHT_HEADED", "false").lower() != "true"
 
 logger = structlog.get_logger(__name__)
@@ -34,9 +36,14 @@ class ScheduleExtractor:
     async def extract(self, storage_state: Dict, logs: List[str]) -> List[Dict]:
         """Cria um novo browser a partir do storage_state e extrai a grade."""
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=_HEADLESS)
+            browser = await pw.chromium.launch(headless=_HEADLESS, args=_CHROMIUM_ARGS)
             try:
-                context = await browser.new_context(storage_state=storage_state)
+                context = await browser.new_context(
+                    storage_state=storage_state,
+                    user_agent=_USER_AGENT,
+                    viewport={"width": 1280, "height": 720},
+                    extra_http_headers=_BROWSER_HEADERS,
+                )
                 return await self._do_extract(context, logs)
             finally:
                 await browser.close()
@@ -56,8 +63,31 @@ class ScheduleExtractor:
         # Remove modal NEXUS/MUI do DOM via JS
         await self._remove_nexus_modal(page, logs)
 
-        # Entrar no curso ativo
-        card = await page.wait_for_selector(self.COURSE_CARD_SEL, timeout=60000)
+        # Entrar no curso ativo — tenta múltiplos seletores
+        CARD_SELECTORS = [
+            'a[href*="my-courses/student-"]',
+            'a[href*="my-courses/"]',
+            'a[href*="/student-"]',
+            'div[class*="courseCard"] a',
+            'div[class*="CourseCard"] a',
+        ]
+
+        card = None
+        for sel in CARD_SELECTORS:
+            try:
+                card = await page.wait_for_selector(sel, timeout=5000)
+                if card:
+                    logs.append(f"Course card encontrado via: {sel}")
+                    break
+            except Exception:
+                continue
+
+        if not card:
+            html_snippet = await page.evaluate("() => document.body.innerHTML.substring(0, 3000)")
+            logs.append(f"DEBUG HTML (primeiros 500 chars): {html_snippet[:500]}")
+            logger.error("schedule.extract.no_card", url=page.url, html_snippet=html_snippet[:1000])
+            raise RuntimeError("Nenhum course card encontrado no portal.")
+
         href = await card.get_attribute("href")
         if not href:
             raise RuntimeError("Link do curso não encontrado no card.")
