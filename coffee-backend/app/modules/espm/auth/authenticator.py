@@ -19,12 +19,27 @@ _HEADLESS = os.getenv("PLAYWRIGHT_HEADED", "false").lower() != "true"
 
 logger = structlog.get_logger(__name__)
 
-# Flags do Chromium headless para permitir iframe cross-origin (necessário para sso_reload)
+# Flags do Chromium headless — Railway container + iframe cross-origin (sso_reload)
 _CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+    "--disable-infobars",
     "--disable-web-security",
     "--disable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure",
     "--allow-running-insecure-content",
 ]
+
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+_BROWSER_HEADERS = {
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
 
 
 class AuthenticationError(Exception):
@@ -67,7 +82,11 @@ class ESPMAuthenticator:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=_HEADLESS, args=_CHROMIUM_ARGS)
             try:
-                context = await browser.new_context()
+                context = await browser.new_context(
+                    user_agent=_USER_AGENT,
+                    viewport={"width": 1280, "height": 720},
+                    extra_http_headers=_BROWSER_HEADERS,
+                )
                 page = await context.new_page()
                 await self._run_login_steps(page, context, login, password, logs)
                 storage_state = await context.storage_state()
@@ -90,7 +109,12 @@ class ESPMAuthenticator:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=_HEADLESS, args=_CHROMIUM_ARGS)
             try:
-                context = await browser.new_context(storage_state=state)
+                context = await browser.new_context(
+                    storage_state=state,
+                    user_agent=_USER_AGENT,
+                    viewport={"width": 1280, "height": 720},
+                    extra_http_headers=_BROWSER_HEADERS,
+                )
                 page = await context.new_page()
                 await page.goto(self.MY_COURSES_URL, timeout=self.TIMEOUT)
                 await self._wait_idle(page)
@@ -120,7 +144,11 @@ class ESPMAuthenticator:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=_HEADLESS, args=_CHROMIUM_ARGS)
             try:
-                context = await browser.new_context()
+                context = await browser.new_context(
+                    user_agent=_USER_AGENT,
+                    viewport={"width": 1280, "height": 720},
+                    extra_http_headers=_BROWSER_HEADERS,
+                )
                 page = await context.new_page()
                 await self._run_login_steps(page, context, login, password, logs)
                 storage_state = await context.storage_state()
@@ -209,12 +237,22 @@ class ESPMAuthenticator:
             ]:
                 try:
                     btn = page.locator(sel).first
-                    if await btn.is_visible(timeout=300):
+                    if await btn.is_visible(timeout=2000):
                         await btn.click()
                         logs.append("Dispensou popup 'Stay signed in?'")
+                        await asyncio.sleep(3)
                         break
                 except Exception:
                     pass
+
+        # Fallback: se SSO completou mas não redirecionou, navegar explicitamente
+        if not self._is_espm_portal(page.url):
+            logs.append("Fallback: navegando explicitamente para portal.espm.br...")
+            try:
+                await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                await asyncio.sleep(5)
+            except Exception:
+                pass
 
         return self._is_espm_portal(page.url)
 

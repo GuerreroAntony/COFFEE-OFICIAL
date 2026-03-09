@@ -80,7 +80,6 @@ async def espm_connect(
     if not settings.SECRET_KEY:
         raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
 
-    logger.error("espm.debug_secret_key", key_repr=repr(settings.SECRET_KEY), key_len=len(settings.SECRET_KEY))
     auth = ESPMAuthenticator(settings.SECRET_KEY)
     logs: list[str] = []
 
@@ -152,7 +151,6 @@ async def sync_schedule(
     if not settings.SECRET_KEY:
         raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
 
-    logger.error("espm.debug_secret_key", key_repr=repr(settings.SECRET_KEY), key_len=len(settings.SECRET_KEY))
     auth = ESPMAuthenticator(settings.SECRET_KEY)
     extractor = ScheduleExtractor()
     logs: list[str] = []
