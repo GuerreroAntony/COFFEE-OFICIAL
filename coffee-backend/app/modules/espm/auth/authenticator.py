@@ -7,10 +7,15 @@ Adaptado para arquitetura Coffee (asyncpg, sem SQLAlchemy).
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
 import os
+import secrets
 import structlog
+import uuid
 from typing import Dict, List, Tuple
+from urllib.parse import quote
 
 from cryptography.fernet import Fernet
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
@@ -178,146 +183,74 @@ class ESPMAuthenticator:
         except Exception:
             pass
 
+    @staticmethod
+    def _generate_pkce() -> Dict:
+        """Generate PKCE code_verifier and code_challenge for B2C OIDC flow."""
+        # code_verifier: 43-128 chars, base64url-safe
+        verifier_bytes = secrets.token_bytes(32)
+        code_verifier = base64.urlsafe_b64encode(verifier_bytes).rstrip(b"=").decode("ascii")
+        # code_challenge: SHA256(code_verifier), base64url-encoded
+        digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        return {"code_verifier": code_verifier, "code_challenge": code_challenge}
+
+    @staticmethod
+    def _build_b2c_authorize_url(code_challenge: str) -> str:
+        """Build the full B2C authorize URL with proper PKCE params."""
+        client_request_id = str(uuid.uuid4())
+        nonce = str(uuid.uuid4())
+        state_data = json.dumps({
+            "id": str(uuid.uuid4()),
+            "meta": {"interactionType": "redirect"}
+        })
+        state_b64 = base64.b64encode(state_data.encode()).decode()
+
+        params = (
+            f"client_id=9051a4d6-a66b-45b3-87bd-373c03911eda"
+            f"&scope=openid%20profile%20offline_access"
+            f"&redirect_uri={quote('https://portal.espm.br/', safe='')}"
+            f"&client-request-id={client_request_id}"
+            f"&response_mode=fragment"
+            f"&response_type=code"
+            f"&x-client-SKU=msal.js.browser"
+            f"&x-client-VER=3.20.0"
+            f"&x-app-name=lifeApp"
+            f"&x-app-ver=2.0.0"
+            f"&client_info=1"
+            f"&code_challenge={code_challenge}"
+            f"&code_challenge_method=S256"
+            f"&nonce={nonce}"
+            f"&state={quote(state_b64, safe='')}"
+        )
+        return (
+            "https://acadespmb2c.b2clogin.com/acadespmb2c.onmicrosoft.com"
+            f"/b2c_1a_signup_signin/oauth2/v2.0/authorize?{params}"
+        )
+
     async def _run_login_steps(
         self, page, context, login: str, password: str, logs: List[str]
     ) -> None:
-        """Executa os passos de login seguindo o fluxo comprovado do scraper."""
-        # 1. Tentar abrir portal — com fallback para B2C direto se Vercel bloquear
-        logs.append("Navegando para portal.espm.br...")
-        await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(5000)
-
-        # Check current state: portal might redirect to B2C (destroying context)
-        # or show Vercel checkpoint
-        current_url = page.url
-        logs.append(f"URL após portal load: {current_url[:80]}")
-
-        # Se já foi redirecionado para B2C, pular Vercel check
-        if "b2clogin.com" in current_url or "microsoftonline.com" in current_url:
-            logs.append("Portal redirecionou para B2C automaticamente.")
-            is_vercel_blocked = False
-        else:
-            # Verificar se é Vercel security checkpoint
-            try:
-                is_vercel_blocked = await page.evaluate("""() => {
-                    const text = (document.body?.innerText || '').toLowerCase();
-                    return text.includes('failed to verify') || text.includes('falha ao verificar')
-                        || text.includes('security-checkpoint') || text.includes('verificação de segurança');
-                }""")
-            except Exception:
-                # Context destroyed by navigation — page redirected (likely to B2C)
-                logs.append(f"Page navegou durante check. URL: {page.url[:80]}")
-                is_vercel_blocked = False
-
-        if is_vercel_blocked:
-            logs.append("Vercel bot detection ativado. Tentando aguardar/retry...")
-            # Vercel JS challenge sometimes auto-resolves after a few seconds
-            # Retry up to 3 times with wait + reload
-            for retry in range(3):
-                await page.wait_for_timeout(5000)
-                # Check if challenge resolved (page navigated to B2C or portal content appeared)
-                cur = page.url
-                if "b2clogin.com" in cur or "microsoftonline.com" in cur:
-                    logs.append(f"Vercel resolveu (retry {retry+1}), redirecionou para B2C.")
-                    break
-                try:
-                    still_blocked = await page.evaluate("""() => {
-                        const text = (document.body?.innerText || '').toLowerCase();
-                        return text.includes('failed to verify') || text.includes('falha ao verificar')
-                            || text.includes('security-checkpoint');
-                    }""")
-                except Exception:
-                    logs.append(f"Contexto mudou durante retry {retry+1}. URL: {page.url[:80]}")
-                    break
-                if not still_blocked:
-                    logs.append(f"Vercel challenge resolvido (retry {retry+1}).")
-                    break
-                logs.append(f"Vercel ainda bloqueando (retry {retry+1}/3). Recarregando...")
-                await page.reload(wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(3000)
-            else:
-                # All retries failed — try one more approach: navigate with different referer
-                logs.append("Vercel persistente. Tentando navegar via link direto...")
-                await page.goto(
-                    self.PORTAL_URL + "?t=" + str(int(asyncio.get_event_loop().time())),
-                    wait_until="domcontentloaded", timeout=30000,
-                )
-                await page.wait_for_timeout(5000)
-
-            # Re-check state after Vercel handling
-            current_url = page.url
-            if "b2clogin.com" in current_url or "microsoftonline.com" in current_url:
-                logs.append("Portal redirecionou para B2C após Vercel retry.")
-            elif self._is_espm_portal(current_url):
-                try:
-                    has_content = await page.evaluate("""() => {
-                        const text = document.body?.innerText || '';
-                        return !text.includes('Failed to verify') && !text.includes('falha ao verificar')
-                            && document.querySelectorAll('a').length > 3;
-                    }""")
-                    if has_content:
-                        logs.append("Já autenticado no portal após Vercel retry.")
-                        return
-                except Exception:
-                    pass
-        else:
-            # Portal carregou sem Vercel — verificar estado atual
-            cur = page.url
-            if self._is_espm_portal(cur) and "login" not in cur.lower():
-                try:
-                    has_portal_content = await page.evaluate("""() => {
-                        const text = document.body?.innerText || '';
-                        return !text.includes('Failed to verify') && document.querySelectorAll('a').length > 3;
-                    }""")
-                    if has_portal_content:
-                        logs.append("Já autenticado no portal.")
-                        return
-                except Exception:
-                    logs.append(f"Contexto mudou durante check. URL: {page.url[:80]}")
-
-            # Se já está no B2C (portal redirecionou via MSAL), pular o click
-            if "b2clogin.com" not in page.url and "microsoftonline.com" not in page.url:
-                # 2. Clicar "Conectar com sua conta ESPM"
-                logs.append("Procurando botão 'Conectar com sua conta ESPM'...")
-                try:
-                    buttons = await page.query_selector_all("button")
-                    for btn in buttons:
-                        text = await btn.text_content()
-                        if "Conectar" in (text or "").strip():
-                            logs.append("Botão encontrado. Clicando...")
-                            await btn.click()
-                            break
-                except Exception:
-                    logs.append("WARN: Botão 'Conectar' não encontrado — tentando prosseguir...")
-
-        # 3. Se estamos no B2C custom page, clicar "Conectar com sua conta ESPM"
-        #    (B2C mostra landing page customizada antes do form Microsoft)
-        #    Aguardar a página estabilizar antes de procurar o botão
+        """Executa login via B2C direto (bypassa portal.espm.br/Vercel)."""
+        # 1. Gerar PKCE e navegar direto para B2C authorize
+        pkce = self._generate_pkce()
+        b2c_url = self._build_b2c_authorize_url(pkce["code_challenge"])
+        logs.append("Navegando direto para B2C (bypass Vercel)...")
+        await page.goto(b2c_url, wait_until="domcontentloaded", timeout=30000)
         await page.wait_for_timeout(3000)
+        logs.append(f"URL B2C: {page.url[:80]}")
+
+        # 2. B2C custom page: clicar "Conectar com sua conta ESPM"
         if "b2clogin.com" in page.url:
-            logs.append(f"B2C custom page detectada. Procurando botão 'Conectar'...")
             try:
-                # Search all clickable elements, not just <button>
                 clicked = await page.evaluate("""() => {
-                    const selectors = ['button', 'a', 'div[role="button"]', 'span[role="button"]'];
+                    // Search all element types for "Conectar"
+                    const selectors = ['button', 'a', 'div[role="button"]', 'span'];
                     for (const sel of selectors) {
-                        const elements = document.querySelectorAll(sel);
-                        for (const el of elements) {
+                        for (const el of document.querySelectorAll(sel)) {
                             const text = (el.innerText || el.textContent || '').trim();
                             if (text.includes('Conectar')) {
                                 el.click();
                                 return 'clicked: ' + text.substring(0, 50);
-                            }
-                        }
-                    }
-                    // Fallback: any element with "Conectar" text
-                    const all = document.querySelectorAll('*');
-                    for (const el of all) {
-                        if (el.children.length === 0) {
-                            const text = (el.innerText || el.textContent || '').trim();
-                            if (text.includes('Conectar') && text.length < 60) {
-                                el.click();
-                                return 'clicked-fallback: ' + text.substring(0, 50);
                             }
                         }
                     }
@@ -327,15 +260,17 @@ class ESPMAuthenticator:
                 if "clicked" in clicked:
                     await page.wait_for_timeout(5000)
             except Exception as e:
-                logs.append(f"WARN: Erro ao buscar botão Conectar: {str(e)[:100]}")
+                logs.append(f"WARN: Erro botão Conectar: {str(e)[:100]}")
 
-        # 4. Aguardar campo de email Microsoft B2C
+        # 3. Aguardar campo de email Microsoft B2C
         try:
             await page.wait_for_selector(
                 self.MS_EMAIL_SEL, state="visible", timeout=20000
             )
         except Exception:
-            debug_text = await page.evaluate("() => document.body?.innerText?.substring(0, 500) || ''")
+            debug_text = await page.evaluate(
+                "() => document.body?.innerText?.substring(0, 500) || ''"
+            )
             logs.append(f"DEBUG page text: {debug_text[:200]}")
             logs.append(f"DEBUG URL: {page.url}")
             raise AuthenticationError(
@@ -357,22 +292,19 @@ class ESPMAuthenticator:
         if sign_in_btn:
             await sign_in_btn.click()
 
-        # 6. Aguardar B2C processar login — esperar KMSi prompt ou redirect
+        # 6. Aguardar B2C processar login
         await page.wait_for_timeout(3000)
 
-        # 7. Handle "Stay signed in?" (KMSi) — poll for up to 15s
+        # 7. Handle "Stay signed in?" (KMSi)
         for attempt in range(3):
-            # Se já chegou no portal, pronto
             if self._is_espm_portal(page.url):
                 logs.append("Redirecionado para portal após Sign In.")
                 break
-
             try:
                 stay_btn = await page.wait_for_selector(
                     self.MS_SUBMIT_ID, state="visible", timeout=5000
                 )
                 if stay_btn:
-                    # Verificar se é o KMSi prompt (não o form de senha)
                     page_text = await page.evaluate(
                         "() => document.body?.innerText?.substring(0, 500) || ''"
                     )
@@ -387,9 +319,9 @@ class ESPMAuthenticator:
             except Exception:
                 await page.wait_for_timeout(2000)
 
-        # 8. Aguardar redirect para portal (até 20s)
+        # 8. Aguardar redirect para portal (B2C → portal.espm.br/#code=...)
         if not self._is_espm_portal(page.url):
-            logs.append(f"Aguardando redirect para portal... URL atual: {page.url[:80]}")
+            logs.append(f"Aguardando redirect para portal... URL: {page.url[:80]}")
             try:
                 await page.wait_for_url("**/portal.espm.br/**", timeout=20000)
                 logs.append("Redirect para portal detectado.")
@@ -402,7 +334,28 @@ class ESPMAuthenticator:
             await page.wait_for_timeout(8000)
             await self._wait_idle(page, 5000)
 
-            # Verificar se MSAL não redirecionou de volta para B2C
+            # Check for Vercel blocking on the redirect landing
+            try:
+                is_vercel = await page.evaluate("""() => {
+                    const text = (document.body?.innerText || '').toLowerCase();
+                    return text.includes('failed to verify') || text.includes('falha ao verificar');
+                }""")
+                if is_vercel:
+                    logs.append("Vercel bloqueou redirect. Recarregando...")
+                    for retry in range(3):
+                        await page.reload(wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(5000)
+                        still_blocked = await page.evaluate("""() => {
+                            const text = (document.body?.innerText || '').toLowerCase();
+                            return text.includes('failed to verify') || text.includes('falha ao verificar');
+                        }""")
+                        if not still_blocked:
+                            logs.append(f"Vercel resolvido após reload {retry+1}.")
+                            break
+                        logs.append(f"Vercel persistente (reload {retry+1}/3).")
+            except Exception:
+                pass
+
             if not self._is_espm_portal(page.url):
                 logs.append(f"WARN: MSAL redirecionou para B2C. URL: {page.url[:80]}")
 
