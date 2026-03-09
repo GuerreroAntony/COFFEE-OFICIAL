@@ -89,13 +89,16 @@ class ESPMAuthenticator:
                 )
                 await self._apply_stealth(context)
                 page = await context.new_page()
-                await self._run_login_steps(page, context, login, password, logs)
+                try:
+                    await self._run_login_steps(page, context, login, password, logs)
+                except AuthenticationError:
+                    logger.error("auth.login_failed", logs=logs)
+                    raise
                 storage_state = await context.storage_state()
                 logger.info("auth.login.success", login=login)
                 try:
                     disciplines = await extractor.extract_with_context(context, logs, page=page)
                 except Exception as exc:
-                    # Preserve logs even on extraction failure
                     logs.append(f"EXTRACT ERROR: {str(exc)[:200]}")
                     logger.error("auth.extract_failed", error=str(exc), logs=logs)
                     disciplines = []
@@ -226,6 +229,12 @@ class ESPMAuthenticator:
                 self.MS_EMAIL_SEL, state="visible", timeout=20000
             )
         except Exception:
+            # Debug: log page content before failing
+            debug_text = await page.evaluate("() => document.body?.innerText?.substring(0, 500) || ''")
+            debug_links = await page.evaluate("() => Array.from(document.querySelectorAll('a')).map(a => a.href).slice(0, 10)")
+            logs.append(f"DEBUG page text: {debug_text[:200]}")
+            logs.append(f"DEBUG links: {debug_links}")
+            logs.append(f"DEBUG URL: {page.url}")
             raise AuthenticationError(
                 f"Campo de e-mail B2C ({self.MS_EMAIL_SEL}) não encontrado. URL: {page.url}"
             )
