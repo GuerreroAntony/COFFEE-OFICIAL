@@ -182,47 +182,57 @@ class ESPMAuthenticator:
         self, page, context, login: str, password: str, logs: List[str]
     ) -> None:
         """Executa os passos de login seguindo o fluxo comprovado do scraper."""
-        # 1. Abrir portal
+        # 1. Tentar abrir portal — com fallback para B2C direto se Vercel bloquear
         logs.append("Navegando para portal.espm.br...")
-        await page.goto(self.PORTAL_URL, wait_until="networkidle", timeout=30000)
+        await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+        await page.wait_for_timeout(5000)
 
-        # Verificar se é Vercel security checkpoint (bot detection)
-        body_text = await page.evaluate("() => document.body?.innerText?.substring(0, 300) || ''")
-        if "failed to verify" in body_text.lower() or "security-checkpoint" in body_text.lower():
-            logs.append("WARN: Vercel bot detection ativado — aguardando...")
-            # Aguardar o challenge resolver (pode levar alguns segundos)
-            await page.wait_for_timeout(10000)
-            body_text = await page.evaluate("() => document.body?.innerText?.substring(0, 300) || ''")
-            if "failed to verify" in body_text.lower():
-                logs.append("Vercel bot detection persistiu. Recarregando...")
-                await page.reload(wait_until="networkidle", timeout=30000)
-                await page.wait_for_timeout(5000)
+        # Verificar se é Vercel security checkpoint
+        is_vercel_blocked = await page.evaluate("""() => {
+            const text = (document.body?.innerText || '').toLowerCase();
+            return text.includes('failed to verify') || text.includes('falha ao verificar')
+                || text.includes('security-checkpoint') || text.includes('verificação de segurança');
+        }""")
 
-        # Se já estiver no portal autenticado, pular
-        if self._is_espm_portal(page.url) and "login" not in page.url.lower():
-            # Verificar que é realmente o portal (não Vercel checkpoint)
-            has_portal_content = await page.evaluate("""() => {
-                const text = document.body?.innerText || '';
-                return !text.includes('Failed to verify') && document.querySelectorAll('a').length > 3;
-            }""")
-            if has_portal_content:
-                logs.append("Já autenticado no portal.")
-                return
-            else:
-                logs.append("URL é portal mas conteúdo parece bloqueado. Prosseguindo com login...")
+        if is_vercel_blocked:
+            logs.append("Vercel bot detection ativado. Navegando direto para B2C...")
+            # Ir direto para o B2C login — constrói a URL OIDC authorize
+            b2c_url = (
+                "https://acadespmb2c.b2clogin.com/acadespmb2c.onmicrosoft.com"
+                "/b2c_1a_signup_signin/oauth2/v2.0/authorize"
+                "?client_id=9051a4d6-a66b-45b3-87bd-373c03911eda"
+                "&scope=openid%20profile%20offline_access"
+                "&redirect_uri=https%3A%2F%2Fportal.espm.br%2F"
+                "&response_mode=fragment"
+                "&response_type=code"
+                "&x-client-SKU=msal.js.browser"
+                "&x-client-VER=3.20.0"
+            )
+            await page.goto(b2c_url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(3000)
+        else:
+            # Portal carregou sem Vercel — verificar se já autenticado
+            if self._is_espm_portal(page.url) and "login" not in page.url.lower():
+                has_portal_content = await page.evaluate("""() => {
+                    const text = document.body?.innerText || '';
+                    return !text.includes('Failed to verify') && document.querySelectorAll('a').length > 3;
+                }""")
+                if has_portal_content:
+                    logs.append("Já autenticado no portal.")
+                    return
 
-        # 2. Clicar "Conectar com sua conta ESPM" (busca robusta por texto)
-        logs.append("Procurando botão 'Conectar com sua conta ESPM'...")
-        try:
-            buttons = await page.query_selector_all("button")
-            for btn in buttons:
-                text = await btn.text_content()
-                if "Conectar" in (text or "").strip():
-                    logs.append("Botão encontrado. Clicando...")
-                    await btn.click()
-                    break
-        except Exception:
-            logs.append("WARN: Botão 'Conectar' não encontrado — tentando prosseguir...")
+            # 2. Clicar "Conectar com sua conta ESPM"
+            logs.append("Procurando botão 'Conectar com sua conta ESPM'...")
+            try:
+                buttons = await page.query_selector_all("button")
+                for btn in buttons:
+                    text = await btn.text_content()
+                    if "Conectar" in (text or "").strip():
+                        logs.append("Botão encontrado. Clicando...")
+                        await btn.click()
+                        break
+            except Exception:
+                logs.append("WARN: Botão 'Conectar' não encontrado — tentando prosseguir...")
 
         # 3. Aguardar campo de email Microsoft B2C
         try:
@@ -230,11 +240,8 @@ class ESPMAuthenticator:
                 self.MS_EMAIL_SEL, state="visible", timeout=20000
             )
         except Exception:
-            # Debug: log page content before failing
             debug_text = await page.evaluate("() => document.body?.innerText?.substring(0, 500) || ''")
-            debug_links = await page.evaluate("() => Array.from(document.querySelectorAll('a')).map(a => a.href).slice(0, 10)")
             logs.append(f"DEBUG page text: {debug_text[:200]}")
-            logs.append(f"DEBUG links: {debug_links}")
             logs.append(f"DEBUG URL: {page.url}")
             raise AuthenticationError(
                 f"Campo de e-mail B2C ({self.MS_EMAIL_SEL}) não encontrado. URL: {page.url}"
