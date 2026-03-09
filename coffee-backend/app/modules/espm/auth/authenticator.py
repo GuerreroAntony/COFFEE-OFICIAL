@@ -230,20 +230,26 @@ class ESPMAuthenticator:
     async def _run_login_steps(
         self, page, context, login: str, password: str, logs: List[str]
     ) -> None:
-        """Executa login via B2C direto (bypassa portal.espm.br/Vercel)."""
-        # 1. Gerar PKCE e navegar direto para B2C authorize
-        pkce = self._generate_pkce()
-        b2c_url = self._build_b2c_authorize_url(pkce["code_challenge"])
-        logs.append("Navegando direto para B2C (bypass Vercel)...")
-        await page.goto(b2c_url, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(3000)
-        logs.append(f"URL B2C: {page.url[:80]}")
+        """
+        Login via Canvas ESPM (bypasses both Vercel and MFA).
+        Canvas B2C doesn't trigger Azure AD federation/MFA.
+        After Canvas login, B2C SSO cookies are set → used for portal auth.
+        """
+        CANVAS_URL = "https://canvas.espm.br"
 
-        # 2. B2C custom page: clicar "Conectar com sua conta ESPM"
-        if "b2clogin.com" in page.url:
+        # ── Step 1: Login via Canvas (same flow as working scraper) ──
+        logs.append("Navegando para canvas.espm.br (bypass Vercel+MFA)...")
+        await page.goto(CANVAS_URL, wait_until="domcontentloaded", timeout=30000)
+        await self._wait_idle(page, 8000)
+        logs.append(f"URL após canvas load: {page.url[:80]}")
+
+        # Check if already authenticated on Canvas
+        if "canvas.espm.br" in page.url and "/login" not in page.url:
+            logs.append("Já autenticado no Canvas.")
+        else:
+            # Click "Conectar com sua conta ESPM" button
             try:
                 clicked = await page.evaluate("""() => {
-                    // Search all element types for "Conectar"
                     const selectors = ['button', 'a', 'div[role="button"]', 'span'];
                     for (const sel of selectors) {
                         for (const el of document.querySelectorAll(sel)) {
@@ -256,182 +262,155 @@ class ESPMAuthenticator:
                     }
                     return 'not-found';
                 }""")
-                logs.append(f"B2C Conectar: {clicked}")
+                logs.append(f"Canvas Conectar: {clicked}")
                 if "clicked" in clicked:
                     await page.wait_for_timeout(5000)
             except Exception as e:
-                logs.append(f"WARN: Erro botão Conectar: {str(e)[:100]}")
+                logs.append(f"WARN: Erro botão Conectar: {str(e)[:80]}")
 
-        # 3. Aguardar campo de email Microsoft B2C
-        try:
-            await page.wait_for_selector(
-                self.MS_EMAIL_SEL, state="visible", timeout=20000
-            )
-        except Exception:
-            debug_text = await page.evaluate(
-                "() => document.body?.innerText?.substring(0, 500) || ''"
-            )
-            logs.append(f"DEBUG page text: {debug_text[:200]}")
-            logs.append(f"DEBUG URL: {page.url}")
-            raise AuthenticationError(
-                f"Campo de e-mail B2C ({self.MS_EMAIL_SEL}) não encontrado. URL: {page.url}"
-            )
+            # Wait for email field
+            try:
+                await page.wait_for_selector(
+                    self.MS_EMAIL_SEL, state="visible", timeout=20000
+                )
+            except Exception:
+                debug_text = await page.evaluate(
+                    "() => document.body?.innerText?.substring(0, 500) || ''"
+                )
+                logs.append(f"DEBUG page text: {debug_text[:200]}")
+                raise AuthenticationError(
+                    f"Campo de e-mail B2C não encontrado via Canvas. URL: {page.url}"
+                )
 
-        # 4. Preencher email e clicar Next
-        logs.append("Preenchendo email Microsoft...")
-        await page.fill(self.MS_EMAIL_SEL, login)
-        submit_btn = await page.query_selector(self.MS_SUBMIT_ID)
-        if submit_btn:
-            await submit_btn.click()
-            await page.wait_for_timeout(2000)
+            # Fill email + Next
+            logs.append("Preenchendo email...")
+            await page.fill(self.MS_EMAIL_SEL, login)
+            submit_btn = await page.query_selector(self.MS_SUBMIT_ID)
+            if submit_btn:
+                await submit_btn.click()
+                await page.wait_for_timeout(2000)
 
-        # 5. Preencher senha e clicar Sign In
-        logs.append("Preenchendo senha...")
-        await page.fill(self.MS_PASSWORD_SEL, password)
-        sign_in_btn = await page.query_selector(self.MS_SUBMIT_ID)
-        if sign_in_btn:
-            await sign_in_btn.click()
+            # Fill password + Sign In
+            logs.append("Preenchendo senha...")
+            await page.fill(self.MS_PASSWORD_SEL, password)
+            sign_in_btn = await page.query_selector(self.MS_SUBMIT_ID)
+            if sign_in_btn:
+                await sign_in_btn.click()
 
-        # 6. Aguardar B2C processar login + handle Microsoft federation redirect
-        await page.wait_for_timeout(5000)
-        logs.append(f"URL pós-senha: {page.url[:80]}")
+            # Handle post-login pages (KMSi, redirects)
+            await page.wait_for_timeout(5000)
+            logs.append(f"URL pós-senha: {page.url[:80]}")
 
-        # B2C may redirect to login.microsoftonline.com for federated auth.
-        # Handle the full redirect chain: B2C → Microsoft → KMSi → portal
-        for attempt in range(8):
-            cur = page.url
-            if self._is_espm_portal(cur):
-                logs.append("Redirecionado para portal.")
-                break
+            for attempt in range(6):
+                cur = page.url
+                # Canvas loaded = success
+                if "canvas.espm.br" in cur and "/login" not in cur:
+                    logs.append("Canvas autenticado com sucesso.")
+                    break
 
-            # Debug: log page state
-            if attempt <= 3:
                 try:
-                    debug_info = await page.evaluate("""() => {
-                        const clickable = Array.from(document.querySelectorAll(
-                            'button, input[type=submit], a[href]'
-                        )).filter(e => e.offsetParent !== null).map(e => {
-                            const tag = e.tagName;
-                            const text = (e.innerText || e.value || e.textContent || '').trim().substring(0, 40);
-                            const id = e.id || '';
-                            const href = e.href ? e.href.substring(0, 60) : '';
-                            return `${tag}:${id}:${text}${href ? ':'+href : ''}`;
-                        }).slice(0, 15);
-                        const text = (document.body?.innerText || '').substring(0, 250);
-                        return JSON.stringify({clickable, text});
-                    }""")
-                    logs.append(f"DEBUG[{attempt}] {cur[:50]}: {debug_info[:300]}")
+                    # KMSi prompt
+                    btn = await page.query_selector(self.MS_SUBMIT_ID)
+                    if btn and await btn.is_visible():
+                        page_text = await page.evaluate(
+                            "() => document.body?.innerText?.substring(0, 500) || ''"
+                        )
+                        if "stay signed in" in page_text.lower() or "manter" in page_text.lower():
+                            logs.append("Confirmando 'Stay signed in'...")
+                            await btn.click()
+                            await page.wait_for_timeout(5000)
+                            continue
+
+                    # ProofUp
+                    proofup = await page.query_selector("#idSubmit_ProofUp_Redirect")
+                    if proofup and await proofup.is_visible():
+                        logs.append("ProofUp — clicando 'Avançar'...")
+                        await proofup.click()
+                        await page.wait_for_timeout(5000)
+                        continue
                 except Exception:
                     pass
 
-            # Try to find and interact with Microsoft forms
-            try:
-                # Check for email field first (Microsoft may show email form)
-                email_field = await page.query_selector(self.MS_EMAIL_SEL)
-                if email_field and await email_field.is_visible():
-                    logs.append(f"Microsoft login: preenchendo email (attempt {attempt+1})...")
-                    await page.fill(self.MS_EMAIL_SEL, login)
-                    btn = await page.query_selector(self.MS_SUBMIT_ID)
-                    if btn:
-                        await btn.click()
-                    await page.wait_for_timeout(3000)
-                    continue
+                await page.wait_for_timeout(3000)
 
-                # Check for password field
-                pwd_field = await page.query_selector(self.MS_PASSWORD_SEL)
-                if pwd_field and await pwd_field.is_visible():
-                    logs.append(f"Microsoft login: preenchendo senha (attempt {attempt+1})...")
-                    await page.fill(self.MS_PASSWORD_SEL, password)
-                    btn = await page.query_selector(self.MS_SUBMIT_ID)
-                    if btn:
-                        await btn.click()
-                    await page.wait_for_timeout(5000)
-                    continue
+        # ── Step 2: Navigate to portal using B2C SSO session ──
+        # B2C SSO cookies are set from Canvas login.
+        # Go directly to B2C authorize with portal's client_id.
+        # B2C should auto-issue auth code via SSO (no re-login needed).
+        logs.append("Navegando para portal via B2C SSO...")
+        pkce = self._generate_pkce()
+        b2c_url = self._build_b2c_authorize_url(pkce["code_challenge"])
+        await page.goto(b2c_url, wait_until="domcontentloaded", timeout=30000)
+        await page.wait_for_timeout(5000)
+        logs.append(f"URL após B2C SSO: {page.url[:80]}")
 
-                # Check for MFA/ProofUp redirect ("Avançar" / "Next")
-                proofup_btn = await page.query_selector("#idSubmit_ProofUp_Redirect")
-                if proofup_btn and await proofup_btn.is_visible():
-                    logs.append("MFA/ProofUp page — clicando 'Avançar'...")
-                    await proofup_btn.click()
-                    await page.wait_for_timeout(5000)
-                    continue
+        # B2C might auto-redirect to portal (SSO), or show "Conectar" again
+        for attempt in range(6):
+            cur = page.url
+            if self._is_espm_portal(cur):
+                logs.append("Portal alcançado via B2C SSO.")
+                break
 
-                # Handle mysignins.microsoft.com MFA registration page
-                # Look for "Skip for now" / "Ignorar por enquanto" / cancel links
-                if "mysignins.microsoft.com" in cur:
-                    skip_result = await page.evaluate("""() => {
-                        // Look for skip/cancel links and buttons
-                        const all = document.querySelectorAll('a, button, span[role="button"]');
-                        for (const el of all) {
-                            const text = (el.innerText || el.textContent || '').trim().toLowerCase();
-                            if (text.includes('skip') || text.includes('cancel') || text.includes('ignorar')
-                                || text.includes('cancelar') || text.includes('pular')
-                                || text.includes('ask later') || text.includes('perguntar depois')) {
-                                el.click();
-                                return 'clicked: ' + text.substring(0, 40);
-                            }
+            # If B2C shows login page again (SSO didn't work), re-login
+            if "b2clogin.com" in cur:
+                try:
+                    # Click "Conectar" if present
+                    clicked = await page.evaluate("""() => {
+                        for (const el of document.querySelectorAll('button, a, span')) {
+                            const text = (el.innerText || '').trim();
+                            if (text.includes('Conectar')) { el.click(); return 'clicked'; }
                         }
-                        // Try clicking the back/close button if exists
-                        const close = document.querySelector('[aria-label="Close"], [aria-label="Fechar"], .ms-Dialog-button--close');
-                        if (close) { close.click(); return 'clicked-close'; }
-                        return 'no-skip-found';
+                        return 'no';
                     }""")
-                    logs.append(f"MFA register skip: {skip_result}")
-                    if "clicked" in skip_result:
+                    if "clicked" in clicked:
+                        logs.append("B2C SSO: Clicou 'Conectar' novamente.")
                         await page.wait_for_timeout(5000)
                         continue
-                    # If no skip button, try navigating back to B2C callback
-                    logs.append("MFA sem skip — tentando navegar de volta ao B2C...")
-                    await page.go_back()
-                    await page.wait_for_timeout(5000)
-                    continue
 
-                # Check for KMSi / any submit button
+                    # Try filling email/password if fields visible
+                    email_f = await page.query_selector(self.MS_EMAIL_SEL)
+                    if email_f and await email_f.is_visible():
+                        logs.append("B2C SSO: Re-filling credentials...")
+                        await page.fill(self.MS_EMAIL_SEL, login)
+                        btn = await page.query_selector(self.MS_SUBMIT_ID)
+                        if btn:
+                            await btn.click()
+                        await page.wait_for_timeout(2000)
+                        pwd_f = await page.query_selector(self.MS_PASSWORD_SEL)
+                        if pwd_f and await pwd_f.is_visible():
+                            await page.fill(self.MS_PASSWORD_SEL, password)
+                            btn2 = await page.query_selector(self.MS_SUBMIT_ID)
+                            if btn2:
+                                await btn2.click()
+                        await page.wait_for_timeout(5000)
+                        continue
+                except Exception:
+                    pass
+
+            # Handle KMSi
+            try:
                 btn = await page.query_selector(self.MS_SUBMIT_ID)
                 if btn and await btn.is_visible():
                     page_text = await page.evaluate(
-                        "() => document.body?.innerText?.substring(0, 500) || ''"
+                        "() => document.body?.innerText?.substring(0, 300) || ''"
                     )
-                    text_lower = page_text.lower()
-                    if "stay signed in" in text_lower or "manter" in text_lower:
-                        logs.append("Confirmando 'Stay signed in'...")
+                    if "stay signed in" in page_text.lower() or "manter" in page_text.lower():
+                        logs.append("KMSi no portal flow...")
                         await btn.click()
                         await page.wait_for_timeout(5000)
                         continue
-                    logs.append(f"Botão encontrado, clicando (attempt {attempt+1})...")
-                    await btn.click()
-                    await page.wait_for_timeout(3000)
-                    continue
-
-                # Generic: click any visible submit/button we find
-                any_submit = await page.query_selector("input[type=submit]:visible, button[type=submit]:visible")
-                if any_submit:
-                    btn_text = await any_submit.get_attribute("value") or await any_submit.text_content() or ""
-                    logs.append(f"Botão genérico encontrado: '{btn_text[:30]}'. Clicando...")
-                    await any_submit.click()
-                    await page.wait_for_timeout(3000)
-                    continue
-            except Exception as e:
-                logs.append(f"WARN loop[{attempt}]: {str(e)[:80]}")
+            except Exception:
+                pass
 
             await page.wait_for_timeout(3000)
 
-        # 8. Aguardar redirect para portal (até 25s)
-        if not self._is_espm_portal(page.url):
-            logs.append(f"Aguardando redirect para portal... URL: {page.url[:80]}")
-            try:
-                await page.wait_for_url("**/portal.espm.br/**", timeout=25000)
-                logs.append("Redirect para portal detectado.")
-            except Exception:
-                logs.append(f"WARN: Redirect não aconteceu. URL: {page.url[:80]}")
-
-        # 9. Se chegou no portal, aguardar MSAL processar o auth code
+        # Wait for portal to process
         if self._is_espm_portal(page.url):
-            logs.append("No portal — aguardando MSAL processar...")
+            logs.append("No portal — aguardando MSAL...")
             await page.wait_for_timeout(8000)
             await self._wait_idle(page, 5000)
 
-            # Check for Vercel blocking on the redirect landing
+            # Check Vercel
             try:
                 is_vercel = await page.evaluate("""() => {
                     const text = (document.body?.innerText || '').toLowerCase();
@@ -442,24 +421,25 @@ class ESPMAuthenticator:
                     for retry in range(3):
                         await page.reload(wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(5000)
-                        still_blocked = await page.evaluate("""() => {
-                            const text = (document.body?.innerText || '').toLowerCase();
-                            return text.includes('failed to verify') || text.includes('falha ao verificar');
+                        still = await page.evaluate("""() => {
+                            return (document.body?.innerText||'').toLowerCase().includes('failed to verify');
                         }""")
-                        if not still_blocked:
-                            logs.append(f"Vercel resolvido após reload {retry+1}.")
+                        if not still:
+                            logs.append(f"Vercel resolvido (reload {retry+1}).")
                             break
-                        logs.append(f"Vercel persistente (reload {retry+1}/3).")
             except Exception:
                 pass
 
-            if not self._is_espm_portal(page.url):
-                logs.append(f"WARN: MSAL redirecionou para B2C. URL: {page.url[:80]}")
-
-        # 10. Check final
+        # Final check
         if not self._is_espm_portal(page.url):
+            logs.append(f"DEBUG final URL: {page.url}")
+            try:
+                debug = await page.evaluate("() => document.body?.innerText?.substring(0, 300) || ''")
+                logs.append(f"DEBUG final text: {debug[:200]}")
+            except Exception:
+                pass
             raise AuthenticationError(
-                f"Autenticação falhou — não redirecionou ao portal. URL: {page.url}"
+                f"Autenticação falhou — não alcançou portal. URL: {page.url}"
             )
 
         logs.append("Login concluído com sucesso.")
