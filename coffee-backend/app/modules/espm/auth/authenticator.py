@@ -292,18 +292,42 @@ class ESPMAuthenticator:
 
         # 3. Se estamos no B2C custom page, clicar "Conectar com sua conta ESPM"
         #    (B2C mostra landing page customizada antes do form Microsoft)
+        #    Aguardar a página estabilizar antes de procurar o botão
+        await page.wait_for_timeout(3000)
         if "b2clogin.com" in page.url:
+            logs.append(f"B2C custom page detectada. Procurando botão 'Conectar'...")
             try:
-                buttons = await page.query_selector_all("button")
-                for btn in buttons:
-                    text = await btn.text_content()
-                    if "Conectar" in (text or "").strip():
-                        logs.append("B2C: Botão 'Conectar' encontrado. Clicando...")
-                        await btn.click()
-                        await page.wait_for_timeout(3000)
-                        break
-            except Exception:
-                logs.append("WARN: Botão 'Conectar' no B2C não encontrado.")
+                # Search all clickable elements, not just <button>
+                clicked = await page.evaluate("""() => {
+                    const selectors = ['button', 'a', 'div[role="button"]', 'span[role="button"]'];
+                    for (const sel of selectors) {
+                        const elements = document.querySelectorAll(sel);
+                        for (const el of elements) {
+                            const text = (el.innerText || el.textContent || '').trim();
+                            if (text.includes('Conectar')) {
+                                el.click();
+                                return 'clicked: ' + text.substring(0, 50);
+                            }
+                        }
+                    }
+                    // Fallback: any element with "Conectar" text
+                    const all = document.querySelectorAll('*');
+                    for (const el of all) {
+                        if (el.children.length === 0) {
+                            const text = (el.innerText || el.textContent || '').trim();
+                            if (text.includes('Conectar') && text.length < 60) {
+                                el.click();
+                                return 'clicked-fallback: ' + text.substring(0, 50);
+                            }
+                        }
+                    }
+                    return 'not-found';
+                }""")
+                logs.append(f"B2C Conectar: {clicked}")
+                if "clicked" in clicked:
+                    await page.wait_for_timeout(5000)
+            except Exception as e:
+                logs.append(f"WARN: Erro ao buscar botão Conectar: {str(e)[:100]}")
 
         # 4. Aguardar campo de email Microsoft B2C
         try:
