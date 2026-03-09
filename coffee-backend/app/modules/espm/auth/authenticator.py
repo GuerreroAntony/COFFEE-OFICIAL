@@ -210,21 +210,56 @@ class ESPMAuthenticator:
                 is_vercel_blocked = False
 
         if is_vercel_blocked:
-            logs.append("Vercel bot detection ativado. Navegando direto para B2C...")
-            # Ir direto para o B2C login — constrói a URL OIDC authorize
-            b2c_url = (
-                "https://acadespmb2c.b2clogin.com/acadespmb2c.onmicrosoft.com"
-                "/b2c_1a_signup_signin/oauth2/v2.0/authorize"
-                "?client_id=9051a4d6-a66b-45b3-87bd-373c03911eda"
-                "&scope=openid%20profile%20offline_access"
-                "&redirect_uri=https%3A%2F%2Fportal.espm.br%2F"
-                "&response_mode=fragment"
-                "&response_type=code"
-                "&x-client-SKU=msal.js.browser"
-                "&x-client-VER=3.20.0"
-            )
-            await page.goto(b2c_url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(3000)
+            logs.append("Vercel bot detection ativado. Tentando aguardar/retry...")
+            # Vercel JS challenge sometimes auto-resolves after a few seconds
+            # Retry up to 3 times with wait + reload
+            for retry in range(3):
+                await page.wait_for_timeout(5000)
+                # Check if challenge resolved (page navigated to B2C or portal content appeared)
+                cur = page.url
+                if "b2clogin.com" in cur or "microsoftonline.com" in cur:
+                    logs.append(f"Vercel resolveu (retry {retry+1}), redirecionou para B2C.")
+                    break
+                try:
+                    still_blocked = await page.evaluate("""() => {
+                        const text = (document.body?.innerText || '').toLowerCase();
+                        return text.includes('failed to verify') || text.includes('falha ao verificar')
+                            || text.includes('security-checkpoint');
+                    }""")
+                except Exception:
+                    logs.append(f"Contexto mudou durante retry {retry+1}. URL: {page.url[:80]}")
+                    break
+                if not still_blocked:
+                    logs.append(f"Vercel challenge resolvido (retry {retry+1}).")
+                    break
+                logs.append(f"Vercel ainda bloqueando (retry {retry+1}/3). Recarregando...")
+                await page.reload(wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(3000)
+            else:
+                # All retries failed — try one more approach: navigate with different referer
+                logs.append("Vercel persistente. Tentando navegar via link direto...")
+                await page.goto(
+                    self.PORTAL_URL + "?t=" + str(int(asyncio.get_event_loop().time())),
+                    wait_until="domcontentloaded", timeout=30000,
+                )
+                await page.wait_for_timeout(5000)
+
+            # Re-check state after Vercel handling
+            current_url = page.url
+            if "b2clogin.com" in current_url or "microsoftonline.com" in current_url:
+                logs.append("Portal redirecionou para B2C após Vercel retry.")
+            elif self._is_espm_portal(current_url):
+                try:
+                    has_content = await page.evaluate("""() => {
+                        const text = document.body?.innerText || '';
+                        return !text.includes('Failed to verify') && !text.includes('falha ao verificar')
+                            && document.querySelectorAll('a').length > 3;
+                    }""")
+                    if has_content:
+                        logs.append("Já autenticado no portal após Vercel retry.")
+                        return
+                except Exception:
+                    pass
         else:
             # Portal carregou sem Vercel — verificar estado atual
             cur = page.url
