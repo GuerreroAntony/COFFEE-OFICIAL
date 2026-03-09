@@ -85,22 +85,16 @@ async def espm_connect(
     logs: list[str] = []
 
     row = await fetch_one(
-        "SELECT encrypted_portal_session FROM users WHERE id = $1",
+        "SELECT 1 FROM users WHERE id = $1",
         user_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Usuário não encontrado"))
 
     try:
-        if row["encrypted_portal_session"]:
-            result_auth, logs = await auth.get_or_refresh_session(
-                row["encrypted_portal_session"], body.matricula, body.password
-            )
-            state = result_auth["state"]
-        else:
-            result_auth = await auth.login(body.matricula, body.password)
-            state = result_auth["state"]
-            logs = result_auth.get("logs", [])
+        result_auth = await auth.login(body.matricula, body.password)
+        state = result_auth["state"]
+        logs = result_auth.get("logs", [])
     except AuthenticationError as exc:
         raise HTTPException(status_code=401, detail=error_response("ESPM_AUTH_FAILED", str(exc)))
     except PlaywrightTimeoutError:
@@ -109,16 +103,14 @@ async def espm_connect(
         logger.error("espm.connect.error", error=str(exc))
         raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", str(exc)))
 
-    # Salvar sessão criptografada + senha para scraper credential pool
-    encrypted = auth.encrypt_session(state)
+    # Salvar credenciais para scraper credential pool
     encrypted_password = auth.encrypt_session({"p": body.password})
     await execute_query(
         """UPDATE users
-           SET encrypted_portal_session = $1,
-               espm_login = $2,
-               encrypted_espm_password = $3
-           WHERE id = $4""",
-        encrypted, body.matricula, encrypted_password, user_id,
+           SET espm_login = $1,
+               encrypted_espm_password = $2
+           WHERE id = $3""",
+        body.matricula, encrypted_password, user_id,
     )
 
     # Verificar se já tem disciplinas vinculadas
@@ -178,16 +170,14 @@ async def sync_schedule(
         logger.error("espm.sync.error", error=str(exc))
         raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", str(exc)))
 
-    # Salvar sessão + senha para scraper credential pool
-    encrypted = auth.encrypt_session(state)
+    # Salvar credenciais para scraper credential pool
     encrypted_password = auth.encrypt_session({"p": body.password})
     await execute_query(
         """UPDATE users
-           SET encrypted_portal_session = $1,
-               espm_login = $2,
-               encrypted_espm_password = $3
-           WHERE id = $4""",
-        encrypted, body.matricula, encrypted_password, user_id,
+           SET espm_login = $1,
+               encrypted_espm_password = $2
+           WHERE id = $3""",
+        body.matricula, encrypted_password, user_id,
     )
 
     synced = await _upsert_disciplinas(user_id, disciplines)
