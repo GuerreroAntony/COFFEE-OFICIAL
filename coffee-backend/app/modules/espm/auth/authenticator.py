@@ -304,20 +304,23 @@ class ESPMAuthenticator:
                 logs.append("Redirecionado para portal.")
                 break
 
-            # Debug: log page state on first iteration and when URL changes
-            if attempt == 0 or (attempt <= 3):
+            # Debug: log page state
+            if attempt <= 3:
                 try:
                     debug_info = await page.evaluate("""() => {
-                        const inputs = Array.from(document.querySelectorAll('input')).map(i =>
-                            `${i.type}:${i.id||i.name}:vis=${i.offsetParent!==null}`
-                        );
-                        const buttons = Array.from(document.querySelectorAll('button, input[type=submit]')).map(b =>
-                            `${b.tagName}:${b.id||''}:${(b.innerText||b.value||'').substring(0,30)}`
-                        );
-                        const text = (document.body?.innerText || '').substring(0, 300);
-                        return JSON.stringify({inputs, buttons, text: text.substring(0, 200)});
+                        const clickable = Array.from(document.querySelectorAll(
+                            'button, input[type=submit], a[href]'
+                        )).filter(e => e.offsetParent !== null).map(e => {
+                            const tag = e.tagName;
+                            const text = (e.innerText || e.value || e.textContent || '').trim().substring(0, 40);
+                            const id = e.id || '';
+                            const href = e.href ? e.href.substring(0, 60) : '';
+                            return `${tag}:${id}:${text}${href ? ':'+href : ''}`;
+                        }).slice(0, 15);
+                        const text = (document.body?.innerText || '').substring(0, 250);
+                        return JSON.stringify({clickable, text});
                     }""")
-                    logs.append(f"DEBUG[{attempt}] {cur[:50]}: {debug_info[:200]}")
+                    logs.append(f"DEBUG[{attempt}] {cur[:50]}: {debug_info[:300]}")
                 except Exception:
                     pass
 
@@ -350,6 +353,36 @@ class ESPMAuthenticator:
                 if proofup_btn and await proofup_btn.is_visible():
                     logs.append("MFA/ProofUp page — clicando 'Avançar'...")
                     await proofup_btn.click()
+                    await page.wait_for_timeout(5000)
+                    continue
+
+                # Handle mysignins.microsoft.com MFA registration page
+                # Look for "Skip for now" / "Ignorar por enquanto" / cancel links
+                if "mysignins.microsoft.com" in cur:
+                    skip_result = await page.evaluate("""() => {
+                        // Look for skip/cancel links and buttons
+                        const all = document.querySelectorAll('a, button, span[role="button"]');
+                        for (const el of all) {
+                            const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                            if (text.includes('skip') || text.includes('cancel') || text.includes('ignorar')
+                                || text.includes('cancelar') || text.includes('pular')
+                                || text.includes('ask later') || text.includes('perguntar depois')) {
+                                el.click();
+                                return 'clicked: ' + text.substring(0, 40);
+                            }
+                        }
+                        // Try clicking the back/close button if exists
+                        const close = document.querySelector('[aria-label="Close"], [aria-label="Fechar"], .ms-Dialog-button--close');
+                        if (close) { close.click(); return 'clicked-close'; }
+                        return 'no-skip-found';
+                    }""")
+                    logs.append(f"MFA register skip: {skip_result}")
+                    if "clicked" in skip_result:
+                        await page.wait_for_timeout(5000)
+                        continue
+                    # If no skip button, try navigating back to B2C callback
+                    logs.append("MFA sem skip — tentando navegar de volta ao B2C...")
+                    await page.go_back()
                     await page.wait_for_timeout(5000)
                     continue
 
