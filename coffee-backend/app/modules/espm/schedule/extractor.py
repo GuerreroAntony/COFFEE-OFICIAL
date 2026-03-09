@@ -63,6 +63,23 @@ class ScheduleExtractor:
             # SPA navigation: page.goto() destroys MSAL tokens in memory.
             # Use client-side navigation to preserve auth state.
             logs.append(f"Página atual pós-login: {page.url}")
+
+            # Wait for SPA to fully hydrate after login
+            try:
+                await page.wait_for_selector('#__next a', timeout=15000)
+                logs.append("SPA hidratada — links disponíveis.")
+            except Exception:
+                logs.append("WARN: SPA não hidratou em 15s, tentando prosseguir...")
+
+            # Debug: log all links on the page
+            all_links = await page.evaluate("""() => {
+                return Array.from(document.querySelectorAll('a[href]'))
+                    .map(a => a.getAttribute('href'))
+                    .filter(h => h && !h.startsWith('#') && !h.startsWith('javascript'))
+                    .slice(0, 20);
+            }""")
+            logs.append(f"Links na página: {all_links}")
+
             navigated = False
 
             # 1. Try clicking a nav link to my-courses (triggers Next.js router)
@@ -78,17 +95,25 @@ class ScheduleExtractor:
             # 2. Fallback: use Next.js router API
             if not navigated:
                 try:
-                    await page.evaluate("""() => {
+                    result = await page.evaluate("""() => {
                         if (window.next && window.next.router) {
                             window.next.router.push('/my-courses');
-                            return true;
+                            return 'next.router ok';
                         }
-                        return false;
+                        // Try __NEXT_DATA__ approach
+                        if (window.__NEXT_DATA__) {
+                            window.location.hash = '';
+                            history.pushState(null, '', '/my-courses');
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                            return 'popstate ok';
+                        }
+                        return 'no next router found';
                     }""")
-                    navigated = True
-                    logs.append("Navegando via Next.js router para my-courses...")
-                except Exception:
-                    pass
+                    logs.append(f"Next.js router: {result}")
+                    if 'ok' in str(result):
+                        navigated = True
+                except Exception as e:
+                    logs.append(f"Next.js router error: {str(e)[:100]}")
 
             # 3. Last resort: full page navigation
             if not navigated:
@@ -97,6 +122,9 @@ class ScheduleExtractor:
 
             await page.wait_for_timeout(5000)
             await self._wait_idle(page)
+
+            # Log current URL after navigation
+            logs.append(f"URL após navegação: {page.url}")
 
         # Remove modal NEXUS/MUI do DOM via JS
         await self._remove_nexus_modal(page, logs)
