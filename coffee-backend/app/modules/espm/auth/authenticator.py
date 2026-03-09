@@ -292,38 +292,57 @@ class ESPMAuthenticator:
         if sign_in_btn:
             await sign_in_btn.click()
 
-        # 6. Aguardar B2C processar login
-        await page.wait_for_timeout(3000)
+        # 6. Aguardar B2C processar login + handle Microsoft federation redirect
+        await page.wait_for_timeout(5000)
+        logs.append(f"URL pós-senha: {page.url[:80]}")
 
-        # 7. Handle "Stay signed in?" (KMSi)
-        for attempt in range(3):
-            if self._is_espm_portal(page.url):
-                logs.append("Redirecionado para portal após Sign In.")
+        # B2C may redirect to login.microsoftonline.com for federated auth
+        # or show KMSi directly. Handle both cases.
+        for attempt in range(6):
+            cur = page.url
+            if self._is_espm_portal(cur):
+                logs.append("Redirecionado para portal.")
                 break
-            try:
-                stay_btn = await page.wait_for_selector(
-                    self.MS_SUBMIT_ID, state="visible", timeout=5000
-                )
-                if stay_btn:
-                    page_text = await page.evaluate(
-                        "() => document.body?.innerText?.substring(0, 500) || ''"
-                    )
-                    if "stay signed in" in page_text.lower() or "manter" in page_text.lower():
-                        logs.append("Confirmando 'Stay signed in'...")
-                        await stay_btn.click()
-                        await page.wait_for_timeout(5000)
-                        break
-                    else:
-                        logs.append(f"Botão encontrado mas não é KMSi (attempt {attempt+1})")
-                        await page.wait_for_timeout(3000)
-            except Exception:
-                await page.wait_for_timeout(2000)
 
-        # 8. Aguardar redirect para portal (B2C → portal.espm.br/#code=...)
+            # Check if there's a form to interact with (KMSi, password, etc.)
+            try:
+                btn = await page.query_selector(self.MS_SUBMIT_ID)
+                if btn and await btn.is_visible():
+                    page_text = await page.evaluate(
+                        "() => document.body?.innerText?.substring(0, 800) || ''"
+                    )
+                    text_lower = page_text.lower()
+
+                    if "stay signed in" in text_lower or "manter" in text_lower:
+                        logs.append("Confirmando 'Stay signed in'...")
+                        await btn.click()
+                        await page.wait_for_timeout(5000)
+                        continue
+
+                    # Microsoft federated login may need password again
+                    pwd_field = await page.query_selector(self.MS_PASSWORD_SEL)
+                    if pwd_field and await pwd_field.is_visible():
+                        logs.append("Microsoft federated login — preenchendo senha novamente...")
+                        await page.fill(self.MS_PASSWORD_SEL, password)
+                        await btn.click()
+                        await page.wait_for_timeout(5000)
+                        continue
+
+                    # Some other page with the submit button
+                    logs.append(f"Página intermediária (attempt {attempt+1}): {cur[:60]}")
+                    await btn.click()
+                    await page.wait_for_timeout(3000)
+                    continue
+            except Exception:
+                pass
+
+            await page.wait_for_timeout(3000)
+
+        # 8. Aguardar redirect para portal (até 25s)
         if not self._is_espm_portal(page.url):
             logs.append(f"Aguardando redirect para portal... URL: {page.url[:80]}")
             try:
-                await page.wait_for_url("**/portal.espm.br/**", timeout=20000)
+                await page.wait_for_url("**/portal.espm.br/**", timeout=25000)
                 logs.append("Redirect para portal detectado.")
             except Exception:
                 logs.append(f"WARN: Redirect não aconteceu. URL: {page.url[:80]}")
