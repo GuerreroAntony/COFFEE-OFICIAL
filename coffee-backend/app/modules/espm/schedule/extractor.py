@@ -57,9 +57,46 @@ class ScheduleExtractor:
     async def _do_extract(self, context, logs: List[str], page=None) -> List[Dict]:
         if page is None:
             page = await context.new_page()
+            await page.goto(MY_COURSES_URL, wait_until="domcontentloaded", timeout=60000)
+            await self._wait_idle(page)
+        else:
+            # SPA navigation: page.goto() destroys MSAL tokens in memory.
+            # Use client-side navigation to preserve auth state.
+            logs.append(f"Página atual pós-login: {page.url}")
+            navigated = False
 
-        await page.goto(MY_COURSES_URL, wait_until="domcontentloaded", timeout=60000)
-        await self._wait_idle(page)
+            # 1. Try clicking a nav link to my-courses (triggers Next.js router)
+            try:
+                link = await page.query_selector('a[href="/my-courses"], a[href*="my-courses"]')
+                if link:
+                    await link.click()
+                    navigated = True
+                    logs.append("Navegando via link SPA para my-courses...")
+            except Exception:
+                pass
+
+            # 2. Fallback: use Next.js router API
+            if not navigated:
+                try:
+                    await page.evaluate("""() => {
+                        if (window.next && window.next.router) {
+                            window.next.router.push('/my-courses');
+                            return true;
+                        }
+                        return false;
+                    }""")
+                    navigated = True
+                    logs.append("Navegando via Next.js router para my-courses...")
+                except Exception:
+                    pass
+
+            # 3. Last resort: full page navigation
+            if not navigated:
+                logs.append("WARN: SPA navigation falhou, tentando page.goto...")
+                await page.goto(MY_COURSES_URL, wait_until="domcontentloaded", timeout=60000)
+
+            await page.wait_for_timeout(5000)
+            await self._wait_idle(page)
 
         # Remove modal NEXUS/MUI do DOM via JS
         await self._remove_nexus_modal(page, logs)
