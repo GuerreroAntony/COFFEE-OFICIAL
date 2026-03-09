@@ -255,7 +255,22 @@ class ESPMAuthenticator:
                 except Exception:
                     logs.append("WARN: Botão 'Conectar' não encontrado — tentando prosseguir...")
 
-        # 3. Aguardar campo de email Microsoft B2C
+        # 3. Se estamos no B2C custom page, clicar "Conectar com sua conta ESPM"
+        #    (B2C mostra landing page customizada antes do form Microsoft)
+        if "b2clogin.com" in page.url:
+            try:
+                buttons = await page.query_selector_all("button")
+                for btn in buttons:
+                    text = await btn.text_content()
+                    if "Conectar" in (text or "").strip():
+                        logs.append("B2C: Botão 'Conectar' encontrado. Clicando...")
+                        await btn.click()
+                        await page.wait_for_timeout(3000)
+                        break
+            except Exception:
+                logs.append("WARN: Botão 'Conectar' no B2C não encontrado.")
+
+        # 4. Aguardar campo de email Microsoft B2C
         try:
             await page.wait_for_selector(
                 self.MS_EMAIL_SEL, state="visible", timeout=20000
