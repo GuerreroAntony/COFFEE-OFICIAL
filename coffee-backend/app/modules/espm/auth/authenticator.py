@@ -87,6 +87,7 @@ class ESPMAuthenticator:
                     viewport={"width": 1280, "height": 720},
                     extra_http_headers=_BROWSER_HEADERS,
                 )
+                await self._apply_stealth(context)
                 page = await context.new_page()
                 await self._run_login_steps(page, context, login, password, logs)
                 storage_state = await context.storage_state()
@@ -121,6 +122,7 @@ class ESPMAuthenticator:
                     viewport={"width": 1280, "height": 720},
                     extra_http_headers=_BROWSER_HEADERS,
                 )
+                await self._apply_stealth(context)
                 page = await context.new_page()
                 await page.goto(self.MY_COURSES_URL, timeout=self.TIMEOUT)
                 await self._wait_idle(page)
@@ -155,6 +157,7 @@ class ESPMAuthenticator:
                     viewport={"width": 1280, "height": 720},
                     extra_http_headers=_BROWSER_HEADERS,
                 )
+                await self._apply_stealth(context)
                 page = await context.new_page()
                 await self._run_login_steps(page, context, login, password, logs)
                 storage_state = await context.storage_state()
@@ -179,10 +182,30 @@ class ESPMAuthenticator:
         logs.append("Navegando para portal.espm.br...")
         await page.goto(self.PORTAL_URL, wait_until="networkidle", timeout=30000)
 
+        # Verificar se é Vercel security checkpoint (bot detection)
+        body_text = await page.evaluate("() => document.body?.innerText?.substring(0, 300) || ''")
+        if "failed to verify" in body_text.lower() or "security-checkpoint" in body_text.lower():
+            logs.append("WARN: Vercel bot detection ativado — aguardando...")
+            # Aguardar o challenge resolver (pode levar alguns segundos)
+            await page.wait_for_timeout(10000)
+            body_text = await page.evaluate("() => document.body?.innerText?.substring(0, 300) || ''")
+            if "failed to verify" in body_text.lower():
+                logs.append("Vercel bot detection persistiu. Recarregando...")
+                await page.reload(wait_until="networkidle", timeout=30000)
+                await page.wait_for_timeout(5000)
+
         # Se já estiver no portal autenticado, pular
         if self._is_espm_portal(page.url) and "login" not in page.url.lower():
-            logs.append("Já autenticado no portal.")
-            return
+            # Verificar que é realmente o portal (não Vercel checkpoint)
+            has_portal_content = await page.evaluate("""() => {
+                const text = document.body?.innerText || '';
+                return !text.includes('Failed to verify') && document.querySelectorAll('a').length > 3;
+            }""")
+            if has_portal_content:
+                logs.append("Já autenticado no portal.")
+                return
+            else:
+                logs.append("URL é portal mas conteúdo parece bloqueado. Prosseguindo com login...")
 
         # 2. Clicar "Conectar com sua conta ESPM" (busca robusta por texto)
         logs.append("Procurando botão 'Conectar com sua conta ESPM'...")
@@ -282,5 +305,55 @@ class ESPMAuthenticator:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
+    async def _apply_stealth(context) -> None:
+        """Hide automation markers to bypass Vercel/Cloudflare bot detection."""
+        await context.add_init_script("""
+            // Hide navigator.webdriver
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+
+            // Add chrome runtime object
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+
+            // Override permissions query
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) =>
+                parameters.name === 'notifications'
+                    ? Promise.resolve({ state: Notification.permission })
+                    : originalQuery(parameters);
+
+            // Override plugins to look real
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+
+            // Override languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['pt-BR', 'pt', 'en-US', 'en']
+            });
+
+            // Hide automation in WebGL renderer
+            const getParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                if (parameter === 37445) return 'Intel Inc.';
+                if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+                return getParameter.apply(this, arguments);
+            };
+        """)
+
+    @staticmethod
     def _is_espm_portal(url: str) -> bool:
-        return "portal.espm.br" in url.lower()
+        """Check if URL is the real portal (not B2C or Vercel checkpoint)."""
+        url_lower = url.lower()
+        if "portal.espm.br" not in url_lower:
+            return False
+        # Vercel security checkpoint has portal.espm.br URL but isn't the real portal
+        if "security-checkpoint" in url_lower or "vercel" in url_lower:
+            return False
+        return True
