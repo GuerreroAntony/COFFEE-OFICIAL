@@ -222,35 +222,56 @@ class ESPMAuthenticator:
         if sign_in_btn:
             await sign_in_btn.click()
 
-        # 6. Aguardar redirect
-        try:
-            await page.wait_for_load_state("domcontentloaded", timeout=30000)
-        except Exception:
-            pass
-        await page.wait_for_timeout(5000)
+        # 6. Aguardar B2C processar login — esperar KMSi prompt ou redirect
+        await page.wait_for_timeout(3000)
 
-        # 7. Handle "Stay signed in?"
-        try:
-            stay_btn = await page.query_selector(self.MS_SUBMIT_ID)
-            if stay_btn:
-                logs.append("Confirmando 'Stay signed in'...")
-                await stay_btn.click()
-                await page.wait_for_timeout(3000)
-                try:
-                    await page.wait_for_load_state("domcontentloaded", timeout=15000)
-                except Exception:
-                    pass
-                await page.wait_for_timeout(3000)
-        except Exception:
-            pass
+        # 7. Handle "Stay signed in?" (KMSi) — poll for up to 15s
+        for attempt in range(3):
+            # Se já chegou no portal, pronto
+            if self._is_espm_portal(page.url):
+                logs.append("Redirecionado para portal após Sign In.")
+                break
 
-        # 8. Se não está no portal, navegar explicitamente
+            try:
+                stay_btn = await page.wait_for_selector(
+                    self.MS_SUBMIT_ID, state="visible", timeout=5000
+                )
+                if stay_btn:
+                    # Verificar se é o KMSi prompt (não o form de senha)
+                    page_text = await page.evaluate(
+                        "() => document.body?.innerText?.substring(0, 500) || ''"
+                    )
+                    if "stay signed in" in page_text.lower() or "manter" in page_text.lower():
+                        logs.append("Confirmando 'Stay signed in'...")
+                        await stay_btn.click()
+                        await page.wait_for_timeout(5000)
+                        break
+                    else:
+                        logs.append(f"Botão encontrado mas não é KMSi (attempt {attempt+1})")
+                        await page.wait_for_timeout(3000)
+            except Exception:
+                await page.wait_for_timeout(2000)
+
+        # 8. Aguardar redirect para portal (até 20s)
         if not self._is_espm_portal(page.url):
-            logs.append("Navegando explicitamente para portal.espm.br...")
-            await page.goto(self.PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(5000)
+            logs.append(f"Aguardando redirect para portal... URL atual: {page.url[:80]}")
+            try:
+                await page.wait_for_url("**/portal.espm.br/**", timeout=20000)
+                logs.append("Redirect para portal detectado.")
+            except Exception:
+                logs.append(f"WARN: Redirect não aconteceu. URL: {page.url[:80]}")
 
-        # 9. Check final
+        # 9. Se chegou no portal, aguardar MSAL processar o auth code
+        if self._is_espm_portal(page.url):
+            logs.append("No portal — aguardando MSAL processar...")
+            await page.wait_for_timeout(8000)
+            await self._wait_idle(page, 5000)
+
+            # Verificar se MSAL não redirecionou de volta para B2C
+            if not self._is_espm_portal(page.url):
+                logs.append(f"WARN: MSAL redirecionou para B2C. URL: {page.url[:80]}")
+
+        # 10. Check final
         if not self._is_espm_portal(page.url):
             raise AuthenticationError(
                 f"Autenticação falhou — não redirecionou ao portal. URL: {page.url}"
