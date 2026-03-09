@@ -81,6 +81,7 @@ async def espm_connect(
         raise HTTPException(status_code=503, detail=error_response("ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
 
     auth = ESPMAuthenticator(settings.SECRET_KEY)
+    extractor = ScheduleExtractor()
     logs: list[str] = []
 
     row = await fetch_one(
@@ -90,10 +91,11 @@ async def espm_connect(
     if not row:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Usuário não encontrado"))
 
+    # Login + extração na mesma sessão de browser (storage_state não preserva JS state da SPA)
     try:
-        result_auth = await auth.login(body.matricula, body.password)
-        state = result_auth["state"]
-        logs = result_auth.get("logs", [])
+        result = await auth.login_and_extract(body.matricula, body.password, extractor)
+        logs = result.get("logs", [])
+        disciplines = result.get("disciplines", [])
     except AuthenticationError as exc:
         raise HTTPException(status_code=401, detail=error_response("ESPM_AUTH_FAILED", str(exc)))
     except PlaywrightTimeoutError:
@@ -122,13 +124,11 @@ async def espm_connect(
     disciplines_synced = 0
     if count == 0:
         try:
-            extractor = ScheduleExtractor()
-            disciplines = await extractor.extract(state, logs)
             disciplines_synced = await _upsert_disciplinas(user_id, disciplines)
             logs.append(f"Vinculadas {disciplines_synced} disciplinas ao aluno.")
         except Exception as exc:
             logger.error("espm.extract.error", error=str(exc))
-            logs.append(f"WARN: Extração de disciplinas falhou: {str(exc)[:100]}")
+            logs.append(f"WARN: Upsert de disciplinas falhou: {str(exc)[:100]}")
     else:
         disciplines_synced = count
 
