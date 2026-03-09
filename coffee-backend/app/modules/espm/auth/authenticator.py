@@ -51,9 +51,9 @@ class ESPMAuthenticator:
     MY_COURSES_URL = "https://portal.espm.br/my-courses"
     TIMEOUT        = 60000  # 60 segundos por etapa
 
-    # Seletores Microsoft
-    MS_EMAIL_SEL    = 'input[name="loginfmt"]'
-    MS_PASSWORD_SEL = 'input[name="passwd"]'
+    # Seletores Microsoft (IDs fixos do B2C — mesmos usados no scraper)
+    MS_EMAIL_SEL    = "#i0116"
+    MS_PASSWORD_SEL = "#i0118"
     MS_SUBMIT_ID    = "#idSIButton9"
 
     def __init__(self, secret_key: str) -> None:
