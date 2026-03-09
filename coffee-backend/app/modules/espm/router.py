@@ -121,10 +121,14 @@ async def espm_connect(
 
     disciplines_synced = 0
     if count == 0:
-        extractor = ScheduleExtractor()
-        disciplines = await extractor.extract(state, logs)
-        disciplines_synced = await _upsert_disciplinas(user_id, disciplines)
-        logs.append(f"Vinculadas {disciplines_synced} disciplinas ao aluno.")
+        try:
+            extractor = ScheduleExtractor()
+            disciplines = await extractor.extract(state, logs)
+            disciplines_synced = await _upsert_disciplinas(user_id, disciplines)
+            logs.append(f"Vinculadas {disciplines_synced} disciplinas ao aluno.")
+        except Exception as exc:
+            logger.error("espm.extract.error", error=str(exc))
+            logs.append(f"WARN: Extração de disciplinas falhou: {str(exc)[:100]}")
     else:
         disciplines_synced = count
 
