@@ -296,45 +296,73 @@ class ESPMAuthenticator:
         await page.wait_for_timeout(5000)
         logs.append(f"URL pós-senha: {page.url[:80]}")
 
-        # B2C may redirect to login.microsoftonline.com for federated auth
-        # or show KMSi directly. Handle both cases.
-        for attempt in range(6):
+        # B2C may redirect to login.microsoftonline.com for federated auth.
+        # Handle the full redirect chain: B2C → Microsoft → KMSi → portal
+        for attempt in range(8):
             cur = page.url
             if self._is_espm_portal(cur):
                 logs.append("Redirecionado para portal.")
                 break
 
-            # Check if there's a form to interact with (KMSi, password, etc.)
+            # Debug: log page state on first iteration and when URL changes
+            if attempt == 0 or (attempt <= 3):
+                try:
+                    debug_info = await page.evaluate("""() => {
+                        const inputs = Array.from(document.querySelectorAll('input')).map(i =>
+                            `${i.type}:${i.id||i.name}:vis=${i.offsetParent!==null}`
+                        );
+                        const buttons = Array.from(document.querySelectorAll('button, input[type=submit]')).map(b =>
+                            `${b.tagName}:${b.id||''}:${(b.innerText||b.value||'').substring(0,30)}`
+                        );
+                        const text = (document.body?.innerText || '').substring(0, 300);
+                        return JSON.stringify({inputs, buttons, text: text.substring(0, 200)});
+                    }""")
+                    logs.append(f"DEBUG[{attempt}] {cur[:50]}: {debug_info[:200]}")
+                except Exception:
+                    pass
+
+            # Try to find and interact with Microsoft forms
             try:
+                # Check for email field first (Microsoft may show email form)
+                email_field = await page.query_selector(self.MS_EMAIL_SEL)
+                if email_field and await email_field.is_visible():
+                    logs.append(f"Microsoft login: preenchendo email (attempt {attempt+1})...")
+                    await page.fill(self.MS_EMAIL_SEL, login)
+                    btn = await page.query_selector(self.MS_SUBMIT_ID)
+                    if btn:
+                        await btn.click()
+                    await page.wait_for_timeout(3000)
+                    continue
+
+                # Check for password field
+                pwd_field = await page.query_selector(self.MS_PASSWORD_SEL)
+                if pwd_field and await pwd_field.is_visible():
+                    logs.append(f"Microsoft login: preenchendo senha (attempt {attempt+1})...")
+                    await page.fill(self.MS_PASSWORD_SEL, password)
+                    btn = await page.query_selector(self.MS_SUBMIT_ID)
+                    if btn:
+                        await btn.click()
+                    await page.wait_for_timeout(5000)
+                    continue
+
+                # Check for KMSi / any submit button
                 btn = await page.query_selector(self.MS_SUBMIT_ID)
                 if btn and await btn.is_visible():
                     page_text = await page.evaluate(
-                        "() => document.body?.innerText?.substring(0, 800) || ''"
+                        "() => document.body?.innerText?.substring(0, 500) || ''"
                     )
                     text_lower = page_text.lower()
-
                     if "stay signed in" in text_lower or "manter" in text_lower:
                         logs.append("Confirmando 'Stay signed in'...")
                         await btn.click()
                         await page.wait_for_timeout(5000)
                         continue
-
-                    # Microsoft federated login may need password again
-                    pwd_field = await page.query_selector(self.MS_PASSWORD_SEL)
-                    if pwd_field and await pwd_field.is_visible():
-                        logs.append("Microsoft federated login — preenchendo senha novamente...")
-                        await page.fill(self.MS_PASSWORD_SEL, password)
-                        await btn.click()
-                        await page.wait_for_timeout(5000)
-                        continue
-
-                    # Some other page with the submit button
-                    logs.append(f"Página intermediária (attempt {attempt+1}): {cur[:60]}")
+                    logs.append(f"Botão encontrado, clicando (attempt {attempt+1})...")
                     await btn.click()
                     await page.wait_for_timeout(3000)
                     continue
-            except Exception:
-                pass
+            except Exception as e:
+                logs.append(f"WARN loop[{attempt}]: {str(e)[:80]}")
 
             await page.wait_for_timeout(3000)
 
