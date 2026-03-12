@@ -1,0 +1,122 @@
+{
+  "description": "Deterministic layout constants for iOS SwiftUI mind map renderer. These values produce consistent visual output regardless of content.",
+
+  "font": {
+    "family": "Poppins",
+    "fallback": "system-ui, -apple-system, sans-serif",
+    "root_size": 12.5,
+    "root_weight": 600,
+    "branch_size": 11.5,
+    "branch_weight": 600,
+    "leaf_size": 9.5,
+    "leaf_weight_default": 500,
+    "leaf_weight_hover": 600
+  },
+
+  "padding": {
+    "description": "Padding is dynamic — card width = text_width + (horizontal * 2), card height = font_size + (vertical * 2)",
+    "horizontal": 28,
+    "vertical_root": 16,
+    "vertical_branch": 14,
+    "vertical_leaf": 12
+  },
+
+  "text_width_estimation": {
+    "description": "Approximate character width for Poppins at a given font size. Used to calculate card width before rendering.",
+    "weight_600_multiplier": 0.62,
+    "weight_500_multiplier": 0.56,
+    "formula": "card_width = (string_length * font_size * weight_multiplier) + (padding_horizontal * 2)"
+  },
+
+  "colors": {
+    "background": "#FFFFFF",
+    "root_fill": "#1A1A2E",
+    "root_text": "#FFFFFF",
+    "branch_text": "#FFFFFF",
+    "leaf_text_default": "#555555",
+    "connection_line_opacity": 0.18,
+    "connection_line_width_root_to_branch": 2.0,
+    "connection_line_width_branch_to_leaf": 1.3,
+    "leaf_border_default_color": "uses softBorder from palette",
+    "leaf_border_default_width": 1.0,
+    "leaf_border_hover_width": 1.5,
+    "dot_radius": 2.5,
+    "dot_opacity": 0.25
+  },
+
+  "palette": [
+    {
+      "index": 0,
+      "name": "red",
+      "main": "#E8453C",
+      "soft": "#FEF0EF",
+      "softBorder": "#FACBC8",
+      "leafHover": "#FDE3E1"
+    },
+    {
+      "index": 1,
+      "name": "orange",
+      "main": "#E8943C",
+      "soft": "#FEF5EE",
+      "softBorder": "#FAD9B5",
+      "leafHover": "#FCECD8"
+    },
+    {
+      "index": 2,
+      "name": "green",
+      "main": "#2BAC76",
+      "soft": "#EDF9F2",
+      "softBorder": "#A8E0C4",
+      "leafHover": "#DDF3E8"
+    },
+    {
+      "index": 3,
+      "name": "purple",
+      "main": "#6C5CE7",
+      "soft": "#F1EFFE",
+      "softBorder": "#C3B8F7",
+      "leafHover": "#E5E0FC"
+    }
+  ],
+
+  "layout": {
+    "canvas_width": 900,
+    "canvas_height": 520,
+    "root_y": 52,
+    "root_x": 450,
+    "branch_y": 180,
+    "branch_x_distribution": {
+      "description": "4 branches evenly distributed with margin",
+      "margin": 100,
+      "formula": "branch_x[i] = margin + ((canvas_width - margin * 2) / 3) * i"
+    },
+    "leaf_start_y": 270,
+    "leaf_gap": 50
+  },
+
+  "curves": {
+    "type": "cubic_bezier",
+    "description": "Smooth S-curves connecting nodes. Control point at 50% Y between start and end.",
+    "formula": "M x1,y1 C x1,midY x2,midY x2,y2 where midY = y1 + (y2 - y1) * 0.5"
+  },
+
+  "interactions": {
+    "branch_hover": {
+      "effect": "drop-shadow",
+      "shadow": "0 4px 12px {main}44"
+    },
+    "leaf_hover": {
+      "fill_changes_to": "leafHover color from palette",
+      "border_changes_to": "main color from palette",
+      "text_color_changes_to": "main color from palette",
+      "text_weight_changes_to": 600
+    },
+    "transition_duration": "0.15s ease"
+  },
+
+  "shape": {
+    "root": "pill (rx = height/2)",
+    "branch": "pill (rx = height/2)",
+    "leaf": "rounded_rect (rx = height/2)"
+  }
+}

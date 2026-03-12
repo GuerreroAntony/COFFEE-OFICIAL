@@ -1,0 +1,89 @@
+{
+  "description": "Example mind map outputs for testing and reference. Each represents a real lecture scenario.",
+  "examples": [
+    {
+      "lecture": "Gestão de Marketing - Mix de Marketing (4Ps)",
+      "output": {
+        "topic": "Mix de Marketing",
+        "branches": [
+          {
+            "topic": "Produto",
+            "color": 0,
+            "children": ["Qualidade e Design", "Ciclo de Vida", "Marca e Embalagem"]
+          },
+          {
+            "topic": "Preço",
+            "color": 1,
+            "children": ["Precificação", "Elasticidade", "Preço Psicológico"]
+          },
+          {
+            "topic": "Praça",
+            "color": 2,
+            "children": ["Canais de Distrib.", "Logística", "E-commerce"]
+          },
+          {
+            "topic": "Promoção",
+            "color": 3,
+            "children": ["Publicidade", "Marketing Digital", "Relações Públicas"]
+          }
+        ]
+      }
+    },
+    {
+      "lecture": "Contabilidade - Demonstrações Contábeis",
+      "output": {
+        "topic": "Demonstrações Contábeis",
+        "branches": [
+          {
+            "topic": "Balanço Patrim.",
+            "color": 0,
+            "children": ["Ativos", "Passivos", "Patrimônio Líquido"]
+          },
+          {
+            "topic": "DRE",
+            "color": 1,
+            "children": ["Receitas", "Custos e Despesas", "Lucro Líquido"]
+          },
+          {
+            "topic": "Fluxo de Caixa",
+            "color": 2,
+            "children": ["Operacional", "Investimento", "Financiamento"]
+          },
+          {
+            "topic": "DMPL",
+            "color": 3,
+            "children": ["Capital Social", "Reservas", "Dividendos"]
+          }
+        ]
+      }
+    },
+    {
+      "lecture": "Marketing - Comportamento do Consumidor",
+      "output": {
+        "topic": "Comport. Consumidor",
+        "branches": [
+          {
+            "topic": "Culturais",
+            "color": 0,
+            "children": ["Cultura", "Subcultura", "Classe Social"]
+          },
+          {
+            "topic": "Sociais",
+            "color": 1,
+            "children": ["Grupos de Ref.", "Família", "Papéis e Status"]
+          },
+          {
+            "topic": "Pessoais",
+            "color": 2,
+            "children": ["Idade e Estágio", "Estilo de Vida", "Personalidade"]
+          },
+          {
+            "topic": "Psicológicos",
+            "color": 3,
+            "children": ["Motivação", "Percepção", "Aprendizagem"]
+          }
+        ]
+      }
+    }
+  ]
+}

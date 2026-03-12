@@ -264,16 +264,12 @@ async def scrape_disciplina(
 
     canvas_course_id = disc["canvas_course_id"]
     if not canvas_course_id:
-        # Try matching by codigo_espm as fallback
-        if disc["codigo_espm"] and disc["codigo_espm"].isdigit():
-            canvas_course_id = int(disc["codigo_espm"])
-        else:
-            logger.error(
-                "Disciplina '%s' has no canvas_course_id. Run scrape_all first to match.",
-                disc["nome"],
-            )
-            await db.close_pool()
-            return stats
+        logger.error(
+            "Disciplina '%s' has no canvas_course_id. Run scrape_all first to match.",
+            disc["nome"],
+        )
+        await db.close_pool()
+        return stats
 
     logger.info("Scraping course %d for disciplina '%s'", canvas_course_id, disc["nome"])
 

@@ -56,7 +56,7 @@ async def _execute(query: str, *args: Any) -> str:
 async def get_all_disciplinas() -> list[asyncpg.Record]:
     """All disciplinas that could be matched to Canvas courses."""
     return await _fetch_all(
-        """SELECT id, nome, codigo_espm, canvas_course_id, semestre
+        """SELECT id, nome, canvas_course_id, semestre
            FROM disciplinas
            ORDER BY semestre DESC NULLS LAST"""
     )
@@ -64,7 +64,7 @@ async def get_all_disciplinas() -> list[asyncpg.Record]:
 
 async def get_disciplina(disciplina_id: UUID) -> Optional[asyncpg.Record]:
     return await _fetch_one(
-        "SELECT id, nome, codigo_espm, canvas_course_id FROM disciplinas WHERE id = $1",
+        "SELECT id, nome, canvas_course_id FROM disciplinas WHERE id = $1",
         disciplina_id,
     )
 
