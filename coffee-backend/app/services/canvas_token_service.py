@@ -59,7 +59,109 @@ _CHROMIUM_ARGS = [
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 1. CANVAS LOGIN (Playwright — Microsoft B2C SSO)
+# 1. MICROSOFT POST-LOGIN HANDLER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _handle_microsoft_post_login(page) -> None:
+    """
+    After clicking Sign In, Microsoft may show intermediate pages before
+    redirecting back to Canvas. This function handles all known cases:
+
+    1. "Stay signed in?" (KMSI) → click Yes
+    2. MFA registration (mysignins.microsoft.com) → click Skip/Cancel
+    3. ProofUp redirect → click skip button
+    4. Already on Canvas → return immediately
+
+    Polls for up to 30s with 2s intervals.
+    """
+    for attempt in range(15):  # 15 × 2s = 30s max
+        await asyncio.sleep(2)
+        current_url = page.url
+
+        # Already on Canvas — done!
+        if CANVAS_BASE_URL in current_url:
+            logger.info("[canvas] post_login: already on Canvas")
+            return
+
+        logger.info("[canvas] post_login attempt=%d url=%s", attempt, current_url[:80])
+
+        # Case 1: "Stay signed in?" (KMSI) — same button #idSIButton9
+        if "login.microsoftonline.com" in current_url:
+            try:
+                kmsi_btn = page.locator("#idSIButton9")
+                if await kmsi_btn.is_visible():
+                    await kmsi_btn.click()
+                    logger.info("[canvas] post_login: clicked 'Stay signed in'")
+                    continue
+            except Exception:
+                pass
+
+            # Also check for ProofUp redirect button
+            try:
+                proof_btn = page.locator("#idSubmit_ProofUp_Redirect")
+                if await proof_btn.is_visible():
+                    await proof_btn.click()
+                    logger.info("[canvas] post_login: clicked ProofUp redirect")
+                    continue
+            except Exception:
+                pass
+
+        # Case 2: MFA registration page (mysignins.microsoft.com)
+        if "mysignins.microsoft.com" in current_url:
+            skip_result = await page.evaluate("""() => {
+                const all = document.querySelectorAll('a, button, span[role="button"]');
+                for (const el of all) {
+                    const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                    if (text.includes('skip') || text.includes('cancel') || text.includes('ignorar')
+                        || text.includes('cancelar') || text.includes('pular')
+                        || text.includes('ask later') || text.includes('perguntar depois')
+                        || text.includes('não, obrigado') || text.includes('no thanks')) {
+                        el.click();
+                        return 'clicked: ' + text.substring(0, 40);
+                    }
+                }
+                const close = document.querySelector(
+                    '[aria-label="Close"], [aria-label="Fechar"], .ms-Dialog-button--close'
+                );
+                if (close) { close.click(); return 'clicked-close'; }
+                return 'no-skip-found';
+            }""")
+            logger.info("[canvas] post_login: MFA page → %s", skip_result)
+            if "clicked" in skip_result:
+                continue
+            # No skip button — try navigating back
+            await page.go_back()
+            continue
+
+        # Case 3: Any other Microsoft page — look for generic skip/next buttons
+        if "microsoft" in current_url:
+            try:
+                generic_result = await page.evaluate("""() => {
+                    const all = document.querySelectorAll('button, input[type=submit], a');
+                    for (const el of all) {
+                        const text = (el.innerText || el.value || '').trim().toLowerCase();
+                        if (text.includes('skip') || text.includes('next') || text.includes('yes')
+                            || text.includes('continue') || text.includes('pular')
+                            || text.includes('continuar') || text.includes('sim')) {
+                            el.click();
+                            return 'clicked: ' + text.substring(0, 40);
+                        }
+                    }
+                    return 'no-action';
+                }""")
+                logger.info("[canvas] post_login: generic Microsoft page → %s", generic_result)
+                if "clicked" in generic_result:
+                    continue
+            except Exception:
+                pass
+
+    # If we get here and we're still not on Canvas, let the caller's
+    # wait_for_url handle the final timeout
+    logger.warning("[canvas] post_login: exhausted attempts, current URL: %s", page.url)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. CANVAS LOGIN (Playwright — Microsoft B2C SSO)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _canvas_login(
@@ -116,19 +218,16 @@ async def _canvas_login(
         logger.info("[canvas] step=sign_in")
         await page.locator("#idSIButton9").click()
 
-        # "Stay signed in?" — click Yes if it appears
-        step = "stay_signed_in"
-        try:
-            stay_btn = page.locator("#idSIButton9")
-            await stay_btn.wait_for(state="visible", timeout=8_000)
-            await stay_btn.click()
-        except PlaywrightTimeoutError:
-            pass
+        # Post-login: handle Microsoft intermediate pages
+        # Microsoft may show: "Stay signed in?", MFA registration, ProofUp, etc.
+        step = "post_login"
+        logger.info("[canvas] step=post_login (handling Microsoft pages)")
+        await _handle_microsoft_post_login(page)
 
         # Wait for redirect back to Canvas
         step = "redirect"
         logger.info("[canvas] step=redirect (waiting for Canvas URL)")
-        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=45_000)
+        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=30_000, wait_until="commit")
         await page.wait_for_load_state("domcontentloaded", timeout=15_000)
 
         # Close NEXUS modal if it appears
