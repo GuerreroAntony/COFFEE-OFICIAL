@@ -36,6 +36,27 @@ CANVAS_API_BASE = f"{CANVAS_BASE_URL}/api/v1"
 MONTHS_TO_ADVANCE = 4
 DAYS_AHEAD = 120
 
+# Realistic Chrome user-agent — Microsoft SSO blocks obvious headless bots
+_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+# Docker-safe Chromium launch args (NO --single-process — causes hangs)
+_CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-background-networking",
+    "--disable-default-apps",
+    "--disable-extensions",
+    "--disable-sync",
+    "--disable-translate",
+    "--no-first-run",
+    "--mute-audio",
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. CANVAS LOGIN (Playwright — Microsoft B2C SSO)
@@ -55,53 +76,60 @@ async def _canvas_login(
     the real Microsoft SSO flow. See canvas-api-test/CANVAS_SCRAPER_DOCS.md.
     """
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(
-        headless=headless,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--single-process",
-        ],
+    browser = await pw.chromium.launch(headless=headless, args=_CHROMIUM_ARGS)
+    page = await browser.new_page(
+        user_agent=_USER_AGENT,
+        viewport={"width": 1280, "height": 720},
     )
-    page = await browser.new_page()
 
+    step = "init"
     try:
         target_url = f"{CANVAS_BASE_URL}{target_path}"
-        logger.info("Navigating to %s", target_url)
-        await page.goto(target_url, wait_until="domcontentloaded", timeout=60_000)
+        step = "navigate"
+        logger.info("[canvas] step=navigate url=%s", target_url)
+        await page.goto(target_url, wait_until="domcontentloaded", timeout=30_000)
 
         # Click SSO login button
+        step = "sso_button"
+        logger.info("[canvas] step=sso_button")
         sso_btn = page.get_by_text("Conectar com sua conta ESPM")
-        await sso_btn.click(timeout=15_000)
+        await sso_btn.click(timeout=10_000)
 
         # Fill email
-        await page.wait_for_selector("#i0116", timeout=30_000)
+        step = "email"
+        logger.info("[canvas] step=email")
+        await page.wait_for_selector("#i0116", timeout=15_000)
         await page.fill("#i0116", email)
         await page.click("#idSIButton9")  # Next
 
         # Wait for password field — 0.4s animation delay is CRITICAL (do NOT remove)
+        step = "password"
+        logger.info("[canvas] step=password")
         passwd_field = page.locator("#i0118")
-        await passwd_field.wait_for(state="visible", timeout=30_000)
+        await passwd_field.wait_for(state="visible", timeout=15_000)
         await asyncio.sleep(0.4)
         await passwd_field.click()
         await passwd_field.fill(password)
 
         # Sign In
+        step = "sign_in"
+        logger.info("[canvas] step=sign_in")
         await page.locator("#idSIButton9").click()
 
         # "Stay signed in?" — click Yes if it appears
+        step = "stay_signed_in"
         try:
             stay_btn = page.locator("#idSIButton9")
-            await stay_btn.wait_for(state="visible", timeout=15_000)
+            await stay_btn.wait_for(state="visible", timeout=8_000)
             await stay_btn.click()
         except PlaywrightTimeoutError:
             pass
 
         # Wait for redirect back to Canvas
-        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=60_000)
-        await page.wait_for_load_state("domcontentloaded", timeout=30_000)
+        step = "redirect"
+        logger.info("[canvas] step=redirect (waiting for Canvas URL)")
+        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=45_000)
+        await page.wait_for_load_state("domcontentloaded", timeout=15_000)
 
         # Close NEXUS modal if it appears
         try:
@@ -116,65 +144,71 @@ async def _canvas_login(
             await pw.stop()
             raise CanvasAuthError(f"Canvas login failed. Final URL: {page.url}")
 
-        logger.info("Canvas login successful → %s", page.url)
+        logger.info("[canvas] login OK → %s", page.url)
         return pw, browser, page
 
     except PlaywrightTimeoutError as e:
+        logger.error("[canvas] TIMEOUT at step=%s: %s", step, e)
         await browser.close()
         await pw.stop()
-        raise CanvasTimeoutError(f"Canvas login timed out: {e}") from e
+        raise CanvasTimeoutError(f"Canvas login timed out at step '{step}': {e}") from e
     except CanvasAuthError:
         raise  # Re-raise auth errors as-is
+    except Exception as e:
+        logger.error("[canvas] ERROR at step=%s: %s", step, e)
+        await browser.close()
+        await pw.stop()
+        raise
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. TOKEN GENERATION (Playwright — navigates Canvas UI)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def generate_canvas_token(
+async def _generate_canvas_token_once(
     email: str,
     password: str,
     purpose: str = "coffee-auto",
     headless: bool = True,
 ) -> dict:
     """
-    Generate a Canvas API access token via UI automation.
-
+    Single attempt to generate a Canvas API access token via UI automation.
     Returns dict: {token, purpose, created_at, expires_at}
-
-    IMPORTANT: The token only appears ONCE in the modal right after creation.
-    If you navigate away, Canvas shows it truncated.
-
-    Performance: ~19s (login SSO + navigate + create token)
     """
     target_date = datetime.now() + timedelta(days=DAYS_AHEAD)
     safe_day = max(datetime.now().day - 3, 1)
-
-    logger.info("Generating Canvas token, target expiry: %s", target_date.strftime("%d/%m/%Y"))
 
     pw, browser, page = await _canvas_login(
         email, password, target_path="/profile/settings", headless=headless
     )
 
+    step = "token_init"
     try:
         # Click "+ Novo token de acesso"
+        step = "new_token_link"
+        logger.info("[canvas] step=new_token_link")
         new_token_link = page.get_by_text("Novo token de acesso")
-        await new_token_link.click(timeout=20_000)
+        await new_token_link.click(timeout=10_000)
 
-        # Fill purpose (Canvas settings page may load slowly after SSO redirect)
-        await page.fill("input[name='purpose']", purpose, timeout=20_000)
+        # Fill purpose
+        step = "fill_purpose"
+        logger.info("[canvas] step=fill_purpose")
+        await page.fill("input[name='purpose']", purpose, timeout=10_000)
 
         # Open calendar
+        step = "open_calendar"
         date_input = page.locator("input[id^='Selectable']")
         await date_input.click(timeout=5_000)
 
         # Advance months
+        step = "advance_months"
         for i in range(MONTHS_TO_ADVANCE):
             next_btn = page.locator("button:has-text('Próximo mês')")
             await next_btn.click(timeout=5_000)
             await asyncio.sleep(0.15)
 
         # Select day — text format is "9 julho 2026\n09" so use startswith
+        step = "select_day"
         day_buttons = page.locator("button[role='option']")
         count = await day_buttons.count()
         for idx in range(count):
@@ -185,10 +219,13 @@ async def generate_canvas_token(
                 break
 
         # Generate token
+        step = "submit"
+        logger.info("[canvas] step=submit (generating token)")
         submit_btn = page.locator("button[type='submit']:has-text('Gerar token')")
         await submit_btn.click(timeout=10_000)
 
         # Extract token — visible_token only appears ONCE in creation modal
+        step = "extract_token"
         token_el = page.locator('[data-testid="visible_token"]')
         await token_el.wait_for(state="visible", timeout=15_000)
         token = (await token_el.inner_text()).strip()
@@ -204,15 +241,51 @@ async def generate_canvas_token(
             "expires_at": target_date.isoformat(timespec="seconds"),
         }
 
-        logger.info("Canvas token generated: %s...%s (expires %s)",
+        logger.info("[canvas] TOKEN OK: %s...%s (expires %s)",
                      token[:15], token[-4:], target_date.strftime("%d/%m/%Y"))
         return result
 
     except PlaywrightTimeoutError as e:
-        raise CanvasTimeoutError(f"Canvas token generation timed out: {e}") from e
+        logger.error("[canvas] TIMEOUT at step=%s: %s", step, e)
+        raise CanvasTimeoutError(f"Token generation timed out at step '{step}': {e}") from e
     finally:
         await browser.close()
         await pw.stop()
+
+
+async def generate_canvas_token(
+    email: str,
+    password: str,
+    purpose: str = "coffee-auto",
+    headless: bool = True,
+    max_retries: int = 2,
+) -> dict:
+    """
+    Generate a Canvas API access token with automatic retry.
+
+    Retries up to max_retries times on timeout (CanvasTimeoutError).
+    Does NOT retry on auth errors (wrong password).
+
+    Performance: ~19s per attempt (login SSO + navigate + create token).
+    Token lasts 120 days — this only runs once every ~4 months.
+    """
+    last_error = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("[canvas] attempt %d/%d", attempt, max_retries)
+            result = await _generate_canvas_token_once(email, password, purpose, headless)
+            return result
+        except CanvasAuthError:
+            raise  # Wrong password — don't retry
+        except CanvasTimeoutError as e:
+            last_error = e
+            logger.warning("[canvas] attempt %d failed: %s", attempt, e)
+            if attempt < max_retries:
+                logger.info("[canvas] retrying in 3s...")
+                await asyncio.sleep(3)
+
+    raise last_error  # type: ignore[misc]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
