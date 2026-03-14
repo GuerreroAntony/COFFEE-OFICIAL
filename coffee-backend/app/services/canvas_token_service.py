@@ -55,26 +55,35 @@ async def _canvas_login(
     the real Microsoft SSO flow. See canvas-api-test/CANVAS_SCRAPER_DOCS.md.
     """
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(headless=headless)
+    browser = await pw.chromium.launch(
+        headless=headless,
+        args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--single-process",
+        ],
+    )
     page = await browser.new_page()
 
     try:
         target_url = f"{CANVAS_BASE_URL}{target_path}"
         logger.info("Navigating to %s", target_url)
-        await page.goto(target_url, wait_until="domcontentloaded", timeout=30_000)
+        await page.goto(target_url, wait_until="domcontentloaded", timeout=60_000)
 
         # Click SSO login button
         sso_btn = page.get_by_text("Conectar com sua conta ESPM")
-        await sso_btn.click(timeout=10_000)
+        await sso_btn.click(timeout=15_000)
 
         # Fill email
-        await page.wait_for_selector("#i0116", timeout=15_000)
+        await page.wait_for_selector("#i0116", timeout=30_000)
         await page.fill("#i0116", email)
         await page.click("#idSIButton9")  # Next
 
         # Wait for password field — 0.4s animation delay is CRITICAL (do NOT remove)
         passwd_field = page.locator("#i0118")
-        await passwd_field.wait_for(state="visible", timeout=15_000)
+        await passwd_field.wait_for(state="visible", timeout=30_000)
         await asyncio.sleep(0.4)
         await passwd_field.click()
         await passwd_field.fill(password)
@@ -85,14 +94,14 @@ async def _canvas_login(
         # "Stay signed in?" — click Yes if it appears
         try:
             stay_btn = page.locator("#idSIButton9")
-            await stay_btn.wait_for(state="visible", timeout=8_000)
+            await stay_btn.wait_for(state="visible", timeout=15_000)
             await stay_btn.click()
         except PlaywrightTimeoutError:
             pass
 
         # Wait for redirect back to Canvas
-        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=45_000)
-        await page.wait_for_load_state("domcontentloaded", timeout=15_000)
+        await page.wait_for_url(f"{CANVAS_BASE_URL}/**", timeout=60_000)
+        await page.wait_for_load_state("domcontentloaded", timeout=30_000)
 
         # Close NEXUS modal if it appears
         try:
@@ -150,10 +159,10 @@ async def generate_canvas_token(
     try:
         # Click "+ Novo token de acesso"
         new_token_link = page.get_by_text("Novo token de acesso")
-        await new_token_link.click(timeout=10_000)
+        await new_token_link.click(timeout=20_000)
 
-        # Fill purpose (10s — Canvas settings page may load slowly after SSO redirect)
-        await page.fill("input[name='purpose']", purpose, timeout=10_000)
+        # Fill purpose (Canvas settings page may load slowly after SSO redirect)
+        await page.fill("input[name='purpose']", purpose, timeout=20_000)
 
         # Open calendar
         date_input = page.locator("input[id^='Selectable']")
