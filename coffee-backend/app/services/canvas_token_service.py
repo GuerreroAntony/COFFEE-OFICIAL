@@ -391,6 +391,23 @@ async def generate_canvas_token(
 # 3. CANVAS REST API (uses token — no Playwright needed)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+async def validate_canvas_token(token: str) -> dict:
+    """
+    Validate a Canvas API token by calling GET /api/v1/users/self.
+
+    Returns the user info dict if valid.
+    Raises CanvasAuthError if the token is invalid or expired.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(f"{CANVAS_API_BASE}/users/self", headers=headers)
+        if r.status_code == 401:
+            raise CanvasAuthError("Token Canvas inválido ou expirado")
+        r.raise_for_status()
+        logger.info("[canvas] Token validated OK via /users/self")
+        return r.json()
+
+
 async def fetch_canvas_courses(canvas_token: str) -> list[dict]:
     """
     Fetch student's courses from Canvas REST API.

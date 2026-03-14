@@ -10,7 +10,7 @@ Endpoints:
 from __future__ import annotations
 
 import structlog
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,6 +24,7 @@ from app.schemas.base import error_response, success_response
 from app.services.canvas_token_service import (
     generate_canvas_token,
     fetch_canvas_courses,
+    validate_canvas_token,
     CanvasAuthError,
     CanvasTimeoutError,
 )
@@ -36,7 +37,8 @@ logger = structlog.get_logger(__name__)
 
 class ESPMConnectRequest(BaseModel):
     matricula: str = Field(description="Email ESPM (ex: aluno@acad.espm.br)")
-    password: str = Field(description="Senha do portal ESPM")
+    password: str = Field(default="", description="Senha ESPM (obrigatória se canvas_token não fornecido)")
+    canvas_token: Optional[str] = Field(default=None, description="Canvas API token (pula Playwright)")
 
 class ESPMSyncRequest(BaseModel):
     matricula: str
@@ -144,63 +146,97 @@ async def espm_connect(
     """
     Conecta conta ESPM via Canvas API.
 
-    Fluxo:
-    1. Playwright login no Canvas SSO → gera API token (~19s)
-    2. REST API busca cursos do aluno (~2s)
-    3. Upsert disciplinas no banco
-    4. Salva credenciais encriptadas (para coffee-scraper)
+    Dois caminhos:
+    A) canvas_token fornecido → valida via REST API, salva, busca cursos (~2s)
+    B) matricula + password → Playwright SSO login + gera token (~19s, só funciona local)
     """
-    if not settings.SECRET_KEY:
-        raise HTTPException(status_code=503, detail=error_response(
-            "ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
-
     # Verify user exists
     row = await fetch_one("SELECT 1 FROM users WHERE id = $1", user_id)
     if not row:
         raise HTTPException(status_code=404, detail=error_response(
             "NOT_FOUND", "Usuário não encontrado"))
 
-    # 1. Generate Canvas API token via Playwright
-    try:
-        canvas_ok, canvas_token = await _generate_and_save_canvas_token(
-            user_id, body.matricula, body.password
+    canvas_token = None
+
+    if body.canvas_token:
+        # ── Path A: Token fornecido pelo iOS → validar via REST API ──
+        logger.info("espm.connect.token_path", user_id=str(user_id))
+        try:
+            await validate_canvas_token(body.canvas_token)
+        except CanvasAuthError:
+            raise HTTPException(status_code=401, detail=error_response(
+                "ESPM_AUTH_FAILED", "Token Canvas inválido ou expirado."))
+        except Exception as exc:
+            logger.error("espm.connect.token_validation_error", error=str(exc))
+            raise HTTPException(status_code=503, detail=error_response(
+                "ESPM_UNAVAILABLE", "Erro ao validar token Canvas."))
+
+        canvas_token = body.canvas_token
+        expires_at = datetime.utcnow() + timedelta(days=120)
+
+        await execute_query(
+            """UPDATE users
+               SET canvas_token = $1,
+                   canvas_token_expires_at = $2,
+                   espm_login = $3
+               WHERE id = $4""",
+            canvas_token, expires_at, body.matricula, user_id,
         )
-    except CanvasAuthError:
-        raise HTTPException(status_code=401, detail=error_response(
-            "ESPM_AUTH_FAILED", "Credenciais ESPM inválidas."))
-    except CanvasTimeoutError:
-        raise HTTPException(status_code=504, detail=error_response(
-            "ESPM_TIMEOUT", "Timeout ao conectar ao Canvas ESPM."))
+        logger.info("espm.connect.token_saved", user_id=str(user_id),
+                     expires_at=expires_at.isoformat())
 
-    if not canvas_ok or not canvas_token:
-        raise HTTPException(status_code=503, detail=error_response(
-            "ESPM_UNAVAILABLE",
-            "Não foi possível gerar token Canvas."))
+    else:
+        # ── Path B: Playwright SSO login → gera token (~19s) ──
+        if not body.password:
+            raise HTTPException(status_code=422, detail=error_response(
+                "VALIDATION_ERROR",
+                "Forneça canvas_token ou matricula+password."))
 
-    # 2. Fetch courses via Canvas REST API and upsert
+        if not settings.SECRET_KEY:
+            raise HTTPException(status_code=503, detail=error_response(
+                "ESPM_UNAVAILABLE", "SECRET_KEY não configurada"))
+
+        logger.info("espm.connect.playwright_path", user_id=str(user_id))
+        try:
+            canvas_ok, canvas_token = await _generate_and_save_canvas_token(
+                user_id, body.matricula, body.password
+            )
+        except CanvasAuthError:
+            raise HTTPException(status_code=401, detail=error_response(
+                "ESPM_AUTH_FAILED", "Credenciais ESPM inválidas."))
+        except CanvasTimeoutError:
+            raise HTTPException(status_code=504, detail=error_response(
+                "ESPM_TIMEOUT", "Timeout ao conectar ao Canvas ESPM."))
+
+        if not canvas_ok or not canvas_token:
+            raise HTTPException(status_code=503, detail=error_response(
+                "ESPM_UNAVAILABLE",
+                "Não foi possível gerar token Canvas."))
+
+        # Save encrypted credentials (backward compat with coffee-scraper)
+        try:
+            encrypted_password = _encrypt_password(body.password)
+            await execute_query(
+                """UPDATE users
+                   SET espm_login = $1,
+                       encrypted_espm_password = $2
+                   WHERE id = $3""",
+                body.matricula, encrypted_password, user_id,
+            )
+        except Exception as exc:
+            logger.warning("espm.connect.encrypt.error", error=str(exc))
+            await execute_query(
+                "UPDATE users SET espm_login = $1 WHERE id = $2",
+                body.matricula, user_id,
+            )
+
+    # Fetch courses via Canvas REST API and upsert
     disciplines_synced = 0
     try:
         disciplines = await _fetch_courses_list(canvas_token)
         disciplines_synced = await _upsert_disciplinas(user_id, disciplines)
     except Exception as exc:
         logger.error("espm.connect.fetch_courses.error", error=str(exc))
-
-    # 3. Save encrypted credentials (backward compat with coffee-scraper)
-    try:
-        encrypted_password = _encrypt_password(body.password)
-        await execute_query(
-            """UPDATE users
-               SET espm_login = $1,
-                   encrypted_espm_password = $2
-               WHERE id = $3""",
-            body.matricula, encrypted_password, user_id,
-        )
-    except Exception as exc:
-        logger.warning("espm.connect.encrypt.error", error=str(exc))
-        await execute_query(
-            "UPDATE users SET espm_login = $1 WHERE id = $2",
-            body.matricula, user_id,
-        )
 
     # Build response matching contract v3.1
     resp = await _build_connect_response(user_id, disciplines_synced)
