@@ -7,6 +7,7 @@ import logging
 from uuid import UUID
 from app.database import fetch_one, execute_query
 from app.services.openai_service import OpenAIService
+from app.services.mindmap_service import generate_mindmap_for_gravacao
 
 logger = logging.getLogger("summary_service")
 _openai = OpenAIService()
@@ -57,14 +58,26 @@ async def generate_summary_for_gravacao(gravacao_id: UUID) -> None:
         short_summary = summary.get("resumo_geral", "")[:300]
         full_summary = json.dumps(summary.get("topicos", []), ensure_ascii=False)
 
-        # Atualizar gravação
+        # Salvar summary (sem marcar ready ainda)
         await execute_query(
             """UPDATE gravacoes
-               SET short_summary = $1, full_summary = $2::jsonb, status = 'ready'
+               SET short_summary = $1, full_summary = $2::jsonb
                WHERE id = $3""",
             short_summary, full_summary, gravacao_id,
         )
         logger.info("Resumo gerado com sucesso para gravação %s", gravacao_id)
+
+        # Generate mind map (if it fails, mind_map stays null)
+        try:
+            await generate_mindmap_for_gravacao(gravacao_id)
+        except Exception as e:
+            logger.warning("Mind map generation failed for %s: %s", gravacao_id, e)
+
+        # Agora sim marcar como ready (após summary + mindmap)
+        await execute_query(
+            "UPDATE gravacoes SET status = 'ready' WHERE id = $1",
+            gravacao_id,
+        )
 
     except Exception as e:
         logger.error("Erro ao gerar resumo para gravação %s: %s", gravacao_id, e)

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -9,7 +9,13 @@ class VerifyReceiptRequest(BaseModel):
     transaction_id: str
 
 
+class GiftCodeBrief(BaseModel):
+    code: str
+    redeemed: bool
+
+
 class SubscriptionStatusResponse(BaseModel):
     plano: str
     subscription_active: bool
     expires_at: Optional[datetime] = None
+    gift_codes: list[GiftCodeBrief] = []

@@ -1,84 +1,43 @@
 import json
 from uuid import UUID, uuid4
-from datetime import date, datetime
-from typing import Optional, AsyncGenerator
+from datetime import datetime, timezone
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_with_plan
 from app.database import fetch_one, fetch_all, execute_query
 from app.schemas.chat import (
     CreateChatRequest,
     SendMessageRequest,
-    PersonalityConfig,
     SourceReference,
     MessageResponse,
     ChatSummary,
 )
 from app.schemas.base import error_response, success_response
 from app.services.openai_service import OpenAIService
+from app.services.anthropic_service import AnthropicService
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
 _openai = OpenAIService()
+_anthropic = AnthropicService()
+
+# Mode → model mapping
+_MODE_MODELS = {
+    "espresso": "gpt-4o-mini",
+    "lungo": "gpt-4o",
+    "cold_brew": "claude",  # handled separately via AnthropicService
+}
 
 
-# ── Personality ──────────────────────────────────────────────
-
-def _build_personality_instructions(p: dict) -> str:
-    lines = []
-
-    prof = p.get("profundidade", 50)
-    if prof <= 30:
-        lines.append("Responda de forma breve e direta, máximo 2 parágrafos.")
-    elif prof <= 70:
-        lines.append("Responda com profundidade moderada.")
-    else:
-        lines.append("Responda de forma detalhada e aprofundada, sem limitar extensão.")
-
-    ling = p.get("linguagem", 50)
-    if ling <= 30:
-        lines.append("Use tom formal e acadêmico.")
-    elif ling <= 70:
-        lines.append("Use tom neutro.")
-    else:
-        lines.append("Use tom casual e acessível, como um amigo explicando.")
-
-    exem = p.get("exemplos", 50)
-    if exem <= 30:
-        lines.append("Seja direto, sem exemplos.")
-    elif exem <= 70:
-        lines.append("Inclua 1-2 exemplos quando relevante.")
-    else:
-        lines.append("Use muitos exemplos e analogias do dia a dia.")
-
-    quest = p.get("questionamento", 50)
-    if quest <= 30:
-        lines.append("Apenas responda, não faça perguntas.")
-    elif quest <= 70:
-        lines.append("Ocasionalmente faça uma pergunta reflexiva.")
-    else:
-        lines.append("Use método socrático, faça perguntas que guiem o raciocínio.")
-
-    foco = p.get("foco", 50)
-    if foco <= 30:
-        lines.append("Foque em conceitos teóricos e fundamentos.")
-    elif foco <= 70:
-        lines.append("Equilibre teoria e prática.")
-    else:
-        lines.append("Foque em aplicações práticas e casos reais.")
-
-    return " ".join(lines)
-
-
-# ── Source formatting ────────────────────────────────────────
+# ── Helpers ─────────────────────────────────────────────────
 
 def _build_sources(chunk_rows) -> list[dict]:
     """Build SourceReference dicts from RAG chunk rows."""
     sources = []
     for row in chunk_rows:
-        meta = row["metadata"] if isinstance(row["metadata"], dict) else {}
         excerpt = (row["texto_chunk"] or "")[:200]
         similarity = float(row["similarity"])
 
@@ -109,8 +68,6 @@ def _build_sources(chunk_rows) -> list[dict]:
     return sources
 
 
-# ── Ownership validation ─────────────────────────────────────
-
 async def _validate_source_ownership(user_id: UUID, source_type: str, source_id: UUID):
     if source_type == "disciplina":
         row = await fetch_one(
@@ -126,13 +83,55 @@ async def _validate_source_ownership(user_id: UUID, source_type: str, source_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado à fonte"))
 
 
+async def _get_cycle_start(user_id: UUID) -> datetime:
+    """Calculate the start of the current 30-day billing cycle."""
+    row = await fetch_one("SELECT created_at FROM users WHERE id = $1", user_id)
+    if not row:
+        return datetime.now(timezone.utc)
+    created_at = row["created_at"]
+    now = datetime.now(timezone.utc)
+    elapsed = (now - created_at).total_seconds()
+    cycles = int(elapsed // (30 * 86400))
+    from datetime import timedelta
+    return created_at + timedelta(days=cycles * 30)
+
+
+async def _get_questions_remaining(user_id: UUID, cycle_start: datetime) -> dict:
+    """Get remaining questions per mode for the current cycle."""
+    lungo_row = await fetch_one(
+        """SELECT COUNT(*) AS cnt FROM mensagens m
+           JOIN chats c ON m.chat_id = c.id
+           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'lungo'
+             AND m.created_at >= $2""",
+        user_id, cycle_start,
+    )
+    cold_brew_row = await fetch_one(
+        """SELECT COUNT(*) AS cnt FROM mensagens m
+           JOIN chats c ON m.chat_id = c.id
+           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'cold_brew'
+             AND m.created_at >= $2""",
+        user_id, cycle_start,
+    )
+    lungo_used = lungo_row["cnt"] if lungo_row else 0
+    cold_brew_used = cold_brew_row["cnt"] if cold_brew_row else 0
+
+    return {
+        "espresso": -1,  # unlimited
+        "lungo": max(0, settings.LUNGO_MONTHLY_LIMIT - lungo_used),
+        "cold_brew": max(0, settings.COLD_BREW_MONTHLY_LIMIT - cold_brew_used),
+    }
+
+
 # ── GET /chats ───────────────────────────────────────────────
 
 @router.get("")
 async def list_chats(
+    page: int = 1,
+    per_page: int = 20,
     user_id: UUID = Depends(get_current_user),
 ):
     """Listar conversas recentes."""
+    offset = (page - 1) * per_page
     rows = await fetch_all(
         """SELECT c.id, c.source_type, c.source_id, c.updated_at,
                   CASE WHEN c.source_type = 'disciplina'
@@ -147,8 +146,9 @@ async def list_chats(
                   (SELECT COUNT(*) FROM mensagens m WHERE m.chat_id = c.id) AS message_count
            FROM chats c
            WHERE c.user_id = $1
-           ORDER BY c.updated_at DESC""",
-        user_id,
+           ORDER BY c.updated_at DESC
+           LIMIT $2 OFFSET $3""",
+        user_id, per_page, offset,
     )
 
     items = [
@@ -184,7 +184,6 @@ async def create_chat(
         user_id, body.source_type, body.source_id,
     )
 
-    # Get source name
     if body.source_type == "disciplina":
         source = await fetch_one("SELECT nome FROM disciplinas WHERE id = $1", body.source_id)
     else:
@@ -208,6 +207,8 @@ async def create_chat(
 @router.get("/{chat_id}/messages")
 async def get_messages(
     chat_id: UUID,
+    page: int = 1,
+    per_page: int = 50,
     user_id: UUID = Depends(get_current_user),
 ):
     """Listar mensagens de uma conversa."""
@@ -218,24 +219,24 @@ async def get_messages(
     if not chat:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Chat não encontrado"))
 
-    # Get source name for AI label
     if chat["source_type"] == "disciplina":
         source = await fetch_one("SELECT nome FROM disciplinas WHERE id = $1", chat["source_id"])
     else:
         source = await fetch_one("SELECT nome FROM repositorios WHERE id = $1", chat["source_id"])
     source_name = source["nome"] if source else "Geral"
 
+    offset = (page - 1) * per_page
     rows = await fetch_all(
-        """SELECT id, role, conteudo, fontes, created_at
+        """SELECT id, role, conteudo, fontes, mode, created_at
            FROM mensagens WHERE chat_id = $1
-           ORDER BY created_at ASC""",
-        chat_id,
+           ORDER BY created_at ASC
+           LIMIT $2 OFFSET $3""",
+        chat_id, per_page, offset,
     )
 
     messages = []
     for r in rows:
         is_ai = r["role"] == "assistant"
-        # Parse sources
         sources = None
         if is_ai and r["fontes"]:
             raw_fontes = r["fontes"] if isinstance(r["fontes"], list) else json.loads(r["fontes"]) if isinstance(r["fontes"], str) else []
@@ -257,6 +258,7 @@ async def get_messages(
                 id=r["id"],
                 sender="ai" if is_ai else "user",
                 text=r["conteudo"],
+                mode=r.get("mode"),
                 label=f"Barista de {source_name}" if is_ai else None,
                 sources=sources,
                 created_at=r["created_at"],
@@ -272,9 +274,18 @@ async def get_messages(
 async def send_message(
     chat_id: UUID,
     body: SendMessageRequest,
-    user_id: UUID = Depends(get_current_user),
+    user_plan: tuple = Depends(get_current_user_with_plan),
 ):
-    """Enviar pergunta ao Barista (SSE streaming)."""
+    """Enviar pergunta ao Barista (SSE streaming). Requires mode: espresso|lungo|cold_brew."""
+    user_id, plano = user_plan
+
+    # Subscription guard: expired users can't chat
+    if plano == "expired":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para usar o chat"),
+        )
+
     # Verify chat ownership
     chat = await fetch_one(
         "SELECT id, source_type, source_id FROM chats WHERE id = $1 AND user_id = $2",
@@ -283,43 +294,57 @@ async def send_message(
     if not chat:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Chat não encontrado"))
 
-    # Question limit: trial users max 10/day
-    user = await fetch_one("SELECT plano FROM users WHERE id = $1", user_id)
-    questions_today = 0
-    daily_limit = settings.QUESTION_LIMIT_TRIAL
-    if user and user["plano"] == "trial":
-        count_row = await fetch_one(
-            """SELECT COUNT(*) AS cnt FROM mensagens m
-               JOIN chats c ON m.chat_id = c.id
-               WHERE c.user_id = $1 AND m.role = 'user'
-                 AND m.created_at >= CURRENT_DATE""",
-            user_id,
+    # Monthly limit check for lungo and cold_brew
+    cycle_start = await _get_cycle_start(user_id)
+    questions_remaining = await _get_questions_remaining(user_id, cycle_start)
+
+    if body.mode == "lungo" and questions_remaining["lungo"] <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Lungo atingido"),
         )
-        questions_today = count_row["cnt"] if count_row else 0
-        if questions_today >= daily_limit:
-            raise HTTPException(
-                status_code=429,
-                detail=error_response("QUESTION_LIMIT", "Limite de perguntas atingido"),
-                headers={"X-Questions-Remaining": "0"},
-            )
+    if body.mode == "cold_brew" and questions_remaining["cold_brew"] <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Cold Brew atingido"),
+        )
 
-    remaining = max(0, daily_limit - questions_today - 1) if user and user["plano"] == "trial" else -1
-
-    # Save user message
+    # Save user message with mode
     await execute_query(
-        "INSERT INTO mensagens (chat_id, role, conteudo) VALUES ($1, 'user', $2)",
-        chat_id, body.text,
+        "INSERT INTO mensagens (chat_id, role, conteudo, mode) VALUES ($1, 'user', $2, $3)",
+        chat_id, body.text, body.mode,
     )
 
     # Embed question
     embeddings = await _openai.create_embeddings([body.text])
     vec_str = "[" + ",".join(str(x) for x in embeddings[0]) + "]"
 
-    # RAG: semantic search based on source_type
+    # RAG: semantic search
     source_type = chat["source_type"]
     source_id = chat["source_id"]
 
-    if source_type == "disciplina":
+    # If gravacao_id is provided, filter RAG to that specific recording
+    if body.gravacao_id:
+        chunk_rows = await fetch_all(
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
+                      COALESCE(d.nome, r.nome) AS source_name,
+                      1 - (e.embedding <=> $1::vector) AS similarity,
+                      CASE WHEN e.fonte_tipo = 'transcricao'
+                           THEN (SELECT g.date FROM gravacoes g WHERE g.id = e.fonte_id)
+                           ELSE NULL END AS gravacao_date,
+                      CASE WHEN e.fonte_tipo = 'material'
+                           THEN (SELECT m2.nome FROM materiais m2 WHERE m2.id = e.fonte_id)
+                           ELSE NULL END AS material_nome
+               FROM embeddings e
+               LEFT JOIN disciplinas d ON e.disciplina_id = d.id
+               LEFT JOIN repositorios r ON e.fonte_tipo = 'transcricao'
+                   AND e.fonte_id IN (SELECT g2.id FROM gravacoes g2 WHERE g2.source_type = 'repositorio' AND g2.source_id = r.id)
+               WHERE e.fonte_tipo = 'transcricao' AND e.fonte_id = $2
+               ORDER BY e.embedding <=> $1::vector
+               LIMIT 8""",
+            vec_str, body.gravacao_id,
+        )
+    elif source_type == "disciplina":
         chunk_rows = await fetch_all(
             """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
                       d.nome AS source_name,
@@ -340,7 +365,6 @@ async def send_message(
             vec_str, source_id,
         )
     else:
-        # Repositório: busca embeddings de gravações vinculadas ao repo
         chunk_rows = await fetch_all(
             """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
                       r.nome AS source_name,
@@ -376,29 +400,31 @@ async def send_message(
         for r in reversed(history_rows)
     ]
 
-    # Personality
-    p_dict = body.personality.model_dump() if body.personality else {}
-    personality_instructions = _build_personality_instructions(p_dict)
-    personality_config = {"system_prompt": f"Você é o assistente acadêmico do Coffee. {personality_instructions}"}
-
-    # Get source name for label
     source_name = chunk_rows[0]["source_name"] if chunk_rows else "Geral"
+    system_prompt = "Você é o assistente acadêmico do Coffee. Responda com profundidade moderada e tom neutro."
 
-    # SSE stream
+    # SSE stream — route by mode
     async def event_stream() -> AsyncGenerator[str, None]:
         full_text = ""
         try:
-            async for delta in _openai.chat_rag(history_msgs, context_texts, personality_config):
+            if body.mode == "cold_brew":
+                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, system_prompt)
+            else:
+                model = "gpt-4o-mini" if body.mode == "espresso" else "gpt-4o"
+                stream_gen = _openai.chat_rag(history_msgs, context_texts, model=model, system_prompt=system_prompt)
+
+            async for delta in stream_gen:
                 full_text += delta
                 yield f"data: {json.dumps({'token': delta}, ensure_ascii=False)}\n\n"
 
-            # Save assistant message with sources
+            # Save assistant message with sources and mode
             msg_row = await fetch_one(
-                """INSERT INTO mensagens (chat_id, role, conteudo, fontes)
-                   VALUES ($1, 'assistant', $2, $3::jsonb)
+                """INSERT INTO mensagens (chat_id, role, conteudo, fontes, mode)
+                   VALUES ($1, 'assistant', $2, $3::jsonb, $4)
                    RETURNING id""",
                 chat_id, full_text,
                 json.dumps(sources, ensure_ascii=False),
+                body.mode,
             )
             msg_id = str(msg_row["id"]) if msg_row else str(uuid4())
 
@@ -407,24 +433,37 @@ async def send_message(
                 "UPDATE chats SET updated_at = NOW() WHERE id = $1", chat_id
             )
 
+            # Recalculate remaining after this message
+            updated_remaining = await _get_questions_remaining(user_id, cycle_start)
+
             done_payload = {
                 "done": True,
                 "message_id": msg_id,
                 "chat_id": str(chat_id),
                 "sources": sources,
                 "label": f"Barista de {source_name}",
+                "questions_remaining": updated_remaining,
             }
             yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
+    # Decrement remaining for the mode used (before streaming, for headers)
+    if body.mode == "lungo":
+        remaining_for_mode = max(0, questions_remaining["lungo"] - 1)
+    elif body.mode == "cold_brew":
+        remaining_for_mode = max(0, questions_remaining["cold_brew"] - 1)
+    else:
+        remaining_for_mode = -1
+
     headers = {
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
+        "X-Questions-Remaining-Espresso": str(questions_remaining["espresso"]),
+        "X-Questions-Remaining-Lungo": str(remaining_for_mode if body.mode == "lungo" else questions_remaining["lungo"]),
+        "X-Questions-Remaining-ColdBrew": str(remaining_for_mode if body.mode == "cold_brew" else questions_remaining["cold_brew"]),
     }
-    if remaining >= 0:
-        headers["X-Questions-Remaining"] = str(remaining)
 
     return StreamingResponse(
         event_stream(),

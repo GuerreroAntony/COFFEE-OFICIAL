@@ -1,4 +1,5 @@
-from typing import AsyncGenerator
+from __future__ import annotations
+from typing import AsyncGenerator, Optional
 from openai import AsyncOpenAI
 from app.config import settings
 
@@ -51,15 +52,13 @@ class OpenAIService:
         self,
         messages: list,
         context_chunks: list,
-        personality_config: dict,
+        model: str = "gpt-4o",
+        system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         formatted_context = "\n\n---\n\n".join(context_chunks)
-        system_prompt = personality_config.get(
-            "system_prompt",
-            "Você é o assistente acadêmico do Coffee. Responda com profundidade moderada e tom neutro.",
-        )
+        base_prompt = system_prompt or "Você é o assistente acadêmico do Coffee. Responda com profundidade moderada e tom neutro."
         full_system = (
-            f"{system_prompt}\n\n"
+            f"{base_prompt}\n\n"
             "Você tem acesso aos seguintes materiais de aula do aluno:\n\n"
             f"{formatted_context}\n\n"
             "Sempre cite a fonte quando usar informação dos materiais. "
@@ -68,7 +67,7 @@ class OpenAIService:
         )
 
         stream = await self.client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=[{"role": "system", "content": full_system}, *messages],
             stream=True,
         )

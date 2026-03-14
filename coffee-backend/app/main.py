@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import close_pool, get_pool
 from app.modules.espm import router as espm_router
-from app.routers import auth, chat, devices, disciplinas, gravacoes, health, materiais, notificacoes, profile, referral, repositorios, settings, subscription
+from app.routers import account, auth, chat, compartilhamentos, devices, disciplinas, gift_codes, gravacoes, health, materiais, notificacoes, profile, repositorios, settings, subscription
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Coffee API",
-    version="1.0.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
@@ -46,8 +46,10 @@ app.include_router(repositorios.router)
 app.include_router(notificacoes.router)
 app.include_router(profile.router)
 app.include_router(subscription.router)
-app.include_router(referral.router)
+app.include_router(gift_codes.router)
 app.include_router(settings.router)
+app.include_router(account.router)
+app.include_router(compartilhamentos.router)
 app.include_router(espm_router.router)
 
 

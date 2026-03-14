@@ -7,7 +7,6 @@ from app.dependencies import get_current_user
 from app.schemas.base import error_response, success_response
 from app.schemas.disciplinas import (
     DisciplinaDetailResponse,
-    DisciplinaListResponse,
     DisciplinaResponse,
 )
 
@@ -19,7 +18,8 @@ async def list_disciplinas(user_id: UUID = Depends(get_current_user)):
     """Lista disciplinas do aluno com contagens e ai_active."""
     rows = await fetch_all(
         """
-        SELECT d.id, d.nome, d.professor, d.horario, d.sala, d.semestre, d.horarios,
+        SELECT d.id, d.nome, d.turma, d.semestre, d.canvas_course_id,
+               d.last_scraped_at::text AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,
                EXISTS (SELECT 1 FROM embeddings e WHERE e.disciplina_id = d.id) AS ai_active
@@ -52,7 +52,8 @@ async def get_disciplina(
 
     row = await fetch_one(
         """
-        SELECT d.id, d.nome, d.professor, d.horario, d.sala, d.semestre, d.horarios,
+        SELECT d.id, d.nome, d.turma, d.semestre, d.canvas_course_id,
+               d.last_scraped_at::text AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,
                EXISTS (SELECT 1 FROM embeddings e WHERE e.disciplina_id = d.id) AS ai_active
@@ -67,10 +68,6 @@ async def get_disciplina(
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Disciplina não encontrada"))
 
+    # Contract v3.1: "Same object as list item" (flat, no wrapping)
     disc = DisciplinaResponse(**dict(row))
-    resp = DisciplinaDetailResponse(
-        disciplina=disc,
-        gravacoes_count=disc.gravacoes_count,
-        materiais_count=disc.materiais_count,
-    )
-    return success_response(resp.model_dump(mode="json"))
+    return success_response(disc.model_dump(mode="json"))

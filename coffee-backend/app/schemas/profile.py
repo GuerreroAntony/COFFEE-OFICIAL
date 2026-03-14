@@ -1,14 +1,28 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field
+
+
+class QuestionsRemaining(BaseModel):
+    espresso: int = -1
+    lungo: int = 30
+    cold_brew: int = 15
 
 
 class UsageStats(BaseModel):
     gravacoes_total: int
     horas_gravadas: float
-    perguntas_hoje: int
-    perguntas_limite: int  # 10 se trial, -1 se premium
+    questions_remaining: QuestionsRemaining
+    questions_reset_at: datetime
+
+
+class GiftCodeProfile(BaseModel):
+    code: str
+    redeemed: bool
+    redeemed_by: Optional[str] = None
+    redeemed_at: Optional[datetime] = None
 
 
 class ProfileResponse(BaseModel):
@@ -17,10 +31,11 @@ class ProfileResponse(BaseModel):
     email: str
     plano: str
     trial_end: Optional[datetime] = None
+    subscription_active: bool
     espm_connected: bool
-    referral_code: Optional[str] = None
-    referrals_count: int
+    espm_login: Optional[str] = None
     usage: UsageStats
+    gift_codes: list[GiftCodeProfile] = []
     created_at: datetime
 
 

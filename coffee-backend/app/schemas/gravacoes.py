@@ -1,5 +1,5 @@
 from datetime import date as DateType, datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -59,6 +59,8 @@ class GravacaoListItem(BaseModel):
     duration_label: str
     status: str
     short_summary: Optional[str]
+    has_mind_map: bool = False
+    received_from: Optional[str] = None
     media_count: int
     materials_count: int
 
@@ -74,6 +76,8 @@ class GravacaoDetail(BaseModel):
     status: str
     short_summary: Optional[str]
     full_summary: Optional[list[GravacaoSummarySection]]
+    mind_map: Optional[dict[str, Any]] = None
+    received_from: Optional[str] = None
     transcription: Optional[str]
     media: list[GravacaoMediaItem]
     materials: list[GravacaoMaterialItem]

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.database import execute_query, fetch_all, fetch_one
 from app.dependencies import get_current_user
 from app.schemas.base import error_response, success_response
-from app.schemas.repositorios import CriarRepositorioRequest, RepositorioResponse
+from app.schemas.repositorios import CriarRepositorioRequest, RenameRepositorioRequest, RepositorioResponse
 
 router = APIRouter(prefix="/api/v1/repositorios", tags=["repositorios"])
 
@@ -98,3 +98,26 @@ async def deletar_repositorio(
         "DELETE FROM repositorios WHERE id = $1",
         repo_id,
     )
+
+
+# ── PATCH /repositorios/{id} ─────────────────────────────────
+
+@router.patch("/{repo_id}")
+async def renomear_repositorio(
+    repo_id: UUID,
+    body: RenameRepositorioRequest,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Renomear repositório."""
+    row = await fetch_one(
+        "SELECT id FROM repositorios WHERE id = $1 AND user_id = $2",
+        repo_id, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Repositório não encontrado"))
+
+    await execute_query(
+        "UPDATE repositorios SET nome = $1 WHERE id = $2",
+        body.nome, repo_id,
+    )
+    return success_response({"id": str(repo_id), "nome": body.nome})

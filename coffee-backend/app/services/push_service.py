@@ -87,7 +87,6 @@ async def send_push(
 
 
 async def send_push_to_user(
-    db,
     user_id: UUID,
     title: str,
     body: str,
@@ -98,7 +97,9 @@ async def send_push_to_user(
     Removes invalid tokens automatically.
     Returns number of successful sends.
     """
-    rows = await db.fetch(
+    from app.database import fetch_all, execute_query
+
+    rows = await fetch_all(
         "SELECT id, fcm_token FROM device_tokens WHERE user_id = $1",
         user_id,
     )
@@ -111,8 +112,7 @@ async def send_push_to_user(
         if success:
             sent += 1
         else:
-            # Remove invalid token
-            await db.execute(
+            await execute_query(
                 "DELETE FROM device_tokens WHERE id = $1", row["id"]
             )
             logger.info("Removed invalid FCM token for user %s", user_id)

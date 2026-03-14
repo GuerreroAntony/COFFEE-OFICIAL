@@ -4,10 +4,11 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse as PDFStreamingResponse
 
 from app.config import settings
 from app.database import execute_query, fetch_all, fetch_one
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_with_plan
 from app.schemas.gravacoes import (
     CriarGravacaoRequest,
     GravacaoCreatedResponse,
@@ -88,9 +89,17 @@ async def _validate_source_ownership(user_id: UUID, source_type: str, source_id:
 async def criar_gravacao(
     body: CriarGravacaoRequest,
     background_tasks: BackgroundTasks,
-    user_id: UUID = Depends(get_current_user),
+    user_plan: tuple = Depends(get_current_user_with_plan),
 ):
     """Salvar nova gravação com transcrição (texto)."""
+    user_id, plano = user_plan
+
+    if plano == "expired":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para gravar aulas"),
+        )
+
     await _validate_source_ownership(user_id, body.source_type, body.source_id)
 
     gravacao_date = body.date or date.today()
@@ -146,7 +155,8 @@ async def listar_gravacoes(
 
     rows = await fetch_all(
         """SELECT g.id, g.source_type, g.source_id, g.date, g.duration_seconds,
-                  g.status, g.short_summary,
+                  g.status, g.short_summary, g.received_from,
+                  (g.mind_map IS NOT NULL) AS has_mind_map,
                   (SELECT COUNT(*) FROM gravacao_media gm WHERE gm.gravacao_id = g.id) AS media_count,
                   CASE WHEN g.source_type = 'disciplina'
                        THEN (SELECT COUNT(*) FROM materiais m WHERE m.disciplina_id = g.source_id)
@@ -159,6 +169,12 @@ async def listar_gravacoes(
         user_id, source_type, source_id, per_page, offset,
     )
 
+    count_row = await fetch_one(
+        "SELECT COUNT(*) AS cnt FROM gravacoes WHERE user_id = $1 AND source_type = $2 AND source_id = $3",
+        user_id, source_type, source_id,
+    )
+    total = count_row["cnt"] if count_row else 0
+
     items = [
         GravacaoListItem(
             id=r["id"],
@@ -170,12 +186,15 @@ async def listar_gravacoes(
             duration_label=_format_duration(r["duration_seconds"]),
             status=r["status"],
             short_summary=r["short_summary"],
+            has_mind_map=r["has_mind_map"],
+            received_from=r["received_from"],
             media_count=r["media_count"],
             materials_count=r["materials_count"],
         ).model_dump(mode="json")
         for r in rows
     ]
-    return success_response(items)
+    from app.schemas.base import paginated_response
+    return paginated_response(items, total, page, per_page)
 
 
 # ── GET /gravacoes/{id} ──────────────────────────────────────
@@ -189,7 +208,8 @@ async def get_gravacao(
     """Detalhe completo de uma gravação."""
     row = await fetch_one(
         """SELECT id, source_type, source_id, date, duration_seconds, status,
-                  short_summary, full_summary, transcription, created_at
+                  short_summary, full_summary, mind_map, received_from,
+                  transcription, created_at
            FROM gravacoes
            WHERE id = $1 AND user_id = $2""",
         gravacao_id, user_id,
@@ -259,6 +279,16 @@ async def get_gravacao(
             for m in mat_rows
         ]
 
+    # Parse mind_map JSONB
+    mind_map = None
+    if row["mind_map"]:
+        import json as json_mod
+        raw_mm = row["mind_map"]
+        if isinstance(raw_mm, str):
+            mind_map = json_mod.loads(raw_mm)
+        else:
+            mind_map = raw_mm
+
     detail = GravacaoDetail(
         id=row["id"],
         source_type=row["source_type"],
@@ -270,6 +300,8 @@ async def get_gravacao(
         status=row["status"],
         short_summary=row["short_summary"],
         full_summary=full_summary,
+        mind_map=mind_map,
+        received_from=row["received_from"],
         transcription=row["transcription"],
         media=media,
         materials=materials,
@@ -400,4 +432,60 @@ async def deletar_gravacao(
     await execute_query(
         "DELETE FROM gravacoes WHERE id = $1",
         gravacao_id,
+    )
+
+
+# ── GET /gravacoes/{id}/pdf/resumo ───────────────────────────
+
+@router.get("/{gravacao_id}/pdf/resumo")
+async def download_resumo_pdf(
+    gravacao_id: UUID,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Download PDF do resumo da gravação."""
+    row = await fetch_one(
+        """SELECT id, date, short_summary, full_summary
+           FROM gravacoes WHERE id = $1 AND user_id = $2""",
+        gravacao_id, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Gravação não encontrada"))
+    if not row["full_summary"] and not row["short_summary"]:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Resumo ainda não disponível"))
+
+    from app.services.pdf_service import generate_resumo_pdf
+    import io
+    pdf_bytes = generate_resumo_pdf(dict(row))
+    return PDFStreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=resumo_{gravacao_id}.pdf"},
+    )
+
+
+# ── GET /gravacoes/{id}/pdf/mindmap ──────────────────────────
+
+@router.get("/{gravacao_id}/pdf/mindmap")
+async def download_mindmap_pdf(
+    gravacao_id: UUID,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Download PDF do mapa mental da gravação."""
+    row = await fetch_one(
+        """SELECT id, date, mind_map
+           FROM gravacoes WHERE id = $1 AND user_id = $2""",
+        gravacao_id, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Gravação não encontrada"))
+    if not row["mind_map"]:
+        raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Mapa mental ainda não disponível"))
+
+    from app.services.pdf_service import generate_mindmap_pdf
+    import io
+    pdf_bytes = generate_mindmap_pdf(dict(row))
+    return PDFStreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=mindmap_{gravacao_id}.pdf"},
     )

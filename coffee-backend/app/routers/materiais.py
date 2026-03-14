@@ -271,8 +271,15 @@ async def trigger_sync(
     last_scraped = disc["last_scraped_at"] if disc else None
 
     if last_scraped and (datetime.now(timezone.utc) - last_scraped) < timedelta(hours=settings.SYNC_COOLDOWN_HOURS):
-        resp = SyncStatusResponse(status="fresh", last_scraped_at=last_scraped)
-        return success_response(resp.model_dump(mode="json"))
+        next_sync = last_scraped + timedelta(hours=settings.SYNC_COOLDOWN_HOURS)
+        raise HTTPException(
+            status_code=429,
+            detail=error_response(
+                "SYNC_COOLDOWN",
+                "Sincronização em cooldown",
+                extra={"next_sync_available_at": next_sync.isoformat()},
+            ),
+        )
 
     background_tasks.add_task(_run_scraper_subprocess, str(disciplina_id))
     resp = SyncStatusResponse(status="triggered", last_scraped_at=last_scraped)

@@ -9,6 +9,10 @@ class CriarRepositorioRequest(BaseModel):
     icone: str = Field(default="folder", max_length=50)
 
 
+class RenameRepositorioRequest(BaseModel):
+    nome: str = Field(min_length=1, max_length=50)
+
+
 class RepositorioResponse(BaseModel):
     id: UUID
     nome: str

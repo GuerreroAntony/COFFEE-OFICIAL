@@ -4,14 +4,6 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class PersonalityConfig(BaseModel):
-    profundidade: int = Field(default=50, ge=0, le=100)
-    linguagem: int = Field(default=50, ge=0, le=100)
-    exemplos: int = Field(default=50, ge=0, le=100)
-    questionamento: int = Field(default=50, ge=0, le=100)
-    foco: int = Field(default=50, ge=0, le=100)
-
-
 class CreateChatRequest(BaseModel):
     source_type: str = Field(pattern="^(disciplina|repositorio)$")
     source_id: UUID
@@ -19,13 +11,14 @@ class CreateChatRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
-    personality: Optional[PersonalityConfig] = None
+    mode: str = Field(pattern="^(espresso|lungo|cold_brew)$")
+    gravacao_id: Optional[UUID] = None
 
 
 class SourceReference(BaseModel):
     type: str  # "transcription" ou "material"
-    gravacao_id: Optional[UUID] = None  # se type=transcription
-    material_id: Optional[UUID] = None  # se type=material
+    gravacao_id: Optional[UUID] = None
+    material_id: Optional[UUID] = None
     title: str
     date: Optional[str] = None
     excerpt: str
@@ -36,8 +29,9 @@ class MessageResponse(BaseModel):
     id: UUID
     sender: str  # "user" ou "ai"
     text: str
-    label: Optional[str] = None  # "Barista de Marketing" (só pra ai)
-    sources: Optional[list[SourceReference]] = None  # só pra ai
+    mode: Optional[str] = None
+    label: Optional[str] = None
+    sources: Optional[list[SourceReference]] = None
     created_at: datetime
 
 

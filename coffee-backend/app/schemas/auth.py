@@ -9,7 +9,7 @@ class SignupRequest(BaseModel):
     nome: str = Field(min_length=2, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    referral_code: Optional[str] = None
+    gift_code: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -43,7 +43,6 @@ class UserResponse(BaseModel):
     trial_end: Optional[datetime] = None
     subscription_active: bool
     espm_connected: bool
-    referral_code: Optional[str] = None
     created_at: datetime
 
 

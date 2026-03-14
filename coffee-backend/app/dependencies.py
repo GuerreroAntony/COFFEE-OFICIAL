@@ -1,6 +1,6 @@
 import hashlib
 from uuid import UUID
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Tuple
 
 import asyncpg
 from fastapi import Depends, HTTPException, status
@@ -52,3 +52,13 @@ async def get_current_user(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_current_user_with_plan(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> Tuple[UUID, str]:
+    """Returns (user_id, plano). Use for endpoints that need subscription guard."""
+    user_id = await get_current_user(credentials)
+    row = await fetch_one("SELECT plano FROM users WHERE id = $1", user_id)
+    plano = row["plano"] if row else "trial"
+    return user_id, plano
