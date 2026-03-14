@@ -13,11 +13,13 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
+    ResetPasswordRequest,
     SignupRequest,
     TokenResponse,
     UserResponse,
 )
 from app.schemas.base import error_response, success_response
+from app.services.email_service import send_password_reset_email
 from app.utils.security import create_jwt, decode_jwt, hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -146,9 +148,64 @@ async def logout(
 
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotPasswordRequest):
-    # Always return 200 for security — don't reveal if email exists
-    # TODO: integrate with Supabase Auth password reset or email service
+    """Gera código de 6 dígitos e envia por email. Sempre retorna 200."""
+    import secrets
+
+    user = await fetch_one("SELECT id FROM users WHERE email = $1", body.email.lower())
+
+    if user:
+        code = f"{secrets.randbelow(1000000):06d}"
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+        expires = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+        await execute_query(
+            "UPDATE users SET reset_code_hash = $1, reset_code_expires = $2 WHERE id = $3",
+            code_hash, expires, user["id"],
+        )
+
+        await send_password_reset_email(body.email, code)
+
+    # Always return 200 — don't reveal if email exists
     return success_response(None, "Se o email existir, enviaremos instrucoes de recuperacao.")
+
+
+# ── POST /reset-password ────────────────────────────────────
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest):
+    """Valida código de reset e atualiza senha."""
+    user = await fetch_one(
+        "SELECT id, reset_code_hash, reset_code_expires FROM users WHERE email = $1",
+        body.email.lower(),
+    )
+
+    if not user or not user["reset_code_hash"]:
+        raise HTTPException(status_code=400, detail=error_response("INVALID_CODE", "Codigo invalido ou expirado"))
+
+    # Check expiry
+    expires = user["reset_code_expires"]
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires:
+        await execute_query(
+            "UPDATE users SET reset_code_hash = NULL, reset_code_expires = NULL WHERE id = $1",
+            user["id"],
+        )
+        raise HTTPException(status_code=400, detail=error_response("CODE_EXPIRED", "Codigo expirado. Solicite um novo."))
+
+    # Verify code
+    code_hash = hashlib.sha256(body.code.encode()).hexdigest()
+    if code_hash != user["reset_code_hash"]:
+        raise HTTPException(status_code=400, detail=error_response("INVALID_CODE", "Codigo invalido ou expirado"))
+
+    # Update password and clear reset code
+    new_hash = hash_password(body.new_password)
+    await execute_query(
+        "UPDATE users SET password_hash = $1, reset_code_hash = NULL, reset_code_expires = NULL, updated_at = NOW() WHERE id = $2",
+        new_hash, user["id"],
+    )
+
+    return success_response(None, "Senha atualizada com sucesso.")
 
 
 # ── POST /refresh ────────────────────────────────────────────
