@@ -136,10 +136,11 @@ struct SSEDonePayload: Codable {
     let messageId: String?
     let chatId: String?
     let sources: [ChatSource]?
+    let label: String?
     let questionsRemaining: QuestionsRemaining?
 
     enum CodingKeys: String, CodingKey {
-        case done, sources
+        case done, sources, label
         case messageId = "message_id"
         case chatId = "chat_id"
         case questionsRemaining = "questions_remaining"

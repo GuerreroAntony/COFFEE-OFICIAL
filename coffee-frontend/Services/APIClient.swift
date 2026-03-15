@@ -130,9 +130,14 @@ final class APIClient: @unchecked Sendable {
 
     // MARK: - SSE Stream (for AI Chat)
 
+    /// Special prefix used to signal the SSE "done" payload (sources, questions_remaining, etc.)
+    /// The caller should check for this prefix to extract metadata from the final event.
+    static let sseDonePrefix = "__SSE_DONE__"
+
     /// Streams SSE events from the backend.
     /// Backend sends JSON lines: {"token": "word"} for text, {"done": true, ...} to finish.
-    /// This method parses the JSON and yields only the token text.
+    /// Token events yield the token text. The done event yields a string prefixed with
+    /// `sseDonePrefix` followed by the full JSON payload (containing sources, questions_remaining, etc.).
     func streamRequest(
         path: String,
         body: Encodable
@@ -170,7 +175,9 @@ final class APIClient: @unchecked Sendable {
                             }
 
                             // Done event: {"done": true, "message_id": ..., "sources": [...], ...}
+                            // Yield the full JSON prefixed with sseDonePrefix so the caller can extract sources
                             if let done = json["done"] as? Bool, done {
+                                continuation.yield(APIClient.sseDonePrefix + data)
                                 continuation.finish()
                                 return
                             }

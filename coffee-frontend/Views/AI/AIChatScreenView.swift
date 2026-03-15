@@ -378,12 +378,24 @@ struct AIChatScreenView: View {
                 // Add empty AI bubble that will accumulate text
                 let aiIndex = messages.count
                 messages.append(ChatBubbleItem(sender: .ai, text: ""))
+                var extractedSources: [ChatSource] = []
 
                 for try await chunk in stream {
+                    // Check for SSE done payload (contains sources)
+                    if chunk.hasPrefix(APIClient.sseDonePrefix) {
+                        let jsonStr = String(chunk.dropFirst(APIClient.sseDonePrefix.count))
+                        if let jsonData = jsonStr.data(using: .utf8),
+                           let payload = try? JSONDecoder.coffeeDecoder.decode(SSEDonePayload.self, from: jsonData) {
+                            extractedSources = payload.sources ?? []
+                        }
+                        continue
+                    }
                     responseText += chunk
                     messages[aiIndex] = ChatBubbleItem(sender: .ai, text: responseText)
                 }
 
+                // Attach sources to the AI bubble
+                messages[aiIndex] = ChatBubbleItem(sender: .ai, text: responseText, sources: extractedSources)
                 isTyping = false
             } catch {
                 print("[AIChat] Error sending message: \(error)")
@@ -462,12 +474,15 @@ struct AIChatMessageRow: View {
                     .foregroundStyle(Color.coffeeTextSecondary)
                     .padding(.leading, 4)
 
-                ForEach(msg.sources, id: \.gravacaoId) { source in
-                    let subtitle = "\(source.date ?? "") · Transcrição"
+                ForEach(msg.sources) { source in
+                    let isTranscription = source.type == "transcription"
+                    let subtitle = isTranscription
+                        ? "\(source.date ?? "") · Transcrição"
+                        : "Material"
                     CoffeeSourceCard(
                         title: source.title,
                         subtitle: subtitle,
-                        icon: "doc.text.fill"
+                        icon: isTranscription ? "mic.fill" : "doc.text.fill"
                     )
                 }
             }
