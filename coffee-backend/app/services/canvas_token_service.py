@@ -534,9 +534,58 @@ def _extract_sala_from_course(course: dict, turma: str) -> str | None:
 _MAX_SYNC_FILE_BYTES = 50 * 1024 * 1024  # 50 MB limit per file
 
 
+async def _canvas_api_get_paginated(
+    client: httpx.AsyncClient, url: str, headers: dict, params: dict | None = None
+) -> list[dict]:
+    """Helper: paginated GET following Canvas Link headers."""
+    if params is None:
+        params = {}
+    params["per_page"] = "100"
+    all_results: list[dict] = []
+
+    current_url: str | None = url
+    current_params: dict = params
+
+    while current_url:
+        r = await client.get(current_url, headers=headers, params=current_params)
+        if r.status_code == 401:
+            raise CanvasAuthError("Token Canvas inválido ou expirado")
+        if r.status_code == 403:
+            logger.warning("[canvas] 403 Forbidden for %s", current_url)
+            return all_results
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list):
+            all_results.extend(data)
+        else:
+            all_results.append(data)
+
+        # Follow Link pagination
+        current_url = None
+        current_params = {}
+        link_header = r.headers.get("Link", "")
+        for part in link_header.split(","):
+            if 'rel="next"' in part:
+                current_url = part.split(";")[0].strip().strip("<>")
+                break
+
+    return all_results
+
+
+# Names to ignore when syncing (administrative files, not course content)
+_NOMES_IGNORADOS = [
+    "contrato", "pea", "combinados", "programa",
+    "codigo", "código", "calendario", "calendário", "grade",
+]
+
+
 async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) -> list[dict]:
     """
-    Fetch all files from a Canvas course using REST API with pagination.
+    Fetch all files from a Canvas course by navigating through MODULES.
+
+    Canvas ESPM restricts direct /files endpoint access (403 Forbidden).
+    Instead, we walk: /courses/{id}/modules → /courses/{id}/modules/{mod_id}/items
+    → filter type=="File" items → fetch file metadata from each item's url.
 
     Returns list of dicts with Canvas file metadata:
       id, display_name, filename, content-type, size, url, created_at, updated_at
@@ -544,40 +593,83 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
     headers = {"Authorization": f"Bearer {canvas_token}"}
 
     async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Get all modules for the course
+        modules_url = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/modules"
+        try:
+            modules = await _canvas_api_get_paginated(client, modules_url, headers)
+        except Exception as e:
+            logger.error("[canvas] course %d: error fetching modules: %s", canvas_course_id, e)
+            return []
+
+        if not modules:
+            logger.info("[canvas] course %d: no modules found", canvas_course_id)
+            return []
+
+        logger.info("[canvas] course %d: %d modules found", canvas_course_id, len(modules))
+
+        # 2. For each module, get items and filter for File type
         files: list[dict] = []
-        url: str | None = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/files"
-        params: dict = {"per_page": "100"}
+        seen_file_ids: set[int] = set()  # deduplicate
 
-        while url:
-            r = await client.get(url, headers=headers, params=params)
-            if r.status_code == 401:
-                raise CanvasAuthError("Token Canvas inválido ou expirado")
-            if r.status_code == 403:
-                logger.warning(
-                    "[canvas] course %d: 403 Forbidden for files endpoint (no access)",
-                    canvas_course_id,
-                )
-                return []  # User doesn't have file access for this course
-            r.raise_for_status()
-            data = r.json()
-            if isinstance(data, list):
-                files.extend(data)
-            else:
-                files.append(data)
+        for mod in modules:
+            mod_id = mod.get("id")
+            if not mod_id:
+                continue
 
-            # Follow Link pagination
-            url = None
-            params = {}
-            link_header = r.headers.get("Link", "")
-            for part in link_header.split(","):
-                if 'rel="next"' in part:
-                    url = part.split(";")[0].strip().strip("<>")
-                    break
+            items_url = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/modules/{mod_id}/items"
+            try:
+                items = await _canvas_api_get_paginated(client, items_url, headers)
+            except Exception:
+                continue
+
+            file_items = [it for it in items if isinstance(it, dict) and it.get("type") == "File"]
+            if not file_items:
+                continue
+
+            for item in file_items:
+                title = item.get("title", "")
+                file_api_url = item.get("url", "")  # URL to Canvas file metadata API
+
+                if not file_api_url:
+                    continue
+
+                # Filter by extension
+                ext = title.rsplit(".", 1)[-1].lower() if "." in title else ""
+                if ext not in {"pdf", "pptx", "ppt", "docx"}:
+                    continue
+
+                # Filter ignored names
+                title_lower = title.lower()
+                if any(p in title_lower for p in _NOMES_IGNORADOS):
+                    continue
+
+                # 3. Fetch actual file metadata from Canvas File API
+                try:
+                    r = await client.get(file_api_url, headers=headers)
+                    if r.status_code != 200:
+                        logger.warning("[canvas] file metadata %s returned %d", title, r.status_code)
+                        continue
+                    file_meta = r.json()
+                except Exception as e:
+                    logger.warning("[canvas] error fetching file metadata for %s: %s", title, e)
+                    continue
+
+                file_id = file_meta.get("id")
+                if file_id and file_id in seen_file_ids:
+                    continue
+                if file_id:
+                    seen_file_ids.add(file_id)
+
+                # Use display_name from metadata, fallback to module item title
+                if not file_meta.get("display_name"):
+                    file_meta["display_name"] = title
+
+                files.append(file_meta)
 
     # Filter out oversized files
     valid = [f for f in files if isinstance(f, dict) and f.get("size", 0) <= _MAX_SYNC_FILE_BYTES]
     logger.info(
-        "[canvas] course %d: %d files fetched, %d within size limit",
+        "[canvas] course %d: %d files found via modules, %d within size limit",
         canvas_course_id, len(files), len(valid),
     )
     return valid
