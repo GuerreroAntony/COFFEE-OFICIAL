@@ -386,36 +386,41 @@ async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
     for disc in disciplines:
         try:
             canvas_id = disc.get("canvas_course_id")
+            sala = disc.get("sala")
 
             if canvas_id:
                 row = await fetch_one(
                     """
-                    INSERT INTO disciplinas (turma, nome, semestre, canvas_course_id)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO disciplinas (turma, nome, semestre, sala, canvas_course_id)
+                    VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT ON CONSTRAINT disciplinas_nome_semestre_unique
                     DO UPDATE SET
                         turma = COALESCE(EXCLUDED.turma, disciplinas.turma),
+                        sala = COALESCE(EXCLUDED.sala, disciplinas.sala),
                         canvas_course_id = COALESCE(EXCLUDED.canvas_course_id, disciplinas.canvas_course_id)
                     RETURNING id
                     """,
                     disc.get("turma"),
                     disc["nome"],
                     disc.get("semestre"),
+                    sala,
                     canvas_id,
                 )
             else:
                 row = await fetch_one(
                     """
-                    INSERT INTO disciplinas (turma, nome, semestre)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO disciplinas (turma, nome, semestre, sala)
+                    VALUES ($1, $2, $3, $4)
                     ON CONFLICT ON CONSTRAINT disciplinas_nome_semestre_unique
                     DO UPDATE SET
-                        turma = COALESCE(EXCLUDED.turma, disciplinas.turma)
+                        turma = COALESCE(EXCLUDED.turma, disciplinas.turma),
+                        sala = COALESCE(EXCLUDED.sala, disciplinas.sala)
                     RETURNING id
                     """,
                     disc.get("turma"),
                     disc["nome"],
                     disc.get("semestre"),
+                    sala,
                 )
 
             if row:

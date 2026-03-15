@@ -27,7 +27,7 @@ App iOS nativo (SwiftUI) para alunos da ESPM gravarem aulas, transcreverem autom
 
 ```
 COFFEE-OFICIAL/
-├── coffee-backend/          ← FastAPI API (ESTE É O FOCO)
+├── coffee-backend/          ← FastAPI API (FOCO PRINCIPAL)
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py
@@ -39,31 +39,29 @@ COFFEE-OFICIAL/
 │   │   ├── utils/           ← Security, embeddings
 │   │   └── modules/espm/    ← ESPM portal integration
 │   ├── sql/                 ← Migrations
+│   ├── firebase-service-account.json  ← FCM push credentials
 │   ├── Dockerfile
 │   └── requirements.txt
-├── coffee-scraper/          ← Material scraper (NÃO MODIFICAR)
-│   └── scraper/
-├── Coffee/                  ← iOS app (NÃO MODIFICAR)
-└── canvas_extraction_package/  ← Original scraper source (NÃO MODIFICAR)
+├── contrato-api/            ← Spec API v3.1 (referência front↔back)
+│   └── coffee-api-contract-v3.1.md
+├── CLAUDE.md                ← Este arquivo
+└── ESPM_WEBVIEW_GUIDE.md    ← Guia integração ESPM webview
 ```
 
 ## Regras Invioláveis
 
-1. **NUNCA modifique coffee-scraper/.** O scraper funciona. Está intocável.
-2. **NUNCA modifique Coffee/ (iOS).** É desenvolvido separadamente.
-3. **NUNCA modifique canvas_extraction_package/.** É source original.
-4. **NUNCA modifique modules/espm/auth/authenticator.py.** SSO B2C funciona.
-5. **NUNCA modifique modules/espm/schedule/extractor.py.** Extração funciona.
-6. **Sempre use asyncpg via helpers** (fetch_one, fetch_all, execute_query de database.py). NÃO use get_db/Depends injection.
-7. **Todos os responses seguem o envelope:** `{ "data": ..., "error": null, "message": "ok" }`
-8. **Campos em snake_case.** Datas ISO 8601 UTC. IDs UUID v4.
-9. **Embeddings: text-embedding-3-small, 1536 dimensões.**
-10. **Chunks: 500 palavras, 100 overlap** (manter idêntico ao scraper).
+1. **NUNCA modifique modules/espm/auth/authenticator.py.** SSO B2C funciona.
+2. **NUNCA modifique modules/espm/schedule/extractor.py.** Extração funciona.
+3. **Sempre use asyncpg via helpers** (fetch_one, fetch_all, execute_query de database.py). NÃO use get_db/Depends injection.
+4. **Todos os responses seguem o envelope:** `{ "data": ..., "error": null, "message": "ok" }`
+5. **Campos em snake_case.** Datas ISO 8601 UTC. IDs UUID v4.
+6. **Embeddings: text-embedding-3-small, 1536 dimensões.**
+7. **Chunks: 500 palavras, 100 overlap** (manter idêntico ao scraper).
 
 ## Base URL
 
 ```
-https://api-coffee.up.railway.app/api/v1
+https://coffee-oficial-production.up.railway.app/api/v1
 ```
 
 ## Autenticação

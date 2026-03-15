@@ -18,7 +18,7 @@ async def list_disciplinas(user_id: UUID = Depends(get_current_user)):
     """Lista disciplinas do aluno com contagens e ai_active."""
     rows = await fetch_all(
         """
-        SELECT d.id, d.nome, d.turma, d.semestre, d.canvas_course_id,
+        SELECT d.id, d.nome, d.turma, d.semestre, d.sala, d.canvas_course_id,
                d.last_scraped_at::text AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,
@@ -52,7 +52,7 @@ async def get_disciplina(
 
     row = await fetch_one(
         """
-        SELECT d.id, d.nome, d.turma, d.semestre, d.canvas_course_id,
+        SELECT d.id, d.nome, d.turma, d.semestre, d.sala, d.canvas_course_id,
                d.last_scraped_at::text AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,

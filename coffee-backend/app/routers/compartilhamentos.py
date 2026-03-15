@@ -87,9 +87,9 @@ async def share_gravacao(
     not_found_emails: list[str] = []
 
     for email in body.recipient_emails:
-        # Find recipient by email or espm_login
+        # Find recipient by registered email
         recipient = await fetch_one(
-            "SELECT id, nome FROM users WHERE email = $1 OR espm_login = $1",
+            "SELECT id, nome FROM users WHERE email = $1",
             email,
         )
 

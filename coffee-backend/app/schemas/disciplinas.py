@@ -11,6 +11,7 @@ class DisciplinaResponse(BaseSchema):
     nome: str
     turma: Optional[str] = None
     semestre: Optional[str] = None
+    sala: Optional[str] = None
     canvas_course_id: Optional[int] = None
     last_synced_at: Optional[str] = None
     gravacoes_count: int = 0

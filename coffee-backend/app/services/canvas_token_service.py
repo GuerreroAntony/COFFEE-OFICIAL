@@ -412,9 +412,10 @@ async def fetch_canvas_courses(canvas_token: str) -> list[dict]:
     """
     Fetch student's courses from Canvas REST API.
 
-    Returns list of dicts with: nome, turma, semestre, canvas_course_id
+    Returns list of dicts with: nome, turma, semestre, sala, canvas_course_id
 
     Uses paginated GET /api/v1/courses with Bearer token.
+    Includes sections to extract sala (classroom) info.
     Performance: ~2s (vs ~30-60s with Playwright).
     """
     headers = {"Authorization": f"Bearer {canvas_token}"}
@@ -422,7 +423,7 @@ async def fetch_canvas_courses(canvas_token: str) -> list[dict]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         courses = []
         url = f"{CANVAS_API_BASE}/courses"
-        params: dict = {"include[]": "term", "per_page": "100"}
+        params: dict = {"include[]": ["term", "sections"], "per_page": "100"}
 
         while url:
             r = await client.get(url, headers=headers, params=params)
@@ -441,6 +442,20 @@ async def fetch_canvas_courses(canvas_token: str) -> list[dict]:
                 if 'rel="next"' in part:
                     url = part.split(";")[0].strip().strip("<>")
                     break
+
+    # Debug: log first course's available fields
+    if courses:
+        first = courses[0]
+        logger.info(
+            "[canvas] sample course keys: %s",
+            sorted(first.keys()) if isinstance(first, dict) else "NOT_DICT",
+        )
+        logger.info(
+            "[canvas] sample course_code=%s, sections=%s, sis_course_id=%s",
+            first.get("course_code"),
+            first.get("sections"),
+            first.get("sis_course_id"),
+        )
 
     # Convert Canvas courses → Coffee disciplinas format
     disciplines = []
@@ -461,12 +476,117 @@ async def fetch_canvas_courses(canvas_token: str) -> list[dict]:
         term = course.get("term", {})
         semestre = term.get("name", None) if term else None
 
+        # Extract sala from Canvas course data
+        sala = _extract_sala_from_course(course, turma.strip())
+
         disciplines.append({
             "nome": nome.strip(),
             "turma": turma.strip() or None,
             "semestre": semestre,
+            "sala": sala,
             "canvas_course_id": course.get("id"),
         })
 
     logger.info("Canvas API: %d courses fetched", len(disciplines))
     return disciplines
+
+
+def _extract_sala_from_course(course: dict, turma: str) -> str | None:
+    """
+    Try to extract sala (classroom/room) from Canvas course data.
+
+    Checks multiple potential sources:
+    1. Section names (sections included via include[]=sections)
+    2. course_code (often set by SIS, may contain room info)
+    3. sis_course_id (SIS integration identifier)
+    """
+    # 1. Check sections — section names may contain room/sala info
+    sections = course.get("sections", [])
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            sec_name = (section.get("name") or "").strip()
+            # If section name differs from turma, it might be the sala
+            if sec_name and sec_name != turma:
+                logger.info("[canvas] sala candidate from section: %s (turma=%s)", sec_name, turma)
+                return sec_name
+
+    # 2. Check course_code — SIS may set this to include room info
+    course_code = (course.get("course_code") or "").strip()
+    if course_code and course_code != turma:
+        logger.info("[canvas] sala candidate from course_code: %s (turma=%s)", course_code, turma)
+        return course_code
+
+    # 3. Check sis_course_id — some SIS encode room in this field
+    sis_id = (course.get("sis_course_id") or "").strip()
+    if sis_id and sis_id != turma:
+        logger.info("[canvas] sala candidate from sis_course_id: %s (turma=%s)", sis_id, turma)
+        return sis_id
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. CANVAS FILES API (fetch course files + download)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_MAX_SYNC_FILE_BYTES = 50 * 1024 * 1024  # 50 MB limit per file
+
+
+async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) -> list[dict]:
+    """
+    Fetch all files from a Canvas course using REST API with pagination.
+
+    Returns list of dicts with Canvas file metadata:
+      id, display_name, filename, content-type, size, url, created_at, updated_at
+    """
+    headers = {"Authorization": f"Bearer {canvas_token}"}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        files: list[dict] = []
+        url: str | None = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/files"
+        params: dict = {"per_page": "100"}
+
+        while url:
+            r = await client.get(url, headers=headers, params=params)
+            if r.status_code == 401:
+                raise CanvasAuthError("Token Canvas inválido ou expirado")
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                files.extend(data)
+            else:
+                files.append(data)
+
+            # Follow Link pagination
+            url = None
+            params = {}
+            link_header = r.headers.get("Link", "")
+            for part in link_header.split(","):
+                if 'rel="next"' in part:
+                    url = part.split(";")[0].strip().strip("<>")
+                    break
+
+    # Filter out oversized files
+    valid = [f for f in files if isinstance(f, dict) and f.get("size", 0) <= _MAX_SYNC_FILE_BYTES]
+    logger.info(
+        "[canvas] course %d: %d files fetched, %d within size limit",
+        canvas_course_id, len(files), len(valid),
+    )
+    return valid
+
+
+async def download_canvas_file(canvas_token: str, file_url: str) -> bytes:
+    """
+    Download a file from Canvas.
+
+    Canvas file URLs require authentication and typically redirect.
+    Returns file content as bytes.
+    """
+    headers = {"Authorization": f"Bearer {canvas_token}"}
+
+    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        r = await client.get(file_url, headers=headers)
+        r.raise_for_status()
+        return r.content

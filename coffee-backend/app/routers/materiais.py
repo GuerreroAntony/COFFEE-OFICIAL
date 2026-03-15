@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -20,6 +22,13 @@ from app.schemas.materiais import (
 )
 from app.schemas.base import error_response, success_response
 from app.services.embedding_service import generate_material_embeddings, remove_embeddings
+from app.services.canvas_token_service import (
+    CanvasAuthError,
+    fetch_canvas_course_files,
+    download_canvas_file,
+)
+
+logger = logging.getLogger("materiais")
 
 router = APIRouter(prefix="/api/v1/materiais", tags=["materiais"])
 disc_router = APIRouter(prefix="/api/v1/disciplinas", tags=["materiais"])
@@ -256,7 +265,7 @@ async def trigger_sync(
     background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
-    """Dispara scraping em background para uma disciplina."""
+    """Dispara sync de materiais do Canvas em background para uma disciplina."""
     enrolled = await fetch_one(
         "SELECT 1 FROM user_disciplinas WHERE user_id = $1 AND disciplina_id = $2",
         user_id, disciplina_id,
@@ -265,10 +274,16 @@ async def trigger_sync(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado"))
 
     disc = await fetch_one(
-        "SELECT last_scraped_at FROM disciplinas WHERE id = $1",
+        "SELECT last_scraped_at, canvas_course_id FROM disciplinas WHERE id = $1",
         disciplina_id,
     )
-    last_scraped = disc["last_scraped_at"] if disc else None
+    if not disc or not disc.get("canvas_course_id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_response("NO_CANVAS", "Disciplina sem canvas_course_id. Reconecte o ESPM."),
+        )
+
+    last_scraped = disc["last_scraped_at"]
 
     if last_scraped and (datetime.now(timezone.utc) - last_scraped) < timedelta(hours=settings.SYNC_COOLDOWN_HOURS):
         next_sync = last_scraped + timedelta(hours=settings.SYNC_COOLDOWN_HOURS)
@@ -281,24 +296,147 @@ async def trigger_sync(
             ),
         )
 
-    background_tasks.add_task(_run_scraper_subprocess, str(disciplina_id))
-    resp = SyncStatusResponse(status="triggered", last_scraped_at=last_scraped)
+    background_tasks.add_task(_sync_canvas_materials, disciplina_id, user_id)
+    resp = SyncStatusResponse(status="triggered", last_synced_at=last_scraped)
     return success_response(resp.model_dump(mode="json"))
 
 
-async def _run_scraper_subprocess(disciplina_id: str) -> None:
-    """Executa o scraper como subprocesso."""
-    import logging
-    logger = logging.getLogger("materiais.sync")
+# ── Canvas Materials Sync (background task) ──────────────────
 
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "scraper.main", "--disciplina", disciplina_id,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
+# Pattern to auto-enable AI for class materials (e.g. "Aula 01", "Aula 12 - Tema")
+_AULA_PATTERN = re.compile(r"(?i)\baula\s*\d+")
 
-    if proc.returncode == 0:
-        logger.info("Scraper OK for %s: %s", disciplina_id, stdout.decode()[-200:])
-    else:
-        logger.error("Scraper FAIL for %s: %s", disciplina_id, stderr.decode()[-500:])
+
+async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
+    """
+    Fetch files from Canvas course, download new ones, store in Supabase,
+    extract text, save to DB, and generate embeddings.
+    """
+    try:
+        # 1. Get user's canvas_token
+        user = await fetch_one(
+            "SELECT canvas_token FROM users WHERE id = $1",
+            user_id,
+        )
+        if not user or not user.get("canvas_token"):
+            logger.error("[sync] user %s has no canvas_token", user_id)
+            return
+
+        canvas_token = user["canvas_token"]
+
+        # 2. Get discipline's canvas_course_id
+        disc = await fetch_one(
+            "SELECT canvas_course_id FROM disciplinas WHERE id = $1",
+            disciplina_id,
+        )
+        if not disc or not disc.get("canvas_course_id"):
+            logger.error("[sync] disciplina %s has no canvas_course_id", disciplina_id)
+            return
+
+        canvas_course_id = disc["canvas_course_id"]
+
+        # 3. Fetch file list from Canvas
+        canvas_files = await fetch_canvas_course_files(canvas_token, canvas_course_id)
+        logger.info("[sync] canvas course %d: %d files found", canvas_course_id, len(canvas_files))
+
+        if not canvas_files:
+            # Update last_scraped_at even if empty
+            await execute_query(
+                "UPDATE disciplinas SET last_scraped_at = NOW() WHERE id = $1",
+                disciplina_id,
+            )
+            return
+
+        # 4. Get existing canvas_file_ids for deduplication
+        existing = await fetch_all(
+            "SELECT canvas_file_id FROM materiais WHERE disciplina_id = $1 AND canvas_file_id IS NOT NULL",
+            disciplina_id,
+        )
+        existing_ids = {r["canvas_file_id"] for r in existing}
+
+        new_count = 0
+        for cf in canvas_files:
+            canvas_file_id = cf.get("id")
+            if not canvas_file_id or canvas_file_id in existing_ids:
+                continue
+
+            filename = cf.get("display_name") or cf.get("filename") or "arquivo"
+            file_url = cf.get("url")
+            size_bytes = cf.get("size", 0)
+
+            if not file_url:
+                logger.warning("[sync] file %s has no URL, skipping", filename)
+                continue
+
+            try:
+                # 5. Download file from Canvas
+                content = await download_canvas_file(canvas_token, file_url)
+                logger.info("[sync] downloaded %s (%d bytes)", filename, len(content))
+
+                # 6. Detect type and extract text
+                tipo = _detect_tipo(filename)
+                content_type = _extract_content_type(filename)
+                texto_extraido = await _extract_text(content, filename)
+
+                # 7. Upload to Supabase Storage
+                storage_path = f"{disciplina_id}/{filename}"
+                upload_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_STORAGE_BUCKET}/{storage_path}"
+
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    resp = await client.post(
+                        upload_url,
+                        content=content,
+                        headers={
+                            "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+                            "Content-Type": content_type,
+                            "x-upsert": "true",
+                        },
+                    )
+                if resp.status_code not in (200, 201):
+                    logger.error("[sync] upload failed for %s: %s", filename, resp.status_code)
+                    continue
+
+                public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{settings.SUPABASE_STORAGE_BUCKET}/{storage_path}"
+
+                # 8. Auto-detect ai_enabled: "Aula XX" pattern → True
+                ai_enabled = bool(_AULA_PATTERN.search(filename))
+
+                # 9. Insert into DB
+                row = await fetch_one(
+                    """INSERT INTO materiais
+                       (disciplina_id, tipo, nome, url_storage, texto_extraido, fonte, ai_enabled, size_bytes, canvas_file_id)
+                       VALUES ($1, $2, $3, $4, $5, 'canvas', $6, $7, $8)
+                       ON CONFLICT (canvas_file_id) DO NOTHING
+                       RETURNING id, disciplina_id, ai_enabled""",
+                    disciplina_id, tipo, filename, public_url, texto_extraido,
+                    ai_enabled, size_bytes, canvas_file_id,
+                )
+
+                if row:
+                    new_count += 1
+                    # 10. Generate embeddings if ai_enabled and text was extracted
+                    if row["ai_enabled"] and texto_extraido:
+                        try:
+                            await generate_material_embeddings(
+                                texto_extraido, row["id"], disciplina_id,
+                            )
+                        except Exception as emb_err:
+                            logger.error("[sync] embedding error for %s: %s", filename, emb_err)
+
+            except CanvasAuthError:
+                logger.error("[sync] canvas token expired during sync for disciplina %s", disciplina_id)
+                return  # Stop sync — token is dead
+            except Exception as file_err:
+                logger.error("[sync] error processing file %s: %s", filename, file_err)
+                continue
+
+        # 11. Update last_scraped_at
+        await execute_query(
+            "UPDATE disciplinas SET last_scraped_at = NOW() WHERE id = $1",
+            disciplina_id,
+        )
+
+        logger.info("[sync] disciplina %s: %d new materials synced", disciplina_id, new_count)
+
+    except Exception as e:
+        logger.error("[sync] fatal error for disciplina %s: %s", disciplina_id, e)

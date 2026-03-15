@@ -28,4 +28,4 @@ class ToggleAIResponse(BaseModel):
 
 class SyncStatusResponse(BaseModel):
     status: str  # "triggered" | "fresh"
-    last_scraped_at: Optional[datetime] = None
+    last_synced_at: Optional[datetime] = None
