@@ -53,7 +53,7 @@ struct CoffeeNavBar: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 16)
         .frame(height: 56)
         .background(
             Rectangle()
@@ -67,35 +67,13 @@ struct CoffeeNavBar: View {
 struct CoffeeLargeTitleHeader: View {
     let greeting: String
     let subtitle: String
-    let userName: String
-    var onProfileTap: (() -> Void)? = nil
     var onGiftTap: (() -> Void)? = nil
     var onSettingsTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Top row: avatar + settings
+            // Top row: settings
             HStack {
-                Button {
-                    onProfileTap?()
-                } label: {
-                    HStack(spacing: 10) {
-                        // Avatar circle
-                        ZStack {
-                            Circle()
-                                .fill(Color.coffeePrimary)
-                                .frame(width: 36, height: 36)
-                            Image(systemName: CoffeeIcon.person)
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                        }
-
-                        Text(userName)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.coffeePrimary)
-                    }
-                }
-
                 Spacer()
 
                 HStack(spacing: 8) {
@@ -200,8 +178,6 @@ struct CoffeeSheetHeader: View {
         CoffeeLargeTitleHeader(
             greeting: "Olá, Gabriel",
             subtitle: "2026.1 · ESPM São Paulo",
-            userName: "Gabriel",
-            onProfileTap: { },
             onSettingsTap: { }
         )
 

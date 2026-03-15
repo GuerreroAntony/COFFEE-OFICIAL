@@ -52,8 +52,6 @@ struct DisciplinasScreenView: View {
             CoffeeLargeTitleHeader(
                 greeting: "Olá, \(router.currentUser?.nome ?? "Aluno")",
                 subtitle: dynamicSubtitle,
-                userName: router.currentUser?.nome ?? "Aluno",
-                onProfileTap: { router.showProfile = true },
                 onGiftTap: { router.showPromoCodes = true },
                 onSettingsTap: { router.showSettings = true }
             )

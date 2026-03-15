@@ -183,15 +183,27 @@ struct RecordingFlowView: View {
     }
 
     private func saveRecording() {
-        guard let discipline = selectedDiscipline else { return }
+        guard selectedDiscipline != nil || !selectedRepoIds.isEmpty else { return }
         guard !isSaving else { return }
         isSaving = true
+
+        let sourceType: String
+        let sourceId: String
+        if let discipline = selectedDiscipline {
+            sourceType = "disciplina"
+            sourceId = discipline.id
+        } else if let repoId = selectedRepoIds.first {
+            sourceType = "repositorio"
+            sourceId = repoId
+        } else {
+            return
+        }
 
         Task {
             do {
                 let recording = try await RecordingService.createRecording(
-                    sourceType: "disciplina",
-                    sourceId: discipline.id,
+                    sourceType: sourceType,
+                    sourceId: sourceId,
                     transcription: transcription,
                     durationSeconds: seconds,
                     date: ISO8601DateFormatter().string(from: Date())

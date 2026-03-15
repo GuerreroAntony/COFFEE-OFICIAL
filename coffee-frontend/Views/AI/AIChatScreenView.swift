@@ -1,4 +1,8 @@
 import SwiftUI
+import Speech
+import AVFoundation
+import UniformTypeIdentifiers
+import PDFKit
 
 // MARK: - Supporting Types
 
@@ -80,6 +84,19 @@ struct AIChatScreenView: View {
     @State private var isLoadingRecordings = false
     @State private var showNoDisciplineAlert = false
 
+    // Microphone voice-to-text
+    @State private var isListening = false
+    @State private var audioEngine = AVAudioEngine()
+    @State private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    @State private var recognitionTask: SFSpeechRecognitionTask?
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
+
+    // Attachments
+    @State private var showAttachmentSheet = false
+    @State private var showCameraForChat = false
+    @State private var showFileImporterForChat = false
+    @State private var chatAttachments: [(name: String, text: String)] = []
+
     var body: some View {
         VStack(spacing: 0) {
             navBar
@@ -90,7 +107,16 @@ struct AIChatScreenView: View {
                 input: $input,
                 showModePicker: $showModePicker,
                 selectedMode: $selectedMode,
-                onSend: handleSend
+                isListening: isListening,
+                attachments: chatAttachments,
+                onSend: handleSend,
+                onMicTap: { isListening ? stopListening() : startListening() },
+                onAttachTap: { showAttachmentSheet = true },
+                onRemoveAttachment: { index in
+                    if chatAttachments.indices.contains(index) {
+                        chatAttachments.remove(at: index)
+                    }
+                }
             )
         }
         .background(Color.coffeeBackground)
@@ -147,6 +173,44 @@ struct AIChatScreenView: View {
             currentChatId = nil
             Task { await loadRecordingsForDiscipline(newDisc) }
         }
+        .confirmationDialog("Adicionar", isPresented: $showAttachmentSheet) {
+            Button("Câmera") { showCameraForChat = true }
+            Button("Arquivo") { showFileImporterForChat = true }
+            Button("Cancelar", role: .cancel) { }
+        }
+        .fullScreenCover(isPresented: $showCameraForChat) {
+            CameraPickerView(isPresented: $showCameraForChat) { imageData in
+                chatAttachments.append((name: "Foto capturada", text: "[Foto anexada pelo usuário]"))
+            }
+            .ignoresSafeArea()
+        }
+        .fileImporter(
+            isPresented: $showFileImporterForChat,
+            allowedContentTypes: [.pdf, .image],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                guard url.startAccessingSecurityScopedResource() else { return }
+                defer { url.stopAccessingSecurityScopedResource() }
+                let fileName = url.lastPathComponent
+                if url.pathExtension.lowercased() == "pdf" {
+                    if let data = try? Data(contentsOf: url),
+                       let pdfDoc = PDFDocument(data: data) {
+                        let text = (0..<pdfDoc.pageCount).compactMap { pdfDoc.page(at: $0)?.string }.joined(separator: "\n")
+                        chatAttachments.append((name: fileName, text: text.isEmpty ? "[PDF sem texto extraível]" : text))
+                    } else {
+                        chatAttachments.append((name: fileName, text: "[Erro ao ler PDF]"))
+                    }
+                } else {
+                    chatAttachments.append((name: fileName, text: "[Imagem anexada]"))
+                }
+            case .failure(let error):
+                print("[AIChat] File picker error: \(error)")
+            }
+        }
+        .onDisappear { stopListening() }
     }
 
     // MARK: - Nav Bar
@@ -334,17 +398,103 @@ struct AIChatScreenView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: - Voice Input
+
+    private func startListening() {
+        SFSpeechRecognizer.requestAuthorization { authStatus in
+            DispatchQueue.main.async {
+                guard authStatus == .authorized else {
+                    print("[AIChat] Speech recognition not authorized: \(authStatus.rawValue)")
+                    return
+                }
+                guard let speechRecognizer, speechRecognizer.isAvailable else {
+                    print("[AIChat] Speech recognizer not available")
+                    return
+                }
+
+                do {
+                    let audioSession = AVAudioSession.sharedInstance()
+                    try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .duckOthers])
+                    try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+                    let request = SFSpeechAudioBufferRecognitionRequest()
+                    request.shouldReportPartialResults = true
+                    if #available(iOS 16, *) {
+                        request.addsPunctuation = true
+                    }
+                    recognitionRequest = request
+
+                    let inputNode = audioEngine.inputNode
+                    let recordingFormat = inputNode.outputFormat(forBus: 0)
+                    inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+                        request.append(buffer)
+                    }
+
+                    audioEngine.prepare()
+                    try audioEngine.start()
+
+                    let textBeforeListening = input
+                    recognitionTask = speechRecognizer.recognitionTask(with: request) { result, error in
+                        if let result {
+                            let spokenText = result.bestTranscription.formattedString
+                            DispatchQueue.main.async {
+                                if textBeforeListening.isEmpty {
+                                    input = spokenText
+                                } else {
+                                    input = textBeforeListening + " " + spokenText
+                                }
+                            }
+                        }
+                        if error != nil || (result?.isFinal ?? false) {
+                            DispatchQueue.main.async {
+                                stopListening()
+                            }
+                        }
+                    }
+
+                    isListening = true
+                } catch {
+                    print("[AIChat] Audio engine error: \(error)")
+                }
+            }
+        }
+    }
+
+    private func stopListening() {
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionRequest = nil
+        recognitionTask = nil
+        isListening = false
+    }
+
     // MARK: - Send Message
 
     private func handleSend() {
-        let text = input.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
+        var text = input.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty || !chatAttachments.isEmpty else { return }
         guard let disc = selectedDiscipline else {
             showNoDisciplineAlert = true
             return
         }
 
-        messages.append(ChatBubbleItem(sender: .user, text: text))
+        // Stop listening if active
+        if isListening { stopListening() }
+
+        // Prepend attachment context
+        if !chatAttachments.isEmpty {
+            var contextParts: [String] = []
+            for att in chatAttachments {
+                contextParts.append("[Contexto do arquivo: \(att.name)]\n\(att.text)")
+            }
+            let attachContext = contextParts.joined(separator: "\n\n")
+            text = attachContext + "\n\n" + text
+            chatAttachments.removeAll()
+        }
+
+        messages.append(ChatBubbleItem(sender: .user, text: input.trimmingCharacters(in: .whitespaces).isEmpty ? "📎 Arquivo(s) enviado(s)" : input.trimmingCharacters(in: .whitespaces)))
         input = ""
         isTyping = true
 
@@ -505,7 +655,12 @@ struct AIChatInputArea: View {
     @Binding var input: String
     @Binding var showModePicker: Bool
     @Binding var selectedMode: AIModeOption
+    let isListening: Bool
+    let attachments: [(name: String, text: String)]
     let onSend: () -> Void
+    let onMicTap: () -> Void
+    let onAttachTap: () -> Void
+    let onRemoveAttachment: (Int) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -520,22 +675,53 @@ struct AIChatInputArea: View {
     }
 
     private var inputField: some View {
-        let isEmpty = input.trimmingCharacters(in: .whitespaces).isEmpty
+        let isEmpty = input.trimmingCharacters(in: .whitespaces).isEmpty && attachments.isEmpty
         let sendBg: Color = isEmpty ? Color.coffeeTextSecondary.opacity(0.1) : Color.coffeePrimary
         let sendFg: Color = isEmpty ? Color.coffeeTextSecondary : .white
 
         return VStack(spacing: 0) {
+            // Attachment chips
+            if !attachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(attachments.enumerated()), id: \.offset) { index, att in
+                            HStack(spacing: 6) {
+                                Image(systemName: "doc.fill")
+                                    .font(.system(size: 11))
+                                Text(att.name)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+                                Button {
+                                    onRemoveAttachment(index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                }
+                            }
+                            .foregroundStyle(Color.coffeePrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.coffeePrimary.opacity(0.08))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .padding(.top, 10)
+            }
+
             TextField("Pergunte qualquer coisa...", text: $input, axis: .vertical)
                 .font(.system(size: 16))
                 .lineLimit(1...6)
                 .tint(Color.coffeePrimary)
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .padding(.top, attachments.isEmpty ? 16 : 8)
                 .padding(.bottom, 8)
                 .onSubmit { onSend() }
 
             HStack(spacing: 8) {
-                Button { } label: {
+                Button { onAttachTap() } label: {
                     ZStack {
                         Circle()
                             .fill(Color.coffeeTextSecondary.opacity(0.1))
@@ -562,14 +748,16 @@ struct AIChatInputArea: View {
 
                 Spacer()
 
-                Button { } label: {
+                Button { onMicTap() } label: {
                     ZStack {
                         Circle()
-                            .fill(Color.coffeeTextSecondary.opacity(0.1))
+                            .fill(isListening ? Color.coffeeDanger : Color.coffeeTextSecondary.opacity(0.1))
                             .frame(width: 36, height: 36)
+                            .scaleEffect(isListening ? 1.1 : 1.0)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isListening)
                         Image(systemName: "mic.fill")
                             .font(.system(size: 16))
-                            .foregroundStyle(Color.coffeeTextSecondary)
+                            .foregroundStyle(isListening ? .white : Color.coffeeTextSecondary)
                     }
                 }
 

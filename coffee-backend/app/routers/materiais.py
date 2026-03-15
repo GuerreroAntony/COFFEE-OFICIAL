@@ -61,7 +61,7 @@ def _material_response(r) -> dict:
 
 def _detect_tipo(filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    mapping = {"pdf": "pdf", "pptx": "slide", "ppt": "slide", "jpg": "foto", "jpeg": "foto", "png": "foto"}
+    mapping = {"pdf": "pdf", "pptx": "slide", "ppt": "slide", "docx": "documento", "doc": "documento", "jpg": "foto", "jpeg": "foto", "png": "foto"}
     return mapping.get(ext, "outro")
 
 
@@ -71,6 +71,8 @@ def _extract_content_type(filename: str) -> str:
         "pdf": "application/pdf",
         "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "ppt": "application/vnd.ms-powerpoint",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
         "jpg": "image/jpeg",
         "jpeg": "image/jpeg",
         "png": "image/png",
@@ -100,6 +102,13 @@ async def _extract_text(content: bytes, filename: str) -> str:
                     if hasattr(shape, "text"):
                         parts.append(shape.text)
             text = "\n".join(parts)
+        except Exception:
+            text = ""
+    elif ext in ("docx", "doc"):
+        try:
+            from docx import Document
+            doc = Document(io.BytesIO(content))
+            text = "\n".join(para.text for para in doc.paragraphs if para.text.strip())
         except Exception:
             text = ""
 
@@ -376,7 +385,7 @@ async def trigger_sync_all(
 _AULA_PATTERN = re.compile(r"(?i)\baula\s*\d+")
 
 # Only sync these file types from Canvas (we can only extract text from PDF and PPTX)
-_ALLOWED_SYNC_EXTENSIONS = {"pdf", "pptx", "ppt"}
+_ALLOWED_SYNC_EXTENSIONS = {"pdf", "pptx", "ppt", "docx", "doc"}
 
 
 async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:

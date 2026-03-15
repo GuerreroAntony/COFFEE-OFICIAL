@@ -53,7 +53,7 @@ enum MaterialService {
             )
         }
 
-        let url = URL(string: "https://api-coffee.up.railway.app/api/v1\(APIEndpoints.materiais(disciplinaId: disciplinaId))")!
+        let url = URL(string: "https://coffee-oficial-production.up.railway.app/api/v1\(APIEndpoints.materiais(disciplinaId: disciplinaId))")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         if let token = KeychainManager.accessToken {

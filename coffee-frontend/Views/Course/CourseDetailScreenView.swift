@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 // MARK: - Course Detail Screen
 // Shows recordings and materials for a discipline with tabbed layout
@@ -22,6 +23,7 @@ struct CourseDetailScreenView: View {
     @State private var hasAutoSynced = false
     @State private var showFileImporter = false
     @State private var isUploading = false
+    @State private var previewMaterial: Material? = nil
 
     private let tabs = ["Aulas", "Conteúdo"]
 
@@ -129,7 +131,7 @@ struct CourseDetailScreenView: View {
         }
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [.pdf, .presentation],
+            allowedContentTypes: [.pdf, .presentation, UTType("org.openxmlformats.wordprocessingml.document") ?? .data],
             allowsMultipleSelection: false
         ) { result in
             switch result {
@@ -142,7 +144,14 @@ struct CourseDetailScreenView: View {
                     do {
                         let data = try Data(contentsOf: url)
                         let fileName = url.lastPathComponent
-                        let mimeType = url.pathExtension.lowercased() == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        let ext = url.pathExtension.lowercased()
+                        let mimeType: String
+                        switch ext {
+                        case "pdf": mimeType = "application/pdf"
+                        case "pptx", "ppt": mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        case "docx", "doc": mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        default: mimeType = "application/octet-stream"
+                        }
                         let material = try await MaterialService.uploadMaterial(
                             disciplinaId: discipline.id,
                             fileData: data,
@@ -159,6 +168,9 @@ struct CourseDetailScreenView: View {
             case .failure(let error):
                 print("[CourseDetail] File picker error: \(error)")
             }
+        }
+        .sheet(item: $previewMaterial) { material in
+            MaterialPreviewSheet(material: material)
         }
     }
 
@@ -259,31 +271,11 @@ struct CourseDetailScreenView: View {
             .frame(minHeight: scrollHeight)
         } else {
             VStack(alignment: .leading, spacing: 16) {
-                // Header with sync + upload + enable-all-AI buttons
+                // Header with sync + upload buttons
                 HStack {
                     CoffeeSectionHeader(title: "\(materials.count) materiais")
 
                     Spacer()
-
-                    // Enable AI for all materials (only if some have AI disabled)
-                    if materials.contains(where: { !$0.aiEnabled }) {
-                        Button {
-                            Task { await enableAllAI() }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 11))
-                                Text("Ativar IA em todos")
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .foregroundStyle(Color.coffeePrimary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.coffeePrimary.opacity(0.08))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
 
                     // Upload material button
                     Button {
@@ -335,26 +327,11 @@ struct CourseDetailScreenView: View {
 
                 CoffeeCellGroup {
                     ForEach(Array(materials.enumerated()), id: \.element.id) { index, material in
-                        SwipeableRow(onDelete: {
-                            materialToDelete = material
-                        }) {
+                        SwipeableRow(
+                            onTap: { previewMaterial = material },
+                            onDelete: { materialToDelete = material }
+                        ) {
                             materialRow(material)
-                        }
-                        .contextMenu {
-                            Button {
-                                Task {
-                                    if let updated = try? await MaterialService.toggleAI(materialId: material.id) {
-                                        if let idx = materials.firstIndex(where: { $0.id == material.id }) {
-                                            materials[idx] = updated
-                                        }
-                                    }
-                                }
-                            } label: {
-                                Label(
-                                    material.aiEnabled ? "Desativar IA" : "Ativar IA",
-                                    systemImage: material.aiEnabled ? "sparkles.slash" : "sparkles"
-                                )
-                            }
                         }
 
                         if index < materials.count - 1 {
@@ -380,10 +357,10 @@ struct CourseDetailScreenView: View {
             _ = try await MaterialService.syncMaterials(disciplinaId: discipline.id)
 
             // Poll for materials — background task downloads files sequentially
-            for attempt in 1...3 {
-                try await Task.sleep(for: .seconds(attempt == 1 ? 5 : 4))
+            for attempt in 1...6 {
+                try await Task.sleep(for: .seconds(attempt <= 2 ? 5 : 8))
                 let updated = try await MaterialService.getMaterials(disciplinaId: discipline.id)
-                if !updated.isEmpty || attempt == 3 {
+                if !updated.isEmpty || attempt == 6 {
                     withAnimation { materials = updated }
                     break
                 }
@@ -400,22 +377,6 @@ struct CourseDetailScreenView: View {
         }
 
         isSyncing = false
-    }
-
-    // MARK: - Enable All AI
-
-    private func enableAllAI() async {
-        do {
-            let result = try await MaterialService.enableAllAI(disciplinaId: discipline.id)
-            if result > 0 {
-                // Refresh materials list to get updated ai_enabled states
-                if let updated = try? await MaterialService.getMaterials(disciplinaId: discipline.id) {
-                    withAnimation { materials = updated }
-                }
-            }
-        } catch {
-            print("[CourseDetail] Enable all AI error: \(error)")
-        }
     }
 
     // MARK: - Recording Row (matches screenshot layout)
@@ -540,20 +501,28 @@ struct CourseDetailScreenView: View {
 
             Spacer()
 
-            Button {
-                Task {
-                    if let updated = try? await MaterialService.toggleAI(materialId: material.id) {
-                        if let idx = materials.firstIndex(where: { $0.id == material.id }) {
-                            materials[idx] = updated
+            Toggle("", isOn: Binding(
+                get: { material.aiEnabled },
+                set: { newValue in
+                    if let idx = materials.firstIndex(where: { $0.id == material.id }) {
+                        materials[idx].aiEnabled = newValue
+                        Task {
+                            do {
+                                let updated = try await MaterialService.toggleAI(materialId: material.id)
+                                if let i = materials.firstIndex(where: { $0.id == material.id }) {
+                                    materials[i] = updated
+                                }
+                            } catch {
+                                if let i = materials.firstIndex(where: { $0.id == material.id }) {
+                                    materials[i].aiEnabled = !newValue
+                                }
+                            }
                         }
                     }
                 }
-            } label: {
-                Image(systemName: material.aiEnabled ? CoffeeIcon.sparkles : "sparkles.slash")
-                    .font(.system(size: 12))
-                    .foregroundStyle(material.aiEnabled ? Color.coffeePrimary : Color.coffeeTextSecondary.opacity(0.4))
-            }
-            .buttonStyle(.plain)
+            ))
+            .labelsHidden()
+            .tint(Color.coffeePrimary)
 
             Image(systemName: CoffeeIcon.forward)
                 .font(.system(size: 14, weight: .semibold))
@@ -989,6 +958,51 @@ struct RecordingDetailSheet: View {
         .buttonStyle(.plain)
         .padding(.top, 4)
     }
+}
+
+// MARK: - Material Preview Sheet
+
+struct MaterialPreviewSheet: View {
+    let material: Material
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            CoffeeSheetHeader(
+                title: material.nome,
+                onClose: { dismiss() }
+            )
+
+            if let urlString = material.urlStorage, let url = URL(string: urlString) {
+                WebView(url: url)
+            } else {
+                VStack(spacing: 12) {
+                    Spacer()
+                    CoffeeEmptyState(
+                        icon: "doc.fill",
+                        title: "Preview indisponível",
+                        message: "Este material não possui URL de armazenamento."
+                    )
+                    Spacer()
+                }
+            }
+        }
+        .background(Color.coffeeBackground)
+    }
+}
+
+// MARK: - WebView
+
+struct WebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.load(URLRequest(url: url))
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
 }
 
 #Preview {
