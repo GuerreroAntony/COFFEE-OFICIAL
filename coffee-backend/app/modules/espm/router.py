@@ -13,7 +13,7 @@ import structlog
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
@@ -28,6 +28,7 @@ from app.services.canvas_token_service import (
     CanvasAuthError,
     CanvasTimeoutError,
 )
+from app.routers.materiais import sync_all_user_materials
 
 router = APIRouter(prefix="/api/v1/espm", tags=["espm"])
 logger = structlog.get_logger(__name__)
@@ -141,6 +142,7 @@ async def _build_connect_response(
 @router.post("/connect")
 async def espm_connect(
     body: ESPMConnectRequest,
+    background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
     """
@@ -237,6 +239,12 @@ async def espm_connect(
         disciplines_synced = await _upsert_disciplinas(user_id, disciplines)
     except Exception as exc:
         logger.error("espm.connect.fetch_courses.error", error=str(exc))
+
+    # Auto-sync materials for all disciplines in background
+    if disciplines_synced > 0:
+        background_tasks.add_task(sync_all_user_materials, user_id)
+        logger.info("espm.connect.sync_materials_queued", user_id=str(user_id),
+                     disciplines=disciplines_synced)
 
     # Build response matching contract v3.1
     resp = await _build_connect_response(user_id, disciplines_synced)

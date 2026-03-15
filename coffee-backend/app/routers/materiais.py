@@ -301,10 +301,37 @@ async def trigger_sync(
     return success_response(resp.model_dump(mode="json"))
 
 
+# ── POST /materiais/sync-all ─────────────────────────────────
+
+@router.post("/sync-all")
+async def trigger_sync_all(
+    background_tasks: BackgroundTasks,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Dispara sync de materiais do Canvas para TODAS as disciplinas do usuário."""
+    rows = await fetch_all(
+        """SELECT d.id
+           FROM disciplinas d
+           JOIN user_disciplinas ud ON ud.disciplina_id = d.id
+           WHERE ud.user_id = $1 AND d.canvas_course_id IS NOT NULL""",
+        user_id,
+    )
+    if not rows:
+        return success_response({"triggered": 0, "message": "Nenhuma disciplina com Canvas vinculado."})
+
+    for row in rows:
+        background_tasks.add_task(_sync_canvas_materials, row["id"], user_id)
+
+    return success_response({"triggered": len(rows)})
+
+
 # ── Canvas Materials Sync (background task) ──────────────────
 
 # Pattern to auto-enable AI for class materials (e.g. "Aula 01", "Aula 12 - Tema")
 _AULA_PATTERN = re.compile(r"(?i)\baula\s*\d+")
+
+# Only sync these file types from Canvas (we can only extract text from PDF and PPTX)
+_ALLOWED_SYNC_EXTENSIONS = {"pdf", "pptx", "ppt"}
 
 
 async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
@@ -363,6 +390,12 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
             filename = cf.get("display_name") or cf.get("filename") or "arquivo"
             file_url = cf.get("url")
             size_bytes = cf.get("size", 0)
+
+            # Only sync PDF and PPTX files (skip images, docx, xlsx, zip, etc.)
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            if ext not in _ALLOWED_SYNC_EXTENSIONS:
+                logger.debug("[sync] skipping %s (extension .%s not allowed)", filename, ext)
+                continue
 
             if not file_url:
                 logger.warning("[sync] file %s has no URL, skipping", filename)
@@ -440,3 +473,24 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
 
     except Exception as e:
         logger.error("[sync] fatal error for disciplina %s: %s", disciplina_id, e)
+
+
+async def sync_all_user_materials(user_id: UUID) -> None:
+    """
+    Sync materials for ALL user's disciplines with canvas_course_id.
+    Called from ESPM connect after courses are upserted.
+    """
+    rows = await fetch_all(
+        """SELECT d.id
+           FROM disciplinas d
+           JOIN user_disciplinas ud ON ud.disciplina_id = d.id
+           WHERE ud.user_id = $1 AND d.canvas_course_id IS NOT NULL""",
+        user_id,
+    )
+    if not rows:
+        return
+
+    logger.info("[sync-all] starting sync for %d disciplines (user %s)", len(rows), user_id)
+    for row in rows:
+        await _sync_canvas_materials(row["id"], user_id)
+    logger.info("[sync-all] completed for user %s", user_id)
