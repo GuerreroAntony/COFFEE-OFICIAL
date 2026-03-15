@@ -10,7 +10,7 @@ Endpoints:
 from __future__ import annotations
 
 import structlog
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -174,7 +174,7 @@ async def espm_connect(
                 "ESPM_UNAVAILABLE", "Erro ao validar token Canvas."))
 
         canvas_token = body.canvas_token
-        expires_at = datetime.utcnow() + timedelta(days=120)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=120)
 
         await execute_query(
             """UPDATE users
@@ -276,7 +276,7 @@ async def sync_schedule(
     token_valid = (
         canvas_token is not None
         and token_expires is not None
-        and token_expires > datetime.utcnow()
+        and token_expires > datetime.now(timezone.utc)
     )
 
     disciplines_synced = 0

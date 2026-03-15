@@ -66,8 +66,9 @@ struct ContentView: View {
             subscriptionService.syncWithUser(user)
             router.login(user: user)
         } catch {
-            // Token expired or invalid — clear and stay on splash
+            // Token expired or invalid — clear and go to login
             KeychainManager.clearAll()
+            router.goToLogin()
         }
     }
 
