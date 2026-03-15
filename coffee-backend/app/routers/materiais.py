@@ -190,6 +190,51 @@ async def toggle_ai(
     return success_response(resp.model_dump(mode="json"))
 
 
+# ── PATCH /disciplina/{id}/materiais/enable-all-ai ────────────
+
+@disc_router.patch("/{disciplina_id}/materiais/enable-all-ai")
+async def enable_all_ai(
+    disciplina_id: UUID,
+    background_tasks: BackgroundTasks,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Enable AI for all materials of a discipline."""
+    # Check enrollment
+    enrolled = await fetch_one(
+        "SELECT 1 FROM user_disciplinas WHERE user_id = $1 AND disciplina_id = $2",
+        user_id, disciplina_id,
+    )
+    if not enrolled:
+        raise HTTPException(status_code=403, detail=error_response("ACCESS_DENIED", "Acesso negado"))
+
+    # Get materials that need AI enabled
+    materials = await fetch_all(
+        "SELECT id, texto_extraido FROM materiais WHERE disciplina_id = $1 AND ai_enabled = false",
+        disciplina_id,
+    )
+
+    if not materials:
+        return success_response({"updated_count": 0})
+
+    # Enable AI for all
+    await execute_query(
+        "UPDATE materiais SET ai_enabled = true WHERE disciplina_id = $1 AND ai_enabled = false",
+        disciplina_id,
+    )
+
+    # Generate embeddings for each material that has text
+    for mat in materials:
+        if mat["texto_extraido"]:
+            background_tasks.add_task(
+                generate_material_embeddings,
+                mat["texto_extraido"],
+                mat["id"],
+                disciplina_id,
+            )
+
+    return success_response({"updated_count": len(materials)})
+
+
 # ── POST /disciplina/{id}/materiais (manual upload) ──────────
 
 @disc_router.post("/{disciplina_id}/materiais", status_code=status.HTTP_201_CREATED)

@@ -93,6 +93,9 @@ enum APIEndpoints {
     /// PATCH - Toggle AI feed
     static func materialToggleAI(id: String) -> String { "/materiais/\(id)/toggle-ai" }
 
+    /// PATCH - Enable AI for all materials of a discipline
+    static func materiaisEnableAllAI(disciplinaId: String) -> String { "/disciplinas/\(disciplinaId)/materiais/enable-all-ai" }
+
     /// POST - Manual Canvas sync for discipline
     static func disciplinaSync(id: String) -> String { "/disciplinas/\(id)/sync" }
 

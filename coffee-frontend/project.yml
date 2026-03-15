@@ -42,6 +42,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_CFBundleDisplayName: coffee
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "O COFFEE precisa acessar o microfone para gravar suas aulas."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real."
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:

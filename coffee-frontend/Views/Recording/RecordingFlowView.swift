@@ -1,4 +1,5 @@
 import SwiftUI
+import Speech
 
 // MARK: - Recording State
 
@@ -20,17 +21,12 @@ struct RecordingFlowView: View {
     @State private var showFullTranscription = false
     @State private var selectedDiscipline: Discipline? = nil
     @State private var selectedRepoIds: Set<String> = []
-    @State private var phraseIndex = 0
-
-    private let phrases = [
-        "Bom dia a todos, vamos começar a aula de hoje.",
-        " O tema que vamos abordar é muito importante para a prova.",
-        " Vamos revisar os conceitos fundamentais primeiro.",
-        " Como vimos na última aula, existem três pilares principais.",
-        " O primeiro pilar é a análise de mercado.",
-        " Precisamos entender o comportamento do consumidor.",
-        " Vamos ver alguns exemplos práticos agora.",
-    ]
+    @State private var whisperKit = WhisperKitManager()
+    @State private var isSaving = false
+    @State private var saveError: String? = nil
+    @State private var permissionDenied = false
+    @State private var showCamera = false
+    @State private var capturedPhotos: [(data: Data, timestamp: Int)] = []
 
     var body: some View {
         Group {
@@ -42,21 +38,42 @@ struct RecordingFlowView: View {
                     isRecording: state == .recording,
                     seconds: seconds,
                     transcription: transcription,
+                    photosCount: capturedPhotos.count,
                     showStopSheet: $showStopSheet,
                     showFullTranscription: $showFullTranscription,
-                    onPause: { withAnimation { state = .paused } },
-                    onResume: { withAnimation { state = .recording; startTimer() } },
+                    onPause: {
+                        withAnimation { state = .paused }
+                        whisperKit.stopRealtimeTranscription()
+                    },
+                    onResume: {
+                        withAnimation {
+                            state = .recording
+                            startTimer()
+                        }
+                        // Restart transcription on resume
+                        do {
+                            try whisperKit.startRealtimeTranscription { text in
+                                Task { @MainActor in
+                                    transcription = text
+                                }
+                            }
+                        } catch {
+                            print("[Recording] Resume transcription error: \(error)")
+                        }
+                    },
                     onFinish: finishRecording,
+                    onCameraCapture: { showCamera = true },
                     formatTime: formatTime
                 )
             case .stopped:
                 RecordingStoppedView(
                     seconds: seconds,
                     processing: processing,
+                    isSaving: isSaving,
                     selectedDiscipline: $selectedDiscipline,
                     selectedRepoIds: $selectedRepoIds,
                     onDiscard: resetToIdle,
-                    onSave: resetToIdle,
+                    onSave: saveRecording,
                     formatTime: formatTime
                 )
             }
@@ -65,6 +82,30 @@ struct RecordingFlowView: View {
             let active = (newValue == .recording || newValue == .paused || newValue == .stopped)
             router.isRecordingActive = active
         }
+        .alert("Permissao Necessaria", isPresented: $permissionDenied) {
+            Button("Abrir Configuracoes") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancelar", role: .cancel) { }
+        } message: {
+            Text("O COFFEE precisa de acesso ao microfone para gravar aulas. Habilite nas Configuracoes.")
+        }
+        .alert("Erro ao Salvar", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(saveError ?? "")
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPickerView(isPresented: $showCamera) { imageData in
+                capturedPhotos.append((data: imageData, timestamp: seconds))
+            }
+            .ignoresSafeArea()
+        }
     }
 
     private func formatTime(_ s: Int) -> String {
@@ -72,12 +113,36 @@ struct RecordingFlowView: View {
     }
 
     private func startRecording() {
-        state = .recording
-        seconds = 0
-        phraseIndex = 0
-        transcription = ""
-        startTimer()
-        startTranscriptionSim()
+        Task {
+            // Request microphone permission
+            let granted = await AudioRecorder.requestPermission()
+            guard granted else {
+                permissionDenied = true
+                return
+            }
+
+            // Load speech recognition model / request permission
+            await whisperKit.loadModel()
+
+            state = .recording
+            seconds = 0
+            transcription = ""
+            capturedPhotos = []
+            startTimer()
+
+            // Start real-time transcription
+            do {
+                try whisperKit.startRealtimeTranscription { text in
+                    Task { @MainActor in
+                        transcription = text
+                    }
+                }
+            } catch {
+                print("[Recording] Transcription error: \(error)")
+                // Continue recording even if transcription fails —
+                // user can still save the recording with empty transcription
+            }
+        }
     }
 
     private func startTimer() {
@@ -90,30 +155,66 @@ struct RecordingFlowView: View {
     private func finishRecording() {
         timer?.invalidate()
         timer = nil
+
+        // Stop transcription and get final text
+        let finalText = whisperKit.stopRealtimeTranscription()
+        if !finalText.isEmpty {
+            transcription = finalText
+        }
+
         state = .stopped
         processing = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { processing = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { processing = false }
     }
 
     private func resetToIdle() {
         timer?.invalidate()
         timer = nil
+        whisperKit.reset()
         state = .idle
         seconds = 0
         transcription = ""
         selectedDiscipline = nil
         selectedRepoIds = []
+        capturedPhotos = []
+        isSaving = false
+        saveError = nil
         router.isRecordingActive = false
     }
 
-    private func startTranscriptionSim() {
-        func addNext() {
-            guard state == .recording, phraseIndex < phrases.count else { return }
-            transcription += phrases[phraseIndex]
-            phraseIndex += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { addNext() }
+    private func saveRecording() {
+        guard let discipline = selectedDiscipline else { return }
+        guard !isSaving else { return }
+        isSaving = true
+
+        Task {
+            do {
+                let recording = try await RecordingService.createRecording(
+                    sourceType: "disciplina",
+                    sourceId: discipline.id,
+                    transcription: transcription,
+                    durationSeconds: seconds,
+                    date: ISO8601DateFormatter().string(from: Date())
+                )
+
+                // Upload captured photos
+                if !capturedPhotos.isEmpty {
+                    for photo in capturedPhotos {
+                        try? await RecordingService.uploadMedia(
+                            recordingId: recording.id,
+                            imageData: photo.data,
+                            label: "Foto da aula",
+                            timestampSeconds: photo.timestamp
+                        )
+                    }
+                }
+
+                resetToIdle()
+            } catch {
+                saveError = "Erro ao salvar: \(error.localizedDescription)"
+                isSaving = false
+            }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { addNext() }
     }
 }
 
@@ -326,11 +427,13 @@ struct RecordingActiveView: View {
     let isRecording: Bool
     let seconds: Int
     let transcription: String
+    let photosCount: Int
     @Binding var showStopSheet: Bool
     @Binding var showFullTranscription: Bool
     let onPause: () -> Void
     let onResume: () -> Void
     let onFinish: () -> Void
+    let onCameraCapture: () -> Void
     let formatTime: (Int) -> String
 
     var body: some View {
@@ -419,8 +522,20 @@ struct RecordingActiveView: View {
             }
             .buttonStyle(.plain)
 
-            Button { } label: {
-                controlCircle(icon: "camera.fill", color: Color.coffeePrimaryLight)
+            Button(action: onCameraCapture) {
+                ZStack(alignment: .topTrailing) {
+                    controlCircle(icon: "camera.fill", color: Color.coffeePrimaryLight)
+
+                    if photosCount > 0 {
+                        Text("\(photosCount)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Color.coffeePrimary)
+                            .clipShape(Circle())
+                            .offset(x: 4, y: -4)
+                    }
+                }
             }
         }
         .padding(.bottom, 24)
@@ -550,6 +665,7 @@ struct RecordingFullTranscriptionView: View {
 struct RecordingStoppedView: View {
     let seconds: Int
     let processing: Bool
+    let isSaving: Bool
     @Binding var selectedDiscipline: Discipline?
     @Binding var selectedRepoIds: Set<String>
     let onDiscard: () -> Void
@@ -725,7 +841,7 @@ struct RecordingStoppedView: View {
     }
 
     private var bottomActions: some View {
-        let saveDisabled = selectedDiscipline == nil && selectedRepoIds.isEmpty
+        let saveDisabled = (selectedDiscipline == nil && selectedRepoIds.isEmpty) || isSaving
         return VStack(spacing: 0) {
             Divider()
             HStack(spacing: 12) {
@@ -742,7 +858,8 @@ struct RecordingStoppedView: View {
                                 .stroke(Color.coffeePrimary, lineWidth: 1.5)
                         )
                 }
-                CoffeeButton("Salvar Gravação", isDisabled: saveDisabled, action: onSave)
+                .disabled(isSaving)
+                CoffeeButton(isSaving ? "Salvando..." : "Salvar Gravação", isDisabled: saveDisabled, action: onSave)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)

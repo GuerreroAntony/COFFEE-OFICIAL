@@ -99,6 +99,26 @@ enum MaterialService {
         )
     }
 
+    // MARK: - Enable All AI
+
+    /// Enables AI for all materials of a discipline. Returns the count of updated materials.
+    static func enableAllAI(disciplinaId: String) async throws -> Int {
+        if APIClient.useMocks {
+            try await Task.sleep(for: .seconds(0.5))
+            return 3
+        }
+
+        struct EnableAllAIResponse: Codable {
+            let updatedCount: Int
+        }
+
+        let response: EnableAllAIResponse = try await APIClient.shared.request(
+            path: APIEndpoints.materiaisEnableAllAI(disciplinaId: disciplinaId),
+            method: .PATCH
+        )
+        return response.updatedCount
+    }
+
     // MARK: - Toggle AI Feed
 
     static func toggleAI(materialId: String) async throws -> Material {

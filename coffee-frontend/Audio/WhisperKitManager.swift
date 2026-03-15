@@ -1,17 +1,19 @@
 import Foundation
+import AVFoundation
+import Speech
 
 // MARK: - WhisperKit Manager
-// On-device speech-to-text using WhisperKit (CoreML)
-// whisper-tiny (~39MB) for preview, whisper-base (~74MB) for final
-// Audio never leaves the device
+// On-device speech-to-text using Apple Speech framework (SFSpeechRecognizer)
+// Provides real-time Portuguese transcription while recording
+// When WhisperKit SPM is added, can be swapped to fully on-device (no network)
 
 @Observable
 final class WhisperKitManager {
 
-    enum TranscriptionState {
+    enum TranscriptionState: Equatable {
         case idle
-        case loading    // Model loading
-        case ready      // Model loaded, ready to transcribe
+        case loading
+        case ready
         case transcribing
         case completed
         case error(String)
@@ -19,108 +21,161 @@ final class WhisperKitManager {
 
     var state: TranscriptionState = .idle
     var transcription: String = ""
-    var progress: Double = 0 // 0...1
     var isModelLoaded = false
 
-    // Model configuration
-    private let modelName = "whisper-tiny" // ~39MB, fast preview
-    // Use "whisper-base" (~74MB) for final transcription quality
+    private var audioEngine: AVAudioEngine?
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
 
-    // MARK: - Initialize Model
+    // MARK: - Load Model / Request Permissions
 
-    /// Load the WhisperKit model
-    /// In production, this uses WhisperKit SPM package
-    /// For now, this is a mock implementation
     func loadModel() async {
         state = .loading
 
-        // Simulate model loading time
-        try? await Task.sleep(for: .seconds(2))
+        // Request speech recognition authorization
+        let authorized = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status == .authorized)
+            }
+        }
 
-        isModelLoaded = true
-        state = .ready
+        if authorized {
+            isModelLoaded = true
+            state = .ready
+        } else {
+            state = .error("Permissao de reconhecimento de fala negada")
+        }
     }
 
-    // MARK: - Transcribe Audio File
+    // MARK: - Start Real-time Transcription
 
-    /// Transcribe an audio file to text
-    /// - Parameter audioURL: URL of the audio file (m4a, wav, etc.)
-    /// - Returns: Transcribed text
-    func transcribe(audioURL: URL) async -> String {
-        if !isModelLoaded {
-            await loadModel()
+    /// Starts listening to microphone and calls onUpdate with cumulative transcription text.
+    /// Uses Apple's SFSpeechRecognizer for real-time Portuguese speech-to-text.
+    /// Audio is NOT recorded by this class — use AudioRecorder in parallel for that.
+    func startRealtimeTranscription(onUpdate: @escaping (String) -> Void) throws {
+        guard let speechRecognizer, speechRecognizer.isAvailable else {
+            state = .error("Reconhecimento de fala indisponivel")
+            return
         }
 
         state = .transcribing
-        progress = 0
         transcription = ""
 
-        // Mock transcription — in production, use WhisperKit:
-        // let whisper = try await WhisperKit(model: modelName)
-        // let result = try await whisper.transcribe(audioPath: audioURL.path)
-        // return result.text
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .duckOthers])
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
-        // Simulate progressive transcription
-        let mockSegments = [
-            "Bom dia a todos, vamos começar a aula de hoje.",
-            " O tema que vamos abordar é muito importante para a prova.",
-            " Vamos revisar os conceitos fundamentais primeiro.",
-            " Como vimos na última aula, existem três pilares principais.",
-            " O primeiro pilar é a análise de mercado.",
-            " Precisamos entender o comportamento do consumidor.",
-            " Vamos ver alguns exemplos práticos agora.",
-            " Observem este gráfico na tela.",
-            " A curva de demanda mostra uma tendência clara.",
-            " Alguma dúvida até aqui?",
-        ]
-
-        for (index, segment) in mockSegments.enumerated() {
-            try? await Task.sleep(for: .milliseconds(500))
-            transcription += segment
-            progress = Double(index + 1) / Double(mockSegments.count)
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        guard let recognitionRequest else { return }
+        recognitionRequest.shouldReportPartialResults = true
+        if #available(iOS 16, *) {
+            recognitionRequest.addsPunctuation = true
         }
 
-        state = .completed
-        return transcription
-    }
+        audioEngine = AVAudioEngine()
+        guard let audioEngine else { return }
 
-    // MARK: - Real-time Preview Transcription
+        let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-    /// Start streaming transcription from microphone
-    /// Uses whisper-tiny for fast preview
-    func startRealtimeTranscription() async -> AsyncStream<String> {
-        if !isModelLoaded {
-            await loadModel()
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            recognitionRequest.append(buffer)
         }
 
-        return AsyncStream { continuation in
-            // In production, use WhisperKit's streaming API:
-            // whisperKit.transcribeStream(...)
+        audioEngine.prepare()
+        try audioEngine.start()
 
-            // Mock streaming
-            Task {
-                let phrases = [
-                    "Bom dia a todos...",
-                    " vamos começar a aula de hoje.",
-                    " O tema de hoje é marketing digital.",
-                    " Vamos falar sobre os 4Ps.",
-                ]
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self else { return }
 
-                for phrase in phrases {
-                    try? await Task.sleep(for: .seconds(3))
-                    continuation.yield(phrase)
+            if let result {
+                let text = result.bestTranscription.formattedString
+                self.transcription = text
+                onUpdate(text)
+            }
+
+            if let error {
+                // Speech recognition has a ~1 minute limit per task.
+                // When it times out, we restart automatically.
+                let nsError = error as NSError
+                if nsError.domain == "kAFAssistantErrorDomain" && nsError.code == 216 {
+                    // Recognition timed out — restart
+                    self.restartRecognition(onUpdate: onUpdate)
+                } else {
+                    print("[WhisperKit] Recognition error: \(error.localizedDescription)")
                 }
+            }
 
-                continuation.finish()
+            if result?.isFinal == true {
+                // Final result received — restart for continuous transcription
+                self.restartRecognition(onUpdate: onUpdate)
             }
         }
     }
 
-    // MARK: - Cleanup
+    // MARK: - Restart Recognition (for continuous transcription beyond 1-min limit)
+
+    private func restartRecognition(onUpdate: @escaping (String) -> Void) {
+        let previousText = transcription
+
+        // Clean up current session
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        audioEngine = nil
+
+        // Only restart if we're still supposed to be transcribing
+        guard state == .transcribing else { return }
+
+        // Small delay before restarting
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, self.state == .transcribing else { return }
+
+            do {
+                try self.startRealtimeTranscription { [weak self] newText in
+                    guard let self else { return }
+                    // Append new text to previous transcription
+                    if !previousText.isEmpty && !newText.isEmpty {
+                        self.transcription = previousText + " " + newText
+                    } else {
+                        self.transcription = previousText + newText
+                    }
+                    onUpdate(self.transcription)
+                }
+            } catch {
+                print("[WhisperKit] Failed to restart recognition: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Stop Transcription
+
+    @discardableResult
+    func stopRealtimeTranscription() -> String {
+        state = .completed
+        stopEngine()
+        return transcription
+    }
+
+    private func stopEngine() {
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        audioEngine = nil
+    }
+
+    // MARK: - Reset
 
     func reset() {
+        _ = stopRealtimeTranscription()
         state = .idle
         transcription = ""
-        progress = 0
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Course Detail Screen
 // Shows recordings and materials for a discipline with tabbed layout
@@ -19,6 +20,8 @@ struct CourseDetailScreenView: View {
     @State private var isSyncing = false
     @State private var syncError: String? = nil
     @State private var hasAutoSynced = false
+    @State private var showFileImporter = false
+    @State private var isUploading = false
 
     private let tabs = ["Aulas", "Conteúdo"]
 
@@ -124,6 +127,39 @@ struct CourseDetailScreenView: View {
         } message: {
             Text("Esta ação não pode ser desfeita.")
         }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.pdf, .presentation],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                guard url.startAccessingSecurityScopedResource() else { return }
+                defer { url.stopAccessingSecurityScopedResource() }
+                Task {
+                    isUploading = true
+                    do {
+                        let data = try Data(contentsOf: url)
+                        let fileName = url.lastPathComponent
+                        let mimeType = url.pathExtension.lowercased() == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        let material = try await MaterialService.uploadMaterial(
+                            disciplinaId: discipline.id,
+                            fileData: data,
+                            fileName: fileName,
+                            mimeType: mimeType,
+                            aiEnabled: true
+                        )
+                        materials.append(material)
+                    } catch {
+                        print("[CourseDetail] Upload error: \(error)")
+                    }
+                    isUploading = false
+                }
+            case .failure(let error):
+                print("[CourseDetail] File picker error: \(error)")
+            }
+        }
     }
 
     // MARK: - Aulas Tab
@@ -223,11 +259,41 @@ struct CourseDetailScreenView: View {
             .frame(minHeight: scrollHeight)
         } else {
             VStack(alignment: .leading, spacing: 16) {
-                // Header with sync button
+                // Header with sync + upload + enable-all-AI buttons
                 HStack {
                     CoffeeSectionHeader(title: "\(materials.count) materiais")
 
                     Spacer()
+
+                    // Enable AI for all materials (only if some have AI disabled)
+                    if materials.contains(where: { !$0.aiEnabled }) {
+                        Button {
+                            Task { await enableAllAI() }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                Text("Ativar IA em todos")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(Color.coffeePrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.coffeePrimary.opacity(0.08))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Upload material button
+                    Button {
+                        showFileImporter = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.coffeePrimary)
+                    }
+                    .buttonStyle(.plain)
 
                     if discipline.canvasCourseId != nil {
                         Button {
@@ -254,12 +320,41 @@ struct CourseDetailScreenView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
 
+                if isUploading {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .tint(Color.coffeePrimary)
+                            .scaleEffect(0.8)
+                        Text("Enviando material...")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+
                 CoffeeCellGroup {
                     ForEach(Array(materials.enumerated()), id: \.element.id) { index, material in
                         SwipeableRow(onDelete: {
                             materialToDelete = material
                         }) {
                             materialRow(material)
+                        }
+                        .contextMenu {
+                            Button {
+                                Task {
+                                    if let updated = try? await MaterialService.toggleAI(materialId: material.id) {
+                                        if let idx = materials.firstIndex(where: { $0.id == material.id }) {
+                                            materials[idx] = updated
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label(
+                                    material.aiEnabled ? "Desativar IA" : "Ativar IA",
+                                    systemImage: material.aiEnabled ? "sparkles.slash" : "sparkles"
+                                )
+                            }
                         }
 
                         if index < materials.count - 1 {
@@ -305,6 +400,22 @@ struct CourseDetailScreenView: View {
         }
 
         isSyncing = false
+    }
+
+    // MARK: - Enable All AI
+
+    private func enableAllAI() async {
+        do {
+            let result = try await MaterialService.enableAllAI(disciplinaId: discipline.id)
+            if result > 0 {
+                // Refresh materials list to get updated ai_enabled states
+                if let updated = try? await MaterialService.getMaterials(disciplinaId: discipline.id) {
+                    withAnimation { materials = updated }
+                }
+            }
+        } catch {
+            print("[CourseDetail] Enable all AI error: \(error)")
+        }
     }
 
     // MARK: - Recording Row (matches screenshot layout)
@@ -402,7 +513,7 @@ struct CourseDetailScreenView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.blue.opacity(0.09))
                     .frame(width: 50, height: 50)
-                Image(systemName: MockData.materialIcon(for: material.tipo))
+                Image(systemName: material.iconName)
                     .font(.system(size: 20))
                     .foregroundStyle(.blue)
             }
@@ -429,11 +540,20 @@ struct CourseDetailScreenView: View {
 
             Spacer()
 
-            if material.aiEnabled {
-                Image(systemName: CoffeeIcon.sparkles)
+            Button {
+                Task {
+                    if let updated = try? await MaterialService.toggleAI(materialId: material.id) {
+                        if let idx = materials.firstIndex(where: { $0.id == material.id }) {
+                            materials[idx] = updated
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: material.aiEnabled ? CoffeeIcon.sparkles : "sparkles.slash")
                     .font(.system(size: 12))
-                    .foregroundStyle(Color.coffeePrimary)
+                    .foregroundStyle(material.aiEnabled ? Color.coffeePrimary : Color.coffeeTextSecondary.opacity(0.4))
             }
+            .buttonStyle(.plain)
 
             Image(systemName: CoffeeIcon.forward)
                 .font(.system(size: 14, weight: .semibold))
@@ -464,7 +584,7 @@ struct RecordingDetailSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             CoffeeSheetHeader(
-                title: MockData.displayTitle(for: recording),
+                title: recording.displayTitle,
                 onClose: { dismiss() }
             )
 
@@ -591,7 +711,7 @@ struct RecordingDetailSheet: View {
                 // Download PDF button
                 downloadButton(label: "Baixar resumo em PDF") {
                     let pdf = PDFExportService.generateSummaryPDF(
-                        title: MockData.displayTitle(for: recording),
+                        title: recording.displayTitle,
                         disciplineName: disciplineName,
                         date: recording.dateLabel,
                         duration: recording.durationLabel,
@@ -732,7 +852,7 @@ struct RecordingDetailSheet: View {
                 // Download PDF button
                 downloadButton(label: "Baixar mapa mental") {
                     let pdf = PDFExportService.generateMindMapPDF(
-                        title: MockData.displayTitle(for: recording),
+                        title: recording.displayTitle,
                         disciplineName: disciplineName,
                         date: recording.dateLabel,
                         mindMap: mindMap
@@ -763,20 +883,39 @@ struct RecordingDetailSheet: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                     ForEach(media) { item in
                         VStack(spacing: 8) {
-                            // Photo placeholder (url is nil in mock data)
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.coffeePrimary.opacity(0.06))
-                                    .frame(height: 140)
-
-                                VStack(spacing: 6) {
-                                    Image(systemName: "photo.fill")
-                                        .font(.system(size: 28))
-                                        .foregroundStyle(Color.coffeePrimary.opacity(0.35))
-                                    Text(item.timestampLabel)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundStyle(Color.coffeePrimary.opacity(0.5))
+                            if let urlString = item.url, !urlString.isEmpty, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(height: 140)
+                                            .clipped()
+                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .overlay(alignment: .bottomTrailing) {
+                                                Text(item.timestampLabel)
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 3)
+                                                    .background(Color.black.opacity(0.5))
+                                                    .clipShape(Capsule())
+                                                    .padding(6)
+                                            }
+                                    case .failure:
+                                        mediaPlaceholder(timestampLabel: item.timestampLabel)
+                                    default:
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(Color.coffeePrimary.opacity(0.06))
+                                                .frame(height: 140)
+                                            ProgressView()
+                                        }
+                                    }
                                 }
+                            } else {
+                                mediaPlaceholder(timestampLabel: item.timestampLabel)
                             }
 
                             if let label = item.label {
@@ -800,6 +939,23 @@ struct RecordingDetailSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
+    }
+
+    private func mediaPlaceholder(timestampLabel: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.coffeePrimary.opacity(0.06))
+                .frame(height: 140)
+
+            VStack(spacing: 6) {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.coffeePrimary.opacity(0.35))
+                Text(timestampLabel)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.coffeePrimary.opacity(0.5))
+            }
+        }
     }
 
     // MARK: - Branch Capsule
@@ -836,6 +992,6 @@ struct RecordingDetailSheet: View {
 }
 
 #Preview {
-    CourseDetailScreenView(discipline: MockData.disciplines[0])
+    CourseDetailScreenView(discipline: Discipline(id: "preview", nome: "Preview", turma: nil, semestre: nil, sala: nil, canvasCourseId: nil, gravacoesCount: 0, materiaisCount: 0, aiActive: false, lastSyncedAt: nil))
         .environment(\.router, NavigationRouter())
 }

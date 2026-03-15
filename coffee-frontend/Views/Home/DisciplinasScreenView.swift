@@ -21,16 +21,26 @@ struct DisciplinasScreenView: View {
     private var tabs: [String] { ["Disciplinas", "Outros", "Recebidos\(newCount > 0 ? " (\(newCount))" : "")"] }
 
     private var dynamicSubtitle: String {
-        // Extract semester number and sala from the first discipline that has them
+        // Extract semester number and turma from the first discipline that has them
         let semestre = disciplines.compactMap(\.semestre).first
-        let sala = disciplines.compactMap(\.sala).first
+        let turma = disciplines.compactMap(\.turma).first
 
-        if let semestre, let sala {
-            return "\(semestre)º semestre · Sala \(sala)"
-        } else if let semestre {
-            return "\(semestre)º semestre"
-        } else if let sala {
-            return "Sala \(sala)"
+        // Format semestre: "2026/1" → "1º Semestre 2026"
+        let formattedSemestre: String? = {
+            guard let s = semestre else { return nil }
+            let parts = s.split(separator: "/")
+            if parts.count == 2, let num = parts.last {
+                return "\(num)º Semestre \(parts.first!)"
+            }
+            return "\(s)º semestre"
+        }()
+
+        if let formattedSemestre, let turma {
+            return "\(formattedSemestre) · Turma \(turma)"
+        } else if let formattedSemestre {
+            return formattedSemestre
+        } else if let turma {
+            return "Turma \(turma)"
         } else {
             return "ESPM"
         }

@@ -87,7 +87,7 @@ struct LinkESPMScreenView: View {
                             body: "O COFFEE capta o áudio da aula em tempo real apenas para gerar a transcrição. Nenhum arquivo de áudio é armazenado.")
                         Divider()
                         termSection(icon: CoffeeIcon.school, title: "Dados Acadêmicos",
-                            body: "Ao conectar sua conta ESPM, autorizamos o acesso apenas à sua grade horária e materiais do Canvas.")
+                            body: "Ao conectar sua conta ESPM, acessamos apenas sua grade horária e materiais do Canvas. Suas credenciais ESPM não são armazenadas — utilizamos apenas um token temporário de acesso.")
                         Divider()
                         termSection(icon: CoffeeIcon.sparkles, title: "Inteligência Artificial",
                             body: "As transcrições são processadas por modelos de IA para gerar resumos e mapas mentais. Os dados são anonimizados.")
@@ -96,7 +96,7 @@ struct LinkESPMScreenView: View {
                             body: "As transcrições, resumos e materiais gerados pertencem ao usuário. Você pode exportar ou deletar a qualquer momento.")
                         Divider()
                         termSection(icon: CoffeeIcon.lock, title: "Privacidade e LGPD",
-                            body: "Seguimos rigorosamente a Lei Geral de Proteção de Dados (LGPD). Solicite exclusão via suportecoffeeapp@gmail.com.")
+                            body: "Seguimos a Lei Geral de Proteção de Dados (LGPD). Seus dados podem ser excluídos a qualquer momento em Perfil > Excluir conta, ou via suportecoffeeapp@gmail.com.")
                     }
                     .background(Color.coffeeCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

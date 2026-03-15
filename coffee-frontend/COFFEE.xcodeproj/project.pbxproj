@@ -68,6 +68,7 @@
 		EA77550B5F704E06CB98934B /* DisciplinasScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50F2CD2ACB1052BD8B95B26 /* DisciplinasScreenView.swift */; };
 		EB715D985CD0E30D30DBBF2E /* PremiumOfferScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29446710341C788A792876E /* PremiumOfferScreenView.swift */; };
 		EB98F9A5B7F158A848F1C1E3 /* RecordingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E7F53DE7F1435296D7EB312 /* RecordingFlowView.swift */; };
+		CA4E7A1B2D3F8E9C01A5B6D7 /* CameraPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4E7A1A2D3F8E9C01A5B6D8 /* CameraPickerView.swift */; };
 		ECC550731A00D5BF30C03910 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70845CD5492AD0279EDAA0C7 /* AIService.swift */; };
 		F2DCF0E16323686F74F06576 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C249879F9187C14246CE77 /* AudioRecorder.swift */; };
 		F364F0774F71733FE3D2079B /* SignupScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475AA9329BAD98FE3EEF1476 /* SignupScreenView.swift */; };
@@ -82,6 +83,7 @@
 		0C168E757F3276AE19266677 /* CoffeeNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeNavBar.swift; sourceTree = "<group>"; };
 		0DCA6539F9B1881893EA2241 /* AccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountService.swift; sourceTree = "<group>"; };
 		0E7F53DE7F1435296D7EB312 /* RecordingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFlowView.swift; sourceTree = "<group>"; };
+		CA4E7A1A2D3F8E9C01A5B6D8 /* CameraPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerView.swift; sourceTree = "<group>"; };
 		0FA622574706B3A970D4D130 /* WhisperKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitManager.swift; sourceTree = "<group>"; };
 		1451BA160B4ABE12798039A8 /* PremiumGateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumGateSheet.swift; sourceTree = "<group>"; };
 		177AA33643B56C0580611574 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
@@ -377,6 +379,7 @@
 		C41C9380BD1CC00D1EB68275 /* Recording */ = {
 			isa = PBXGroup;
 			children = (
+				CA4E7A1A2D3F8E9C01A5B6D8 /* CameraPickerView.swift */,
 				0E7F53DE7F1435296D7EB312 /* RecordingFlowView.swift */,
 			);
 			path = Recording;
@@ -525,6 +528,7 @@
 				491553AD90929AB701846760 /* ProfileService.swift in Sources */,
 				021F33300EE3DA7632668D16 /* PromoCodesScreenView.swift in Sources */,
 				3D9401798AC23E41F9B751C0 /* Recording.swift in Sources */,
+				CA4E7A1B2D3F8E9C01A5B6D7 /* CameraPickerView.swift in Sources */,
 				EB98F9A5B7F158A848F1C1E3 /* RecordingFlowView.swift in Sources */,
 				17A8CC960C2289550CAE8610 /* RecordingService.swift in Sources */,
 				2D57975914659212DD51C978 /* Repository.swift in Sources */,
@@ -553,7 +557,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_NSCameraUsageDescription = "O COFFEE precisa acessar a câmera para fotografar o quadro durante a aula.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -631,7 +637,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_NSCameraUsageDescription = "O COFFEE precisa acessar a câmera para fotografar o quadro durante a aula.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (

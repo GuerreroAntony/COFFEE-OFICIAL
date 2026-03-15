@@ -41,13 +41,21 @@ struct LoginScreenView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.coffeeTextSecondary)
 
-                    TextField("exemplo@email.com", text: $email)
-                        .font(.coffeeBody)
-                        .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .tint(Color.coffeePrimary)
+                    ZStack(alignment: .leading) {
+                        if email.isEmpty {
+                            Text("exemplo@email.com")
+                                .font(.coffeeBody)
+                                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                        }
+                        TextField("", text: $email)
+                            .font(.coffeeBody)
+                            .foregroundStyle(Color.coffeeTextPrimary)
+                            .keyboardType(.emailAddress)
+                            .textContentType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .tint(Color.coffeePrimary)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -110,7 +118,7 @@ struct LoginScreenView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 28)
-                    .padding(.top, 4)
+                    .padding(.bottom, 16)
             }
 
             // Login button

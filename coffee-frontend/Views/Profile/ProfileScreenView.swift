@@ -246,7 +246,12 @@ struct ProfileScreenView: View {
             }
             .alert("Excluir conta", isPresented: $showDeleteAccount) {
                 Button("Cancelar", role: .cancel) { }
-                Button("Excluir", role: .destructive) { }
+                Button("Excluir", role: .destructive) {
+                    Task {
+                        try? await AccountService.deleteAccount()
+                        router.logout()
+                    }
+                }
             } message: {
                 Text("Tem certeza que deseja excluir sua conta? Esta ação é irreversível.")
             }
@@ -341,7 +346,7 @@ struct CancellationView: View {
                 .padding(.horizontal, 24)
 
                 CoffeeCellGroup {
-                    ForEach(Array(MockData.cancelReasons.enumerated()), id: \.offset) { index, reason in
+                    ForEach(Array(CancelReason.all.enumerated()), id: \.offset) { index, reason in
                         Button {
                             selectedReason = reason.label
                         } label: {
@@ -370,7 +375,7 @@ struct CancellationView: View {
                         }
                         .buttonStyle(.plain)
 
-                        if index < MockData.cancelReasons.count - 1 {
+                        if index < CancelReason.all.count - 1 {
                             Divider().padding(.leading, 82)
                         }
                     }

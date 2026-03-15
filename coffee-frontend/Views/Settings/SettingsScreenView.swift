@@ -16,6 +16,25 @@ struct SettingsScreenView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Perfil
+                    CoffeeSectionHeader(title: "Conta")
+                        .padding(.horizontal, 20)
+
+                    CoffeeCellGroup {
+                        NavigationLink {
+                            ProfileScreenView()
+                        } label: {
+                            CoffeeCell(
+                                icon: "person.fill",
+                                title: "Perfil",
+                                subtitle: router.currentUser?.email ?? "",
+                                trailing: .chevron
+                            )
+                        }
+                        .buttonStyle(CoffeeCellButtonStyle())
+                    }
+                    .padding(.horizontal, 16)
+
                     // ESPM
                     CoffeeSectionHeader(title: "ESPM")
                         .padding(.horizontal, 20)
@@ -106,7 +125,7 @@ struct SettingsScreenView: View {
                 LegalDocView(title: "Política de Privacidade", sections: [
                     ("Coleta de Dados", "Coletamos apenas os dados necessários para o funcionamento do app: nome, email, matrícula ESPM e gravações de áudio."),
                     ("Uso dos Dados", "Seus dados são usados exclusivamente para gerar transcrições, resumos e respostas do Barista IA."),
-                    ("Armazenamento", "Áudio é processado e deletado após a transcrição. Transcrições e resumos são armazenados de forma criptografada."),
+                    ("Armazenamento", "Áudio é processado localmente no dispositivo e nunca sai do seu iPhone. Transcrições e resumos são armazenados de forma segura. Credenciais ESPM não são armazenadas — utilizamos apenas tokens temporários."),
                     ("LGPD", "Você tem direito a acessar, corrigir e excluir seus dados. Envie solicitações para suportecoffeeapp@gmail.com."),
                     ("Terceiros", "Usamos serviços de IA para processamento. Os dados são anonimizados antes do envio e não são usados para treinamento."),
                 ])
