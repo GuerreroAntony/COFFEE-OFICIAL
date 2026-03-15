@@ -406,7 +406,7 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
                     """INSERT INTO materiais
                        (disciplina_id, tipo, nome, url_storage, texto_extraido, fonte, ai_enabled, size_bytes, canvas_file_id)
                        VALUES ($1, $2, $3, $4, $5, 'canvas', $6, $7, $8)
-                       ON CONFLICT (canvas_file_id) DO NOTHING
+                       ON CONFLICT (canvas_file_id) WHERE canvas_file_id IS NOT NULL DO NOTHING
                        RETURNING id, disciplina_id, ai_enabled""",
                     disciplina_id, tipo, filename, public_url, texto_extraido,
                     ai_enabled, size_bytes, canvas_file_id,

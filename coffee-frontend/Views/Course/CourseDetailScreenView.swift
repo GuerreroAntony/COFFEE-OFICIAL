@@ -284,10 +284,15 @@ struct CourseDetailScreenView: View {
         do {
             _ = try await MaterialService.syncMaterials(disciplinaId: discipline.id)
 
-            // Wait a bit for background task to process, then reload
-            try await Task.sleep(for: .seconds(3))
-            let updated = try await MaterialService.getMaterials(disciplinaId: discipline.id)
-            withAnimation { materials = updated }
+            // Poll for materials — background task downloads files sequentially
+            for attempt in 1...3 {
+                try await Task.sleep(for: .seconds(attempt == 1 ? 5 : 4))
+                let updated = try await MaterialService.getMaterials(disciplinaId: discipline.id)
+                if !updated.isEmpty || attempt == 3 {
+                    withAnimation { materials = updated }
+                    break
+                }
+            }
         } catch let error as APIError {
             switch error {
             case .syncCooldown:

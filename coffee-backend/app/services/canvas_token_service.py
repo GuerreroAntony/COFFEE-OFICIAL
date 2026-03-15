@@ -552,6 +552,12 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
             r = await client.get(url, headers=headers, params=params)
             if r.status_code == 401:
                 raise CanvasAuthError("Token Canvas inválido ou expirado")
+            if r.status_code == 403:
+                logger.warning(
+                    "[canvas] course %d: 403 Forbidden for files endpoint (no access)",
+                    canvas_course_id,
+                )
+                return []  # User doesn't have file access for this course
             r.raise_for_status()
             data = r.json()
             if isinstance(data, list):
