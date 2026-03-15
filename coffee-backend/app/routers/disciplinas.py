@@ -19,7 +19,7 @@ async def list_disciplinas(user_id: UUID = Depends(get_current_user)):
     rows = await fetch_all(
         """
         SELECT d.id, d.nome, d.turma, d.semestre, d.sala, d.canvas_course_id,
-               d.last_scraped_at::text AS last_synced_at,
+               to_char(d.last_scraped_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,
                EXISTS (SELECT 1 FROM embeddings e WHERE e.disciplina_id = d.id) AS ai_active
@@ -53,7 +53,7 @@ async def get_disciplina(
     row = await fetch_one(
         """
         SELECT d.id, d.nome, d.turma, d.semestre, d.sala, d.canvas_course_id,
-               d.last_scraped_at::text AS last_synced_at,
+               to_char(d.last_scraped_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_synced_at,
                COUNT(DISTINCT g.id) FILTER (WHERE g.status = 'ready') AS gravacoes_count,
                COUNT(DISTINCT m.id) AS materiais_count,
                EXISTS (SELECT 1 FROM embeddings e WHERE e.disciplina_id = d.id) AS ai_active

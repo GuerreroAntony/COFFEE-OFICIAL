@@ -255,9 +255,9 @@ async def espm_connect(
 
 @router.post("/sync")
 async def sync_schedule(
-    body: ESPMSyncRequest,
     background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
+    body: Optional[ESPMSyncRequest] = None,
 ):
     """
     Força re-sincronização dos cursos.
@@ -293,6 +293,11 @@ async def sync_schedule(
 
     if not token_valid:
         # ── Slow path: regenerate token via Playwright ──
+        if not body or not body.matricula or not body.password:
+            raise HTTPException(status_code=401, detail=error_response(
+                "ESPM_TOKEN_EXPIRED",
+                "Token Canvas expirado. Reconecte sua conta ESPM."))
+
         try:
             canvas_ok, new_token = await _generate_and_save_canvas_token(
                 user_id, body.matricula, body.password
@@ -318,17 +323,18 @@ async def sync_schedule(
                 "ESPM_UNAVAILABLE", str(exc)))
 
     # Update encrypted credentials (backward compat with coffee-scraper)
-    try:
-        encrypted_password = _encrypt_password(body.password)
-        await execute_query(
-            """UPDATE users
-               SET espm_login = $1,
-                   encrypted_espm_password = $2
-               WHERE id = $3""",
-            body.matricula, encrypted_password, user_id,
-        )
-    except Exception as exc:
-        logger.warning("espm.sync.encrypt.error", error=str(exc))
+    if body and body.matricula and body.password:
+        try:
+            encrypted_password = _encrypt_password(body.password)
+            await execute_query(
+                """UPDATE users
+                   SET espm_login = $1,
+                       encrypted_espm_password = $2
+                   WHERE id = $3""",
+                body.matricula, encrypted_password, user_id,
+            )
+        except Exception as exc:
+            logger.warning("espm.sync.encrypt.error", error=str(exc))
 
     # Auto-sync materials for all disciplines in background
     if disciplines_synced > 0:

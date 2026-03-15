@@ -121,22 +121,37 @@ extension String {
 extension JSONDecoder {
     static var coffeeDecoder: JSONDecoder {
         let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoFull = ISO8601DateFormatter()
+        isoFull.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoBasic = ISO8601DateFormatter()
+        isoBasic.formatOptions = [.withInternetDateTime]
+
+        // Postgres default format: "2026-03-15 12:13:40.161674+00"
+        let pgFormatter = DateFormatter()
+        pgFormatter.locale = Locale(identifier: "en_US_POSIX")
+        pgFormatter.timeZone = TimeZone(identifier: "UTC")
+        pgFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSSSSxx"
+
+        let pgShort = DateFormatter()
+        pgShort.locale = Locale(identifier: "en_US_POSIX")
+        pgShort.timeZone = TimeZone(identifier: "UTC")
+        pgShort.dateFormat = "yyyy-MM-dd HH:mm:ssxx"
+
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
 
-            // Try ISO 8601 with fractional seconds
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
+            // Try ISO 8601 with fractional seconds (e.g. "2026-03-15T12:13:40.161674Z")
+            if let date = isoFull.date(from: dateString) { return date }
 
-            // Try ISO 8601 without fractional seconds
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
+            // Try ISO 8601 without fractional seconds (e.g. "2026-03-15T12:13:40Z")
+            if let date = isoBasic.date(from: dateString) { return date }
+
+            // Try Postgres format with fractional seconds (e.g. "2026-03-15 12:13:40.161674+00")
+            if let date = pgFormatter.date(from: dateString) { return date }
+
+            // Try Postgres format without fractional seconds
+            if let date = pgShort.date(from: dateString) { return date }
 
             throw DecodingError.dataCorruptedError(
                 in: container,
