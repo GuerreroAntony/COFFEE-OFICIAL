@@ -101,11 +101,8 @@ async def login(body: LoginRequest):
            FROM users WHERE email = $1""",
         body.email,
     )
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Usuário não encontrado"))
-
-    if not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_response("INVALID_CREDENTIALS", "Credenciais inválidas"))
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_response("INVALID_CREDENTIALS", "Email ou senha incorretos"))
 
     token = create_jwt(user["id"])
     user_resp = await _build_user_response(user)

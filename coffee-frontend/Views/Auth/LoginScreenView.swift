@@ -12,6 +12,7 @@ struct LoginScreenView: View {
     @State private var showPassword = false
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
+    @State private var highlightSignup = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -122,6 +123,7 @@ struct LoginScreenView: View {
                         router.login(user: auth.user)
                     } catch let error as APIError {
                         errorMessage = error.localizedDescription
+                        flashSignup()
                     } catch {
                         errorMessage = "Erro ao conectar. Tente novamente."
                     }
@@ -143,12 +145,21 @@ struct LoginScreenView: View {
                 }
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.coffeePrimary)
+                .scaleEffect(highlightSignup ? 1.15 : 1.0)
+                .animation(.easeInOut(duration: 0.25).repeatCount(3, autoreverses: true), value: highlightSignup)
             }
             .padding(.bottom, 40)
         }
         .background(Color.coffeeBackground)
         .onTapGesture {
             hideKeyboard()
+        }
+    }
+
+    private func flashSignup() {
+        highlightSignup = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            highlightSignup = false
         }
     }
 
