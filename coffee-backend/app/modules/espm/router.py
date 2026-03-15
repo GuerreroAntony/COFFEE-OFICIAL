@@ -256,6 +256,7 @@ async def espm_connect(
 @router.post("/sync")
 async def sync_schedule(
     body: ESPMSyncRequest,
+    background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
     """
@@ -328,6 +329,10 @@ async def sync_schedule(
         )
     except Exception as exc:
         logger.warning("espm.sync.encrypt.error", error=str(exc))
+
+    # Auto-sync materials for all disciplines in background
+    if disciplines_synced > 0:
+        background_tasks.add_task(sync_all_user_materials, user_id)
 
     # Same response format as /connect (contract v3.1)
     resp = await _build_connect_response(user_id, disciplines_synced)
