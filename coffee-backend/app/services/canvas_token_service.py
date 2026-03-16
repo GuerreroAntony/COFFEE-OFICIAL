@@ -574,8 +574,8 @@ async def _canvas_api_get_paginated(
 
 # Names to ignore when syncing (administrative files, not course content)
 _NOMES_IGNORADOS = [
-    "contrato", "pea", "combinados", "programa",
-    "codigo", "código", "calendario", "calendário", "grade",
+    "contrato", "pea", "combinados",
+    "codigo", "código", "calendario", "calendário",
 ]
 
 
@@ -678,9 +678,9 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
 
                 files.append(file_meta)
 
-            # Small delay between modules to avoid Canvas rate limiting
+            # Delay between modules to avoid Canvas rate limiting on Railway
             if mod_idx < len(modules) - 1:
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.5)
 
     # Filter out oversized files
     valid = [f for f in files if isinstance(f, dict) and f.get("size", 0) <= _MAX_SYNC_FILE_BYTES]

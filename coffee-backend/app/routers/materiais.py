@@ -358,17 +358,6 @@ async def trigger_sync(
 
     last_scraped = disc["last_scraped_at"]
 
-    if last_scraped and (datetime.now(timezone.utc) - last_scraped) < timedelta(hours=settings.SYNC_COOLDOWN_HOURS):
-        next_sync = last_scraped + timedelta(hours=settings.SYNC_COOLDOWN_HOURS)
-        raise HTTPException(
-            status_code=429,
-            detail=error_response(
-                "SYNC_COOLDOWN",
-                "Sincronização em cooldown",
-                extra={"next_sync_available_at": next_sync.isoformat()},
-            ),
-        )
-
     background_tasks.add_task(_sync_canvas_materials, disciplina_id, user_id)
     resp = SyncStatusResponse(status="triggered", last_synced_at=last_scraped)
     return success_response(resp.model_dump(mode="json"))
