@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class QuestionsRemaining(BaseModel):
-    espresso: int = -1
+    espresso: int = 75
     lungo: int = 30
     cold_brew: int = 15
 

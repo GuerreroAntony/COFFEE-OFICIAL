@@ -21,8 +21,14 @@ class Settings(BaseSettings):
     APPLE_SHARED_SECRET: str = ""
     TRIAL_DAYS: int = 7
     GIFT_CODE_BONUS_DAYS: int = 7
-    LUNGO_MONTHLY_LIMIT: int = 30
-    COLD_BREW_MONTHLY_LIMIT: int = 15
+    # Café com Leite limits (also used for trial/degustação)
+    CAFE_ESPRESSO_LIMIT: int = 75
+    CAFE_LUNGO_LIMIT: int = 30
+    CAFE_COLD_BREW_LIMIT: int = 15
+    # Black limits
+    BLACK_ESPRESSO_LIMIT: int = -1   # unlimited
+    BLACK_LUNGO_LIMIT: int = 100
+    BLACK_COLD_BREW_LIMIT: int = 25
     SYNC_COOLDOWN_HOURS: int = 1
     # Support
     SUPPORT_EMAIL: str = "suportecoffeeapp@gmail.com"

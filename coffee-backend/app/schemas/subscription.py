@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class VerifyReceiptRequest(BaseModel):
     receipt_data: str
     transaction_id: str
+    plano: str = "cafe_com_leite"  # "cafe_com_leite" or "black"
 
 
 class GiftCodeBrief(BaseModel):

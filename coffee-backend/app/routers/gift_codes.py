@@ -119,8 +119,8 @@ async def redeem_gift_code(
     if not user:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Usuário não encontrado"))
 
-    if user["plano"] == "premium":
-        raise HTTPException(status_code=403, detail=error_response("SUBSCRIPTION_REQUIRED", "Usuários premium não podem resgatar gift codes"))
+    if user["plano"] in ("cafe_com_leite", "black"):
+        raise HTTPException(status_code=403, detail=error_response("SUBSCRIPTION_REQUIRED", "Assinantes não podem resgatar gift codes"))
 
     # Check if user already redeemed a code
     already = await fetch_one(

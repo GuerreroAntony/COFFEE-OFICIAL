@@ -38,7 +38,7 @@ async def _build_user_response(user_row) -> dict:
         and trial_end is not None
         and (trial_end if trial_end.tzinfo else trial_end.replace(tzinfo=timezone.utc)) > datetime.now(timezone.utc)
     )
-    subscription_active = (sub is not None and user_row["plano"] == "premium") or trial_valid
+    subscription_active = (sub is not None and user_row["plano"] in ("cafe_com_leite", "black")) or trial_valid
     espm_connected = user_row.get("espm_login") is not None
 
     return UserResponse(

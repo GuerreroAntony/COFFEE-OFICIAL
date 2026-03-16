@@ -52,7 +52,8 @@ async def _build_profile(user_id: UUID) -> dict:
         and trial_end is not None
         and (trial_end if trial_end.tzinfo else trial_end.replace(tzinfo=timezone.utc)) > datetime.now(timezone.utc)
     )
-    subscription_active = (sub is not None and user["plano"] == "premium") or trial_valid
+    from app.plan_limits import is_paid_plan
+    subscription_active = (sub is not None and is_paid_plan(user["plano"])) or trial_valid
 
     # Usage stats: gravacoes
     grav_row = await fetch_one(
@@ -66,6 +67,16 @@ async def _build_profile(user_id: UUID) -> dict:
     # Questions remaining per mode (30-day cycle from created_at)
     cycle_start, cycle_end = _get_current_cycle(user["created_at"])
 
+    from app.plan_limits import get_plan_limits
+    limits = get_plan_limits(user["plano"])
+
+    espresso_row = await fetch_one(
+        """SELECT COUNT(*) AS cnt FROM mensagens m
+           JOIN chats c ON m.chat_id = c.id
+           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
+             AND m.created_at >= $2""",
+        user_id, cycle_start,
+    )
     lungo_row = await fetch_one(
         """SELECT COUNT(*) AS cnt FROM mensagens m
            JOIN chats c ON m.chat_id = c.id
@@ -81,13 +92,14 @@ async def _build_profile(user_id: UUID) -> dict:
         user_id, cycle_start,
     )
 
+    espresso_used = espresso_row["cnt"] if espresso_row else 0
     lungo_used = lungo_row["cnt"] if lungo_row else 0
     cold_brew_used = cold_brew_row["cnt"] if cold_brew_row else 0
 
     questions = QuestionsRemaining(
-        espresso=-1,
-        lungo=max(0, settings.LUNGO_MONTHLY_LIMIT - lungo_used),
-        cold_brew=max(0, settings.COLD_BREW_MONTHLY_LIMIT - cold_brew_used),
+        espresso=-1 if limits["espresso"] == -1 else max(0, limits["espresso"] - espresso_used),
+        lungo=max(0, limits["lungo"] - lungo_used),
+        cold_brew=max(0, limits["cold_brew"] - cold_brew_used),
     )
 
     usage = UsageStats(
@@ -97,9 +109,9 @@ async def _build_profile(user_id: UUID) -> dict:
         questions_reset_at=cycle_end,
     )
 
-    # Gift codes (only for premium)
+    # Gift codes (for paid plans)
     gift_codes = []
-    if user["plano"] == "premium":
+    if is_paid_plan(user["plano"]):
         gc_rows = await fetch_all(
             """SELECT gc.code, gc.redeemed_by IS NOT NULL AS redeemed,
                       u.nome AS redeemed_by_name, gc.redeemed_at

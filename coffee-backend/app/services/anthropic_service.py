@@ -1,10 +1,14 @@
-"""Anthropic Claude integration for Cold Brew chat mode."""
+"""Anthropic Claude integration for Lungo and Cold Brew chat modes."""
 from __future__ import annotations
 
 from typing import AsyncGenerator
 
 import anthropic
 from app.config import settings
+
+# Model constants
+SONNET = "claude-sonnet-4-20250514"
+OPUS = "claude-opus-4-20250514"
 
 
 class AnthropicService:
@@ -15,6 +19,7 @@ class AnthropicService:
         self,
         messages: list[dict],
         context_chunks: list[str],
+        model: str = SONNET,
         system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         formatted_context = "\n\n---\n\n".join(context_chunks)
@@ -28,7 +33,7 @@ class AnthropicService:
         )
 
         async with self.client.messages.stream(
-            model="claude-opus-4-20250514",
+            model=model,
             max_tokens=4096,
             system=system,
             messages=messages,

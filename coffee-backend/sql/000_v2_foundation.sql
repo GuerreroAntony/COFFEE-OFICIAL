@@ -15,7 +15,7 @@ CREATE TABLE users (
     nome VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    plano VARCHAR(20) DEFAULT 'trial' CHECK (plano IN ('trial', 'premium', 'expired')),
+    plano VARCHAR(20) DEFAULT 'trial' CHECK (plano IN ('trial', 'cafe_com_leite', 'black', 'expired')),
     trial_end TIMESTAMP WITH TIME ZONE,
     espm_login VARCHAR(255),
     encrypted_espm_password BYTEA,
@@ -221,7 +221,7 @@ CREATE INDEX idx_ref_code ON referrals(code);
 CREATE TABLE subscriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plano VARCHAR(20) DEFAULT 'premium',
+    plano VARCHAR(20) DEFAULT 'cafe_com_leite' CHECK (plano IN ('cafe_com_leite', 'black')),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
     trial_end TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
