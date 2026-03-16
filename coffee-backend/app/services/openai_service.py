@@ -19,7 +19,7 @@ class OpenAIService:
                         "gere um resumo estruturado.\n\n"
                         "Retorne APENAS um JSON válido neste formato:\n"
                         "{\n"
-                        '  "titulo": "título conciso da aula em até 6 palavras",\n'
+                        '  "titulo": "Tema da Aula (MÁXIMO 4 palavras)",\n'
                         '  "topicos": [\n'
                         '    {\n'
                         '      "titulo": "Nome do tópico",\n'
