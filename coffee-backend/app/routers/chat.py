@@ -24,6 +24,9 @@ router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
 _openai = OpenAIService()
 _anthropic = AnthropicService()
 
+# Minimum cosine similarity to include a chunk in RAG context and sources
+_MIN_SIMILARITY = 0.30
+
 # Mode → model mapping
 _MODE_MODELS = {
     "espresso": "gpt-4o-mini",
@@ -380,7 +383,10 @@ async def send_message(
             vec_str, source_id,
         )
 
-    # Build context and sources
+    # Filter chunks by minimum similarity threshold
+    chunk_rows = [row for row in chunk_rows if float(row["similarity"]) >= _MIN_SIMILARITY]
+
+    # Build context and sources (only from relevant chunks)
     context_texts = []
     for row in chunk_rows:
         label = f"[{row['source_name']} | {row['fonte_tipo']}]"
