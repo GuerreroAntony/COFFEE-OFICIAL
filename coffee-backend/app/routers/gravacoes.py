@@ -442,6 +442,32 @@ async def deletar_gravacao(
     )
 
 
+# ── POST /gravacoes/{id}/regenerate ──────────────────────────
+
+@router.post("/{gravacao_id}/regenerate")
+async def regenerar_gravacao(
+    gravacao_id: UUID,
+    background_tasks: BackgroundTasks,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Re-gerar resumo e mapa mental de uma gravação."""
+    grav = await fetch_one(
+        "SELECT id, transcription FROM gravacoes WHERE id = $1 AND user_id = $2",
+        gravacao_id, user_id,
+    )
+    if not grav:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Gravação não encontrada"))
+
+    # Reset status
+    await execute_query(
+        "UPDATE gravacoes SET status = 'processing', short_summary = NULL, full_summary = NULL, mind_map = NULL WHERE id = $1",
+        gravacao_id,
+    )
+
+    background_tasks.add_task(generate_summary_for_gravacao, gravacao_id)
+    return success_response({"id": str(gravacao_id), "status": "processing"})
+
+
 # ── GET /gravacoes/{id}/pdf/resumo ───────────────────────────
 
 @router.get("/{gravacao_id}/pdf/resumo")
