@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
@@ -63,7 +64,7 @@ async def verify_receipt(
 async def get_status(user_id: UUID = Depends(get_current_user)):
     """Status da subscription."""
     user = await fetch_one(
-        "SELECT plano FROM users WHERE id = $1", user_id
+        "SELECT plano, trial_end FROM users WHERE id = $1", user_id
     )
     sub = await fetch_one(
         """SELECT status, expires_at FROM subscriptions
@@ -73,7 +74,14 @@ async def get_status(user_id: UUID = Depends(get_current_user)):
     )
 
     plano = user["plano"] if user else "trial"
-    subscription_active = sub is not None and plano == "premium"
+    # Active if premium with subscription OR trial still valid
+    trial_end = user.get("trial_end") if user else None
+    trial_valid = (
+        plano == "trial"
+        and trial_end is not None
+        and (trial_end if trial_end.tzinfo else trial_end.replace(tzinfo=timezone.utc)) > datetime.now(timezone.utc)
+    )
+    subscription_active = (sub is not None and plano == "premium") or trial_valid
     expires_at = sub["expires_at"] if sub else None
 
     gift_codes = []

@@ -31,7 +31,14 @@ async def _build_user_response(user_row) -> dict:
         "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active'",
         user_row["id"],
     )
-    subscription_active = sub is not None and user_row["plano"] == "premium"
+    # Active if premium with subscription OR trial still valid
+    trial_end = user_row.get("trial_end")
+    trial_valid = (
+        user_row["plano"] == "trial"
+        and trial_end is not None
+        and (trial_end if trial_end.tzinfo else trial_end.replace(tzinfo=timezone.utc)) > datetime.now(timezone.utc)
+    )
+    subscription_active = (sub is not None and user_row["plano"] == "premium") or trial_valid
     espm_connected = user_row.get("espm_login") is not None
 
     return UserResponse(

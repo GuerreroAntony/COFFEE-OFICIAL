@@ -45,7 +45,14 @@ async def _build_profile(user_id: UUID) -> dict:
         "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active'",
         user_id,
     )
-    subscription_active = sub is not None and user["plano"] == "premium"
+    # Active if premium with subscription OR trial still valid
+    trial_end = user.get("trial_end")
+    trial_valid = (
+        user["plano"] == "trial"
+        and trial_end is not None
+        and (trial_end if trial_end.tzinfo else trial_end.replace(tzinfo=timezone.utc)) > datetime.now(timezone.utc)
+    )
+    subscription_active = (sub is not None and user["plano"] == "premium") or trial_valid
 
     # Usage stats: gravacoes
     grav_row = await fetch_one(
