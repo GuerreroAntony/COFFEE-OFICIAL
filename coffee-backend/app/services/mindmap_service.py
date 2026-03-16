@@ -23,45 +23,39 @@ MIND_MAP_SYSTEM_PROMPT = """Você é um assistente acadêmico que gera mapas men
 
 REGRAS OBRIGATÓRIAS:
 1. Retorne APENAS JSON válido, sem markdown, sem explicação
-2. O JSON deve ter exatamente 1 campo "topic" (tema central) e 1 array "branches" com exatamente 4 itens
-3. Cada branch deve ter exatamente 3 "children" (subtópicos)
-4. Campo "color" em cada branch: 0, 1, 2 ou 3 (atribuído sequencialmente)
-5. Limite de caracteres:
-   - topic (raiz): máximo 30 caracteres
-   - topic (branch): máximo 20 caracteres
-   - children (folha): máximo 22 caracteres
-6. Se o texto ultrapassar o limite, abrevie de forma inteligível (ex: "Comportamento do Consumidor" → "Comport. Consumidor")
+2. O JSON deve ter 1 campo "topic" (tema central) e 1 array "branches"
+3. Número de branches: entre 3 e 6 — escolha com base na complexidade do conteúdo
+4. Cada branch deve ter entre 2 e 5 "children" (subtópicos)
+5. Campo "color" em cada branch: 0, 1, 2, 3, 4 ou 5 (atribuído sequencialmente)
+6. ESCREVA PALAVRAS COMPLETAS — nunca abrevie ou trunque. Use frases curtas mas completas
 7. NÃO use emojis, ícones ou caracteres especiais
-8. Priorize os 4 conceitos mais importantes como branches
-9. Os 3 children de cada branch devem ser os subtópicos mais relevantes daquele conceito
+8. Priorize os conceitos mais importantes como branches
+9. Os children de cada branch devem ser os subtópicos mais relevantes daquele conceito
 10. Use português brasileiro
 
-FORMATO EXATO DO JSON:
+FORMATO DO JSON:
 {
   "topic": "Tema Central da Aula",
   "branches": [
     {
-      "topic": "Conceito 1",
+      "topic": "Conceito Principal",
       "color": 0,
-      "children": ["Subtópico 1.1", "Subtópico 1.2", "Subtópico 1.3"]
+      "children": ["Subtópico completo", "Outro subtópico", "Mais um subtópico"]
     },
     {
-      "topic": "Conceito 2",
+      "topic": "Segundo Conceito",
       "color": 1,
-      "children": ["Subtópico 2.1", "Subtópico 2.2", "Subtópico 2.3"]
-    },
-    {
-      "topic": "Conceito 3",
-      "color": 2,
-      "children": ["Subtópico 3.1", "Subtópico 3.2", "Subtópico 3.3"]
-    },
-    {
-      "topic": "Conceito 4",
-      "color": 3,
-      "children": ["Subtópico 4.1", "Subtópico 4.2", "Subtópico 4.3"]
+      "children": ["Detalhamento claro", "Explicação breve"]
     }
   ]
-}"""
+}
+
+DICAS:
+- topic central: até 50 caracteres, claro e descritivo
+- topic de branch: até 35 caracteres
+- children: até 40 caracteres cada
+- Mais branches para aulas densas, menos para aulas focadas
+- Cada child deve ser autoexplicativo mesmo fora de contexto"""
 
 MIND_MAP_USER_PROMPT = "Gere o mapa mental JSON para o seguinte resumo de aula:\n\n{summary}"
 
@@ -69,45 +63,36 @@ MIND_MAP_USER_PROMPT = "Gere o mapa mental JSON para o seguinte resumo de aula:\
 # ─── VALIDATION ───────────────────────────────────────────────────────────────
 
 def validate_mind_map(data: dict) -> bool:
-    """Validate that GPT output conforms to expected schema."""
+    """Validate that GPT output conforms to expected schema (flexible structure)."""
     if not isinstance(data, dict):
         return False
     if "topic" not in data or "branches" not in data:
         return False
-    if not isinstance(data["topic"], str) or len(data["topic"]) > 30:
+    if not isinstance(data["topic"], str) or not data["topic"]:
         return False
-    if not isinstance(data["branches"], list) or len(data["branches"]) != 4:
+    if not isinstance(data["branches"], list) or not (3 <= len(data["branches"]) <= 6):
         return False
 
     for branch in data["branches"]:
         if not isinstance(branch, dict):
             return False
-        if "topic" not in branch or "color" not in branch or "children" not in branch:
+        if "topic" not in branch or "children" not in branch:
             return False
-        if not isinstance(branch["topic"], str) or len(branch["topic"]) > 20:
+        if not isinstance(branch["topic"], str) or not branch["topic"]:
             return False
-        if branch["color"] not in [0, 1, 2, 3]:
-            return False
-        if not isinstance(branch["children"], list) or len(branch["children"]) != 3:
+        if not isinstance(branch["children"], list) or not (2 <= len(branch["children"]) <= 5):
             return False
         for child in branch["children"]:
-            if not isinstance(child, str) or len(child) > 22:
+            if not isinstance(child, str) or not child:
                 return False
 
     return True
 
 
-# ─── TRUNCATION FALLBACK ─────────────────────────────────────────────────────
-
-def truncate_mind_map(data: dict) -> dict:
-    """If GPT slightly exceeds char limits, truncate gracefully instead of failing."""
-    data["topic"] = data["topic"][:30]
+def normalize_mind_map(data: dict) -> dict:
+    """Ensure color fields are valid and sequential."""
     for i, branch in enumerate(data["branches"]):
-        branch["topic"] = branch["topic"][:20]
-        branch["children"] = [child[:22] for child in branch["children"]]
-        # Ensure color is valid
-        if branch["color"] not in [0, 1, 2, 3]:
-            branch["color"] = i % 4
+        branch["color"] = i % 6
     return data
 
 
@@ -136,14 +121,14 @@ async def generate_mind_map(summary_text: str) -> dict | None:
             ],
             response_format={"type": "json_object"},
             temperature=0.3,  # Low temperature for consistent structure
-            max_tokens=500,   # Mind map JSON is ~300 tokens max
+            max_tokens=800,   # Flexible structure needs more tokens
         )
 
         raw = response.choices[0].message.content
         data = json.loads(raw)
 
-        # Try truncation before validation (GPT sometimes exceeds by 1-2 chars)
-        data = truncate_mind_map(data)
+        # Normalize colors and validate structure
+        data = normalize_mind_map(data)
 
         if not validate_mind_map(data):
             logger.warning("Mind map validation failed. Raw output: %s", raw[:200])

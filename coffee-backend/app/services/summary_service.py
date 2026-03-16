@@ -33,10 +33,24 @@ async def generate_summary_for_gravacao(gravacao_id: UUID) -> None:
             "SELECT id, source_type, source_id, transcription FROM gravacoes WHERE id = $1",
             gravacao_id,
         )
-        if not grav or not grav["transcription"]:
-            logger.error("Gravação %s não encontrada ou sem transcrição", gravacao_id)
+        if not grav:
+            logger.error("Gravação %s não encontrada", gravacao_id)
             await execute_query(
                 "UPDATE gravacoes SET status = 'error' WHERE id = $1", gravacao_id
+            )
+            return
+
+        transcription_text = (grav["transcription"] or "").strip()
+        word_count = len(transcription_text.split())
+        logger.info("Gravação %s: %d palavras na transcrição", gravacao_id, word_count)
+
+        # Se transcrição vazia ou muito curta (< 10 palavras), marcar como ready sem resumo
+        if word_count < 10:
+            logger.warning("Gravação %s: transcrição muito curta (%d palavras), pulando resumo", gravacao_id, word_count)
+            await execute_query(
+                "UPDATE gravacoes SET status = 'ready', short_summary = $1 WHERE id = $2",
+                "Transcrição muito curta para gerar resumo" if word_count > 0 else None,
+                gravacao_id,
             )
             return
 
@@ -52,7 +66,8 @@ async def generate_summary_for_gravacao(gravacao_id: UUID) -> None:
         source_name = source["nome"] if source else "Aula"
 
         # Gerar resumo via GPT-4o-mini
-        summary = await _openai.generate_summary(grav["transcription"], source_name)
+        logger.info("Gerando resumo para gravação %s (disciplina: %s, %d palavras)", gravacao_id, source_name, word_count)
+        summary = await _openai.generate_summary(transcription_text, source_name)
 
         # Extrair short_summary (resumo_geral truncado) e full_summary (topicos completos)
         short_summary = summary.get("resumo_geral", "")[:300]
