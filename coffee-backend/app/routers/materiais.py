@@ -21,6 +21,7 @@ from app.schemas.materiais import (
     SyncStatusResponse,
     ToggleAIResponse,
 )
+from app.schemas.disciplinas import AppearanceUpdate
 from app.schemas.base import error_response, success_response
 from app.services.embedding_service import generate_material_embeddings, remove_embeddings
 from app.services.canvas_token_service import (
@@ -372,6 +373,35 @@ async def trigger_sync(
     background_tasks.add_task(_sync_canvas_materials, disciplina_id, user_id)
     resp = SyncStatusResponse(status="triggered", last_synced_at=last_scraped)
     return success_response(resp.model_dump(mode="json"))
+
+
+# ── PATCH /disciplinas/{id}/appearance ───────────────────────
+
+@disc_router.patch("/{disciplina_id}/appearance")
+async def update_appearance(
+    disciplina_id: UUID,
+    body: AppearanceUpdate,
+    user_id: UUID = Depends(get_current_user),
+):
+    """Atualiza ícone e cor da disciplina para o usuário."""
+    enrolled = await fetch_one(
+        "SELECT 1 FROM user_disciplinas WHERE user_id = $1 AND disciplina_id = $2",
+        user_id, disciplina_id,
+    )
+    if not enrolled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("ACCESS_DENIED", "Acesso negado"),
+        )
+
+    await execute_query(
+        """UPDATE user_disciplinas
+           SET icon = $3, icon_color = $4
+           WHERE user_id = $1 AND disciplina_id = $2""",
+        user_id, disciplina_id, body.icon, body.icon_color,
+    )
+
+    return success_response({"icon": body.icon, "icon_color": body.icon_color})
 
 
 # ── POST /materiais/sync-all ─────────────────────────────────
