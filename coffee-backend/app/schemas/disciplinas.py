@@ -17,6 +17,13 @@ class DisciplinaResponse(BaseSchema):
     gravacoes_count: int = 0
     materiais_count: int = 0
     ai_active: bool = False
+    icon: Optional[str] = None
+    icon_color: Optional[str] = None
+
+
+class AppearanceUpdate(BaseSchema):
+    icon: Optional[str] = None
+    icon_color: Optional[str] = None
 
 
 class DisciplinaListResponse(BaseSchema):
