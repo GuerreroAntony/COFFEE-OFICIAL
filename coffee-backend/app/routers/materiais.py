@@ -205,9 +205,12 @@ async def toggle_ai(
     if row["ai_enabled"]:
         # ai_enabled became True → generate embeddings
         if row["texto_extraido"]:
+            # Fetch material name for contextual retrieval prefix
+            mat_info = await fetch_one("SELECT nome FROM materiais WHERE id = $1", row["id"])
+            mat_nome = mat_info["nome"] if mat_info else "Material"
             background_tasks.add_task(
                 generate_material_embeddings,
-                row["texto_extraido"], row["id"], row["disciplina_id"],
+                row["texto_extraido"], row["id"], row["disciplina_id"], mat_nome,
             )
     else:
         # ai_enabled became False → remove embeddings
@@ -249,6 +252,13 @@ async def enable_all_ai(
         disciplina_id,
     )
 
+    # Fetch names for contextual retrieval
+    mat_names = await fetch_all(
+        "SELECT id, nome FROM materiais WHERE disciplina_id = $1 AND ai_enabled = true",
+        disciplina_id,
+    )
+    name_map = {r["id"]: r["nome"] for r in mat_names}
+
     # Generate embeddings for each material that has text
     for mat in materials:
         if mat["texto_extraido"]:
@@ -257,6 +267,7 @@ async def enable_all_ai(
                 mat["texto_extraido"],
                 mat["id"],
                 disciplina_id,
+                name_map.get(mat["id"], "Material"),
             )
 
     return success_response({"updated_count": len(materials)})
@@ -324,7 +335,7 @@ async def upload_material(
     if ai_enabled and texto_extraido:
         background_tasks.add_task(
             generate_material_embeddings,
-            texto_extraido, row["id"], disciplina_id,
+            texto_extraido, row["id"], disciplina_id, filename,
         )
 
     return success_response(_material_response(row))
@@ -515,7 +526,7 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
                     if row["ai_enabled"] and texto_extraido:
                         try:
                             await generate_material_embeddings(
-                                texto_extraido, row["id"], disciplina_id,
+                                texto_extraido, row["id"], disciplina_id, filename,
                             )
                         except Exception as emb_err:
                             logger.error("[sync] embedding error for %s: %s", filename, emb_err)

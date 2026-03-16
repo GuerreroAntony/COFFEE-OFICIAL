@@ -76,6 +76,36 @@ class OpenAIService:
             if delta:
                 yield delta
 
+    async def generate_context_prefix(self, full_document: str, chunk_text: str) -> str:
+        """Generate a concise context prefix for a chunk using GPT-4o-mini.
+
+        Anthropic's Contextual Retrieval technique: before embedding a chunk,
+        we ask a fast LLM to generate 1-2 sentences situating the chunk within
+        the full document. This prefix is prepended to the chunk text ONLY for
+        embedding — the stored texto_chunk remains the original text.
+        """
+        # Truncate document to ~15k chars to stay within token limits
+        doc_preview = full_document[:15000]
+
+        response = await self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"<document>\n{doc_preview}\n</document>\n\n"
+                        f"Aqui está um trecho desse documento:\n<chunk>\n{chunk_text}\n</chunk>\n\n"
+                        "Forneça um contexto curto e específico (1-2 frases) para situar "
+                        "este trecho dentro do documento completo. "
+                        "Responda APENAS com o contexto, sem explicações."
+                    ),
+                }
+            ],
+            max_tokens=150,
+            temperature=0,
+        )
+        return response.choices[0].message.content.strip()
+
     async def create_embeddings(self, texts: list[str]) -> list[list[float]]:
         response = await self.client.embeddings.create(
             model="text-embedding-3-small",

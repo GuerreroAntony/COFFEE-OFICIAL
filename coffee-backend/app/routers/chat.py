@@ -1,3 +1,4 @@
+import asyncio
 import json
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
@@ -24,14 +25,14 @@ router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
 _openai = OpenAIService()
 _anthropic = AnthropicService()
 
-# Minimum cosine similarity to include a chunk in RAG context and sources
-_MIN_SIMILARITY = 0.30
+# Minimum cosine similarity for vector search (lowered for RRF — full-text compensates)
+_MIN_SIMILARITY = 0.25
 
-# Mode → model mapping
+# Mode → model mapping (reference only; actual routing is in event_stream below)
 _MODE_MODELS = {
     "espresso": "gpt-4o-mini",
-    "lungo": "gpt-4o",
-    "cold_brew": "claude",  # handled separately via AnthropicService
+    "lungo": "claude-sonnet-4-20250514",
+    "cold_brew": "claude-opus-4-20250514",
 }
 
 
@@ -71,6 +72,26 @@ def _build_sources(chunk_rows) -> list[dict]:
     return sources
 
 
+def _reciprocal_rank_fusion(*ranked_lists: list[dict], k: int = 60) -> list[dict]:
+    """Merge multiple ranked lists using Reciprocal Rank Fusion.
+
+    RRF score = sum(1 / (k + rank)) across all lists where the item appears.
+    Deduplicates by (fonte_id, chunk_index). Returns re-ranked list.
+    """
+    scores: dict[str, float] = {}
+    items: dict[str, dict] = {}
+
+    for ranked_list in ranked_lists:
+        for rank, item in enumerate(ranked_list):
+            item_key = f"{item['fonte_id']}_{item.get('chunk_index', rank)}"
+            scores[item_key] = scores.get(item_key, 0.0) + 1.0 / (k + rank + 1)
+            if item_key not in items:
+                items[item_key] = item
+
+    sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
+    return [items[key] for key in sorted_keys]
+
+
 async def _validate_source_ownership(user_id: UUID, source_type: str, source_id: UUID):
     if source_type == "disciplina":
         row = await fetch_one(
@@ -99,8 +120,18 @@ async def _get_cycle_start(user_id: UUID) -> datetime:
     return created_at + timedelta(days=cycles * 30)
 
 
-async def _get_questions_remaining(user_id: UUID, cycle_start: datetime) -> dict:
-    """Get remaining questions per mode for the current cycle."""
+async def _get_questions_remaining(user_id: UUID, cycle_start: datetime, plano: str) -> dict:
+    """Get remaining questions per mode for the current cycle, based on user's plan."""
+    from app.plan_limits import get_plan_limits
+    limits = get_plan_limits(plano)
+
+    espresso_row = await fetch_one(
+        """SELECT COUNT(*) AS cnt FROM mensagens m
+           JOIN chats c ON m.chat_id = c.id
+           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
+             AND m.created_at >= $2""",
+        user_id, cycle_start,
+    )
     lungo_row = await fetch_one(
         """SELECT COUNT(*) AS cnt FROM mensagens m
            JOIN chats c ON m.chat_id = c.id
@@ -115,13 +146,14 @@ async def _get_questions_remaining(user_id: UUID, cycle_start: datetime) -> dict
              AND m.created_at >= $2""",
         user_id, cycle_start,
     )
+    espresso_used = espresso_row["cnt"] if espresso_row else 0
     lungo_used = lungo_row["cnt"] if lungo_row else 0
     cold_brew_used = cold_brew_row["cnt"] if cold_brew_row else 0
 
     return {
-        "espresso": -1,  # unlimited
-        "lungo": max(0, settings.LUNGO_MONTHLY_LIMIT - lungo_used),
-        "cold_brew": max(0, settings.COLD_BREW_MONTHLY_LIMIT - cold_brew_used),
+        "espresso": -1 if limits["espresso"] == -1 else max(0, limits["espresso"] - espresso_used),
+        "lungo": max(0, limits["lungo"] - lungo_used),
+        "cold_brew": max(0, limits["cold_brew"] - cold_brew_used),
     }
 
 
@@ -297,10 +329,15 @@ async def send_message(
     if not chat:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Chat não encontrado"))
 
-    # Monthly limit check for lungo and cold_brew
+    # Monthly limit check per plan
     cycle_start = await _get_cycle_start(user_id)
-    questions_remaining = await _get_questions_remaining(user_id, cycle_start)
+    questions_remaining = await _get_questions_remaining(user_id, cycle_start, plano)
 
+    if body.mode == "espresso" and questions_remaining["espresso"] != -1 and questions_remaining["espresso"] <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Espresso atingido. Faça upgrade pro plano Black para perguntas ilimitadas."),
+        )
     if body.mode == "lungo" and questions_remaining["lungo"] <= 0:
         raise HTTPException(
             status_code=429,
@@ -326,50 +363,112 @@ async def send_message(
     source_type = chat["source_type"]
     source_id = chat["source_id"]
 
-    # If gravacao_id is provided, filter RAG to that specific recording
+    # ── RAG: hybrid search with diversified source retrieval ──
+    # Vector similarity + full-text search (tsvector), merged via Reciprocal Rank Fusion
+    # Diversified: up to 6 transcription chunks + 6 material chunks = 12 total
+
     if body.gravacao_id:
+        # Single recording context — no diversification needed
         chunk_rows = await fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       COALESCE(d.nome, r.nome) AS source_name,
                       1 - (e.embedding <=> $1::vector) AS similarity,
-                      CASE WHEN e.fonte_tipo = 'transcricao'
-                           THEN (SELECT g.date FROM gravacoes g WHERE g.id = e.fonte_id)
-                           ELSE NULL END AS gravacao_date,
-                      CASE WHEN e.fonte_tipo = 'material'
-                           THEN (SELECT m2.nome FROM materiais m2 WHERE m2.id = e.fonte_id)
-                           ELSE NULL END AS material_nome
+                      g.date AS gravacao_date,
+                      NULL AS material_nome
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
-               LEFT JOIN repositorios r ON e.fonte_tipo = 'transcricao'
-                   AND e.fonte_id IN (SELECT g2.id FROM gravacoes g2 WHERE g2.source_type = 'repositorio' AND g2.source_id = r.id)
+               LEFT JOIN gravacoes g ON e.fonte_id = g.id
+               LEFT JOIN repositorios r ON g.source_type = 'repositorio' AND g.source_id = r.id
                WHERE e.fonte_tipo = 'transcricao' AND e.fonte_id = $2
+                 AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 8""",
-            vec_str, body.gravacao_id,
+               LIMIT 12""",
+            vec_str, body.gravacao_id, _MIN_SIMILARITY,
         )
     elif source_type == "disciplina":
-        chunk_rows = await fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
+        # Hybrid search: vector + full-text in parallel, merged via RRF
+        # 4 parallel queries: vector×{transcricao,material} + fts×{transcricao,material}
+
+        vec_transcription_task = fetch_all(
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
                       1 - (e.embedding <=> $1::vector) AS similarity,
-                      CASE WHEN e.fonte_tipo = 'transcricao'
-                           THEN (SELECT g.date FROM gravacoes g WHERE g.id = e.fonte_id)
-                           ELSE NULL END AS gravacao_date,
-                      CASE WHEN e.fonte_tipo = 'material'
-                           THEN (SELECT m2.nome FROM materiais m2 WHERE m2.id = e.fonte_id)
-                           ELSE NULL END AS material_nome
+                      g.date AS gravacao_date,
+                      NULL AS material_nome
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
-               LEFT JOIN materiais m ON e.fonte_tipo = 'material' AND e.fonte_id = m.id
+               LEFT JOIN gravacoes g ON e.fonte_id = g.id
                WHERE e.disciplina_id = $2
-                 AND (e.fonte_tipo != 'material' OR m.ai_enabled = true)
+                 AND e.fonte_tipo = 'transcricao'
+                 AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 8""",
-            vec_str, source_id,
+               LIMIT 20""",
+            vec_str, source_id, _MIN_SIMILARITY,
         )
+        vec_material_task = fetch_all(
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+                      d.nome AS source_name,
+                      1 - (e.embedding <=> $1::vector) AS similarity,
+                      NULL AS gravacao_date,
+                      m.nome AS material_nome
+               FROM embeddings e
+               LEFT JOIN disciplinas d ON e.disciplina_id = d.id
+               JOIN materiais m ON e.fonte_id = m.id
+               WHERE e.disciplina_id = $2
+                 AND e.fonte_tipo = 'material'
+                 AND m.ai_enabled = true
+                 AND 1 - (e.embedding <=> $1::vector) >= $3
+               ORDER BY e.embedding <=> $1::vector
+               LIMIT 20""",
+            vec_str, source_id, _MIN_SIMILARITY,
+        )
+        fts_transcription_task = fetch_all(
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+                      d.nome AS source_name,
+                      ts_rank_cd(e.tsv, plainto_tsquery('portuguese', $1)) AS similarity,
+                      g.date AS gravacao_date,
+                      NULL AS material_nome
+               FROM embeddings e
+               LEFT JOIN disciplinas d ON e.disciplina_id = d.id
+               LEFT JOIN gravacoes g ON e.fonte_id = g.id
+               WHERE e.disciplina_id = $2
+                 AND e.fonte_tipo = 'transcricao'
+                 AND e.tsv @@ plainto_tsquery('portuguese', $1)
+               ORDER BY similarity DESC
+               LIMIT 20""",
+            body.text, source_id,
+        )
+        fts_material_task = fetch_all(
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+                      d.nome AS source_name,
+                      ts_rank_cd(e.tsv, plainto_tsquery('portuguese', $1)) AS similarity,
+                      NULL AS gravacao_date,
+                      m.nome AS material_nome
+               FROM embeddings e
+               LEFT JOIN disciplinas d ON e.disciplina_id = d.id
+               JOIN materiais m ON e.fonte_id = m.id
+               WHERE e.disciplina_id = $2
+                 AND e.fonte_tipo = 'material'
+                 AND m.ai_enabled = true
+                 AND e.tsv @@ plainto_tsquery('portuguese', $1)
+               ORDER BY similarity DESC
+               LIMIT 20""",
+            body.text, source_id,
+        )
+
+        vec_trans, vec_mat, fts_trans, fts_mat = await asyncio.gather(
+            vec_transcription_task, vec_material_task,
+            fts_transcription_task, fts_material_task,
+        )
+
+        # RRF merge per source type, then take top 6 of each
+        merged_trans = _reciprocal_rank_fusion(list(vec_trans), list(fts_trans))[:6]
+        merged_mat = _reciprocal_rank_fusion(list(vec_mat), list(fts_mat))[:6]
+        chunk_rows = merged_trans + merged_mat
     else:
+        # Repository: only transcriptions (repos don't have materials)
         chunk_rows = await fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id,
+            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       r.nome AS source_name,
                       1 - (e.embedding <=> $1::vector) AS similarity,
                       g.date AS gravacao_date,
@@ -378,18 +477,22 @@ async def send_message(
                JOIN gravacoes g ON e.fonte_tipo = 'transcricao' AND e.fonte_id = g.id
                JOIN repositorios r ON g.source_type = 'repositorio' AND g.source_id = r.id
                WHERE g.source_type = 'repositorio' AND g.source_id = $2
+                 AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 8""",
-            vec_str, source_id,
+               LIMIT 12""",
+            vec_str, source_id, _MIN_SIMILARITY,
         )
 
-    # Filter chunks by minimum similarity threshold
-    chunk_rows = [row for row in chunk_rows if float(row["similarity"]) >= _MIN_SIMILARITY]
-
-    # Build context and sources (only from relevant chunks)
+    # Build context with rich labels (date for transcriptions, name for materials)
     context_texts = []
     for row in chunk_rows:
-        label = f"[{row['source_name']} | {row['fonte_tipo']}]"
+        if row["fonte_tipo"] == "transcricao" and row.get("gravacao_date"):
+            d = row["gravacao_date"]
+            label = f"[Aula {d.strftime('%d/%m/%Y')} | Transcrição]" if hasattr(d, 'strftime') else "[Transcrição]"
+        elif row["fonte_tipo"] == "material" and row.get("material_nome"):
+            label = f"[{row['material_nome']} | Material]"
+        else:
+            label = f"[{row.get('source_name', 'Fonte')} | {row['fonte_tipo']}]"
         context_texts.append(f"{label}\n{row['texto_chunk']}")
 
     sources = _build_sources(chunk_rows)
@@ -407,17 +510,31 @@ async def send_message(
     ]
 
     source_name = chunk_rows[0]["source_name"] if chunk_rows else "Geral"
-    system_prompt = "Você é o assistente acadêmico do Coffee. Responda com profundidade moderada e tom neutro."
+
+    # Select personality prompt by mode
+    from app.prompts import ESPRESSO_PROMPT, LUNGO_PROMPT, COLD_BREW_PROMPT
+    mode_prompts = {
+        "espresso": ESPRESSO_PROMPT,
+        "lungo": LUNGO_PROMPT,
+        "cold_brew": COLD_BREW_PROMPT,
+    }
+    system_prompt = mode_prompts.get(body.mode, ESPRESSO_PROMPT)
 
     # SSE stream — route by mode
     async def event_stream() -> AsyncGenerator[str, None]:
         full_text = ""
         try:
-            if body.mode == "cold_brew":
-                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, system_prompt)
+            if body.mode == "espresso":
+                # Espresso: GPT-4o-mini (fast, unlimited)
+                stream_gen = _openai.chat_rag(history_msgs, context_texts, model="gpt-4o-mini", system_prompt=system_prompt)
+            elif body.mode == "lungo":
+                # Lungo: Claude Sonnet (balanced quality + prompt caching)
+                from app.services.anthropic_service import SONNET
+                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, model=SONNET, system_prompt=system_prompt)
             else:
-                model = "gpt-4o-mini" if body.mode == "espresso" else "gpt-4o"
-                stream_gen = _openai.chat_rag(history_msgs, context_texts, model=model, system_prompt=system_prompt)
+                # Cold Brew: Claude Opus (premium, deep analysis)
+                from app.services.anthropic_service import OPUS
+                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, model=OPUS, system_prompt=system_prompt)
 
             async for delta in stream_gen:
                 full_text += delta
@@ -440,7 +557,7 @@ async def send_message(
             )
 
             # Recalculate remaining after this message
-            updated_remaining = await _get_questions_remaining(user_id, cycle_start)
+            updated_remaining = await _get_questions_remaining(user_id, cycle_start, plano)
 
             done_payload = {
                 "done": True,
