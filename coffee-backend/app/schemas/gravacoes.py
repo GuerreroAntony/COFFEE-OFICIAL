@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 class CriarGravacaoRequest(BaseModel):
     source_type: str = Field(pattern="^(disciplina|repositorio)$")
     source_id: UUID
-    transcription: str = Field(min_length=10)
-    duration_seconds: int = Field(gt=0)
-    date: Optional[DateType] = None  # default: today
+    transcription: str = Field(min_length=1)
+    duration_seconds: int = Field(ge=1)
+    date: Optional[str] = None  # accepts "YYYY-MM-DD" or ISO8601 datetime
 
 
 class MoverGravacaoRequest(BaseModel):

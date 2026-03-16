@@ -102,7 +102,14 @@ async def criar_gravacao(
 
     await _validate_source_ownership(user_id, body.source_type, body.source_id)
 
-    gravacao_date = body.date or date.today()
+    # Parse date: accepts "YYYY-MM-DD" or full ISO8601 datetime string
+    gravacao_date = date.today()
+    if body.date:
+        try:
+            # Try "YYYY-MM-DD" first
+            gravacao_date = date.fromisoformat(body.date[:10])
+        except (ValueError, TypeError):
+            gravacao_date = date.today()
 
     row = await fetch_one(
         """INSERT INTO gravacoes (user_id, source_type, source_id, date, duration_seconds, status, transcription)

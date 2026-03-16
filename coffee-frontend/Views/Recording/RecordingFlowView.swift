@@ -201,12 +201,17 @@ struct RecordingFlowView: View {
 
         Task {
             do {
+                // Backend expects date as "YYYY-MM-DD", not full ISO8601
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let dateStr = dateFormatter.string(from: Date())
+
                 let recording = try await RecordingService.createRecording(
                     sourceType: sourceType,
                     sourceId: sourceId,
-                    transcription: transcription,
-                    durationSeconds: seconds,
-                    date: ISO8601DateFormatter().string(from: Date())
+                    transcription: transcription.isEmpty ? "Gravação sem transcrição" : transcription,
+                    durationSeconds: max(seconds, 1),
+                    date: dateStr
                 )
 
                 // Upload captured photos

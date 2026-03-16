@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -51,6 +52,19 @@ app.include_router(settings.router)
 app.include_router(account.router)
 app.include_router(compartilhamentos.router)
 app.include_router(espm_router.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Return 422 validation errors in the standard envelope format."""
+    errors = exc.errors()
+    fields = [e.get("loc", ["?"])[-1] for e in errors]
+    msgs = [e.get("msg", "") for e in errors]
+    detail_msg = "; ".join(f"{f}: {m}" for f, m in zip(fields, msgs))
+    return JSONResponse(
+        status_code=422,
+        content={"data": None, "error": "VALIDATION_ERROR", "message": detail_msg},
+    )
 
 
 @app.exception_handler(HTTPException)
