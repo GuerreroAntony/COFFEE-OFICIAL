@@ -5,6 +5,7 @@ import io
 import logging
 import re
 import sys
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
@@ -57,6 +58,23 @@ def _material_response(r) -> dict:
         size_label=_format_size(r.get("size_bytes")),
         created_at=r["created_at"],
     ).model_dump(mode="json")
+
+
+def _sanitize_storage_key(filename: str) -> str:
+    """
+    Sanitize filename for Supabase Storage.
+    Supabase rejects keys with accented/special characters (InvalidKey error).
+    Replaces accented chars with ASCII equivalents, removes other non-ASCII.
+    """
+    # NFD decomposition: é → e + combining accent
+    normalized = unicodedata.normalize("NFD", filename)
+    # Remove combining marks (accents)
+    ascii_name = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    # Replace remaining non-ASCII with underscore
+    ascii_name = re.sub(r"[^\x20-\x7E]", "_", ascii_name)
+    # Collapse multiple underscores/spaces
+    ascii_name = re.sub(r"[_ ]{2,}", " ", ascii_name)
+    return ascii_name.strip()
 
 
 def _detect_tipo(filename: str) -> str:
@@ -271,8 +289,9 @@ async def upload_material(
     # Extract text
     texto_extraido = await _extract_text(content, filename)
 
-    # Upload to Supabase Storage
-    storage_path = f"{disciplina_id}/{filename}"
+    # Upload to Supabase Storage (sanitize filename for Supabase key)
+    safe_filename = _sanitize_storage_key(filename)
+    storage_path = f"{disciplina_id}/{safe_filename}"
     upload_url = f"{settings.SUPABASE_URL}/storage/v1/object/materiais/{storage_path}"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -466,8 +485,9 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
                 content_type = _extract_content_type(filename)
                 texto_extraido = await _extract_text(content, filename)
 
-                # 7. Upload to Supabase Storage
-                storage_path = f"{disciplina_id}/{filename}"
+                # 7. Upload to Supabase Storage (sanitize filename for Supabase key)
+                safe_filename = _sanitize_storage_key(filename)
+                storage_path = f"{disciplina_id}/{safe_filename}"
                 upload_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_STORAGE_BUCKET}/{storage_path}"
 
                 async with httpx.AsyncClient(timeout=60.0) as client:
