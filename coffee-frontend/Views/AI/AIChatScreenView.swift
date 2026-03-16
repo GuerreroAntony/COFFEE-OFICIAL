@@ -7,6 +7,7 @@ import PDFKit
 // MARK: - Supporting Types
 
 enum AIChatPickerStep { case discipline, recording }
+enum AIChatSourceTab: String, CaseIterable { case disciplinas = "Disciplinas", outros = "Outros" }
 
 struct ChatBubbleItem: Identifiable {
     let id = UUID()
@@ -160,13 +161,18 @@ struct AIChatScreenView: View {
                 recordings: $recordings,
                 isLoadingDisciplines: isLoadingDisciplines,
                 isLoadingRecordings: isLoadingRecordings,
+                onSelectAll: {
+                    selectedDiscipline = nil
+                    selectedRecording = nil
+                    currentChatId = nil
+                },
                 onDismiss: { showContextPicker = false }
             )
         }
-        .alert("Selecione uma matéria", isPresented: $showNoDisciplineAlert) {
+        .alert("Nenhuma matéria disponível", isPresented: $showNoDisciplineAlert) {
             Button("OK") { }
         } message: {
-            Text("Escolha uma matéria no seletor acima antes de enviar sua pergunta.")
+            Text("Conecte sua conta ESPM para carregar suas matérias.")
         }
         .task { await loadDisciplines() }
         .onChange(of: selectedDiscipline) { _, newDisc in
@@ -273,27 +279,28 @@ struct AIChatScreenView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 contextPill(
-                    icon: selectedDiscipline?.icon ?? "book.fill",
-                    label: selectedDiscipline?.name ?? "Todas",
-                    isActive: selectedDiscipline != nil
+                    icon: selectedDiscipline?.icon ?? "books.vertical.fill",
+                    label: selectedDiscipline?.name ?? "Todas as Disciplinas",
+                    isActive: true
                 ) {
                     pickerStep = .discipline
                     showContextPicker = true
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.3))
+                if selectedDiscipline != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.coffeeTextSecondary.opacity(0.3))
 
-                contextPill(
-                    icon: "mic.fill",
-                    label: selectedRecording?.title ?? "Todas",
-                    isActive: selectedRecording != nil
-                ) {
-                    pickerStep = selectedDiscipline != nil ? .recording : .discipline
-                    showContextPicker = true
+                    contextPill(
+                        icon: "mic.fill",
+                        label: selectedRecording?.title ?? "Todas",
+                        isActive: selectedRecording != nil
+                    ) {
+                        pickerStep = .recording
+                        showContextPicker = true
+                    }
                 }
-                .opacity(selectedDiscipline != nil ? 1 : 0.45)
 
                 Spacer()
             }
@@ -475,7 +482,10 @@ struct AIChatScreenView: View {
     private func handleSend() {
         var text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty || !chatAttachments.isEmpty else { return }
-        guard let disc = selectedDiscipline else {
+
+        // Use selected discipline or first discipline for "Todas"
+        let disc = selectedDiscipline ?? disciplines.first
+        guard let disc else {
             showNoDisciplineAlert = true
             return
         }
@@ -603,6 +613,8 @@ struct AIChatScreenView: View {
 
 struct AIChatMessageRow: View {
     let msg: ChatBubbleItem
+    @State private var sourcesExpanded = false
+    @State private var previewMaterial: Material? = nil
 
     var body: some View {
         if msg.sender == .ai {
@@ -617,27 +629,47 @@ struct AIChatMessageRow: View {
             CoffeeBubble(text: msg.text, isFromUser: false)
 
             if !msg.sources.isEmpty {
-                Text("Fontes citadas")
-                    .font(.system(size: 11, weight: .semibold))
-                    .textCase(.uppercase)
-                    .tracking(1)
-                    .foregroundStyle(Color.coffeeTextSecondary)
+                // Collapsible "Fontes citadas (N)" button
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        sourcesExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: sourcesExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Fontes citadas (\(msg.sources.count))")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
                     .padding(.leading, 4)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
 
-                ForEach(msg.sources) { source in
-                    let isTranscription = source.type == "transcription"
-                    let subtitle = isTranscription
-                        ? "\(source.date ?? "") · Transcrição"
-                        : "Material"
-                    CoffeeSourceCard(
-                        title: source.title,
-                        subtitle: subtitle,
-                        icon: isTranscription ? "mic.fill" : "doc.text.fill"
-                    )
+                if sourcesExpanded {
+                    ForEach(msg.sources) { source in
+                        let isTranscription = source.type == "transcription"
+                        let subtitle = isTranscription
+                            ? "\(source.date ?? "") · Transcrição"
+                            : "Material"
+                        CoffeeSourceCard(
+                            title: source.title,
+                            subtitle: subtitle,
+                            icon: isTranscription ? "mic.fill" : "doc.text.fill",
+                            onTap: source.type == "material" && source.materialId != nil ? {
+                                loadMaterialPreview(materialId: source.materialId!)
+                            } : nil
+                        )
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
         .frame(maxWidth: UIScreen.main.bounds.width * 0.85, alignment: .leading)
+        .sheet(item: $previewMaterial) { material in
+            MaterialPreviewSheet(material: material)
+        }
     }
 
     private var userMessage: some View {
@@ -645,6 +677,17 @@ struct AIChatMessageRow: View {
             Spacer()
             CoffeeBubble(text: msg.text, isFromUser: true)
                 .frame(maxWidth: UIScreen.main.bounds.width * 0.8, alignment: .trailing)
+        }
+    }
+
+    private func loadMaterialPreview(materialId: String) {
+        Task {
+            do {
+                let material = try await MaterialService.getMaterial(id: materialId)
+                previewMaterial = material
+            } catch {
+                print("[AIChat] Error loading material preview: \(error)")
+            }
         }
     }
 }
@@ -1138,26 +1181,35 @@ struct AIChatContextPickerSheet: View {
     @Binding var recordings: [AIChatPickerRecording]
     let isLoadingDisciplines: Bool
     let isLoadingRecordings: Bool
+    let onSelectAll: () -> Void
     let onDismiss: () -> Void
+
+    @State private var sourceTab: AIChatSourceTab = .disciplinas
+    @State private var repositories: [Repository] = []
+    @State private var isLoadingRepos = false
 
     var body: some View {
         VStack(spacing: 0) {
             pickerHeader
+
+            if pickerStep == .discipline {
+                // Segmented picker
+                Picker("", selection: $sourceTab) {
+                    ForEach(AIChatSourceTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+
             ScrollView {
                 if pickerStep == .discipline {
-                    if isLoadingDisciplines && disciplines.isEmpty {
-                        ProgressView()
-                            .tint(Color.coffeePrimary)
-                            .padding(.top, 40)
-                    } else if disciplines.isEmpty {
-                        CoffeeEmptyState(
-                            icon: "book.closed",
-                            title: "Nenhuma matéria",
-                            message: "Conecte sua conta ESPM para ver suas matérias aqui."
-                        )
-                        .padding(.top, 40)
+                    if sourceTab == .disciplinas {
+                        disciplinesContent
                     } else {
-                        disciplineList
+                        repositoriesContent
                     }
                 } else {
                     if isLoadingRecordings {
@@ -1172,6 +1224,165 @@ struct AIChatContextPickerSheet: View {
         }
         .background(Color.coffeeBackground)
         .presentationDetents([.medium, .large])
+        .onChange(of: sourceTab) { _, newTab in
+            if newTab == .outros && repositories.isEmpty {
+                loadRepositories()
+            }
+        }
+    }
+
+    // MARK: - Disciplines Content
+
+    private var disciplinesContent: some View {
+        VStack(spacing: 0) {
+            if isLoadingDisciplines && disciplines.isEmpty {
+                ProgressView()
+                    .tint(Color.coffeePrimary)
+                    .padding(.top, 40)
+            } else if disciplines.isEmpty {
+                CoffeeEmptyState(
+                    icon: "book.closed",
+                    title: "Nenhuma matéria",
+                    message: "Conecte sua conta ESPM para ver suas matérias aqui."
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.top, 40)
+            } else {
+                CoffeeCellGroup {
+                    // "Todas as Disciplinas" option
+                    Button {
+                        selectedDiscipline = nil
+                        selectedRecording = nil
+                        onSelectAll()
+                        onDismiss()
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.coffeePrimary.opacity(0.1))
+                                    .frame(width: 52, height: 52)
+                                Image(systemName: "books.vertical.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(Color.coffeePrimary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Todas as Disciplinas")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.coffeeTextPrimary)
+                                Text("\(disciplines.count) matérias")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.coffeeTextSecondary)
+                            }
+
+                            Spacer()
+
+                            if selectedDiscipline == nil {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.coffeePrimary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider().padding(.leading, 76)
+
+                    // Individual disciplines
+                    ForEach(Array(disciplines.enumerated()), id: \.element.id) { index, disc in
+                        Button {
+                            if selectedDiscipline?.id != disc.id {
+                                selectedRecording = nil
+                            }
+                            selectedDiscipline = disc
+                            pickerStep = .recording
+                        } label: {
+                            AIChatDisciplineRow(disc: disc, isSelected: selectedDiscipline?.id == disc.id)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < disciplines.count - 1 {
+                            Divider().padding(.leading, 76)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    // MARK: - Repositories Content
+
+    private var repositoriesContent: some View {
+        VStack(spacing: 0) {
+            if isLoadingRepos {
+                ProgressView()
+                    .tint(Color.coffeePrimary)
+                    .padding(.top, 40)
+            } else if repositories.isEmpty {
+                CoffeeEmptyState(
+                    icon: "folder",
+                    title: "Nenhum repositório",
+                    message: "Crie repositórios na aba de matérias para organizar conteúdos extras."
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.top, 40)
+            } else {
+                CoffeeCellGroup {
+                    ForEach(Array(repositories.enumerated()), id: \.element.id) { index, repo in
+                        Button {
+                            // Select repo as a "discipline" for the chat context
+                            selectedDiscipline = AIChatPickerDiscipline(
+                                id: repo.id,
+                                name: repo.nome,
+                                icon: repo.icone,
+                                recordingsCount: repo.gravacoesCount
+                            )
+                            selectedRecording = nil
+                            onDismiss()
+                        } label: {
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(Color.coffeePrimary.opacity(0.1))
+                                        .frame(width: 52, height: 52)
+                                    Image(systemName: repo.icone)
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(Color.coffeePrimary)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(repo.nome)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(Color.coffeeTextPrimary)
+                                    Text("\(repo.gravacoesCount) gravações")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                }
+
+                                Spacer()
+
+                                if selectedDiscipline?.id == repo.id {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(Color.coffeePrimary)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < repositories.count - 1 {
+                            Divider().padding(.leading, 76)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
     }
 
     private var pickerHeader: some View {
@@ -1209,29 +1420,7 @@ struct AIChatContextPickerSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 24)
-        .padding(.bottom, 16)
-    }
-
-    private var disciplineList: some View {
-        CoffeeCellGroup {
-            ForEach(Array(disciplines.enumerated()), id: \.element.id) { index, disc in
-                Button {
-                    if selectedDiscipline?.id != disc.id {
-                        selectedRecording = nil
-                    }
-                    selectedDiscipline = disc
-                    pickerStep = .recording
-                } label: {
-                    AIChatDisciplineRow(disc: disc, isSelected: selectedDiscipline?.id == disc.id)
-                }
-                .buttonStyle(.plain)
-
-                if index < disciplines.count - 1 {
-                    Divider().padding(.leading, 76)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
     }
 
     private var recordingList: some View {
@@ -1262,6 +1451,18 @@ struct AIChatContextPickerSheet: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    private func loadRepositories() {
+        isLoadingRepos = true
+        Task {
+            do {
+                repositories = try await DisciplineService.getRepositories()
+            } catch {
+                print("[AIChat] Error loading repositories: \(error)")
+            }
+            isLoadingRepos = false
+        }
     }
 }
 
