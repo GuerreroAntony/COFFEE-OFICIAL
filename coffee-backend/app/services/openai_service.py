@@ -19,7 +19,7 @@ class OpenAIService:
                         "gere um resumo estruturado.\n\n"
                         "Retorne APENAS um JSON válido neste formato:\n"
                         "{\n"
-                        '  "titulo": "Tema da Aula (MÁXIMO 4 palavras)",\n'
+                        '  "titulo_curto": "Tema Principal (2 a 4 palavras APENAS, ex: Fundamentos de Marketing, Análise SWOT, Branding Profissional)",\n'
                         '  "topicos": [\n'
                         '    {\n'
                         '      "titulo": "Nome do tópico",\n'
@@ -29,9 +29,10 @@ class OpenAIService:
                         '  "conceitos_chave": [\n'
                         '    {"termo": "termo", "definicao": "definição"}\n'
                         '  ],\n'
-                        '  "resumo_geral": "resumo geral aqui"\n'
+                        '  "resumo_geral": "resumo geral em 2-3 frases"\n'
                         "}\n\n"
                         "Regras:\n"
+                        "- titulo_curto DEVE ter entre 2 e 4 palavras. É um rótulo curto, NÃO uma frase.\n"
                         "- Entre 3 e 6 tópicos\n"
                         "- Linguagem clara e objetiva\n"
                         "- Preserve termos técnicos da área\n"

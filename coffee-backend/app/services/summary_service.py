@@ -69,8 +69,12 @@ async def generate_summary_for_gravacao(gravacao_id: UUID) -> None:
         logger.info("Gerando resumo para gravação %s (disciplina: %s, %d palavras)", gravacao_id, source_name, word_count)
         summary = await _openai.generate_summary(transcription_text, source_name)
 
-        # Extrair short_summary (titulo curto da aula, ~3-4 palavras) e full_summary (topicos completos)
-        short_summary = summary.get("titulo", "") or summary.get("resumo_geral", "")[:60]
+        # Extrair short_summary (titulo_curto de 2-4 palavras) e full_summary (topicos completos)
+        short_summary = (
+            summary.get("titulo_curto", "")
+            or summary.get("titulo", "")
+            or summary.get("resumo_geral", "")[:60]
+        )
         full_summary = json.dumps(summary.get("topicos", []), ensure_ascii=False)
 
         # Salvar summary (sem marcar ready ainda)
