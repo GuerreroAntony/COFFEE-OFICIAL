@@ -373,8 +373,9 @@ async def trigger_sync_all(
     if not rows:
         return success_response({"triggered": 0, "message": "Nenhuma disciplina com Canvas vinculado."})
 
-    for row in rows:
-        background_tasks.add_task(_sync_canvas_materials, row["id"], user_id)
+    # Run as a SINGLE background task to avoid concurrent Canvas API hammering
+    disc_ids = [row["id"] for row in rows]
+    background_tasks.add_task(_sync_all_sequential, disc_ids, user_id)
 
     return success_response({"triggered": len(rows)})
 
@@ -529,6 +530,23 @@ async def _sync_canvas_materials(disciplina_id: UUID, user_id: UUID) -> None:
         logger.error("[sync] fatal error for disciplina %s: %s", disciplina_id, e)
 
 
+async def _sync_all_sequential(disc_ids: list[UUID], user_id: UUID) -> None:
+    """
+    Sync materials for a list of disciplines SEQUENTIALLY with delays.
+    Avoids Canvas API rate limiting that occurs when all run concurrently.
+    """
+    logger.info("[sync-all] starting sequential sync for %d disciplines (user %s)", len(disc_ids), user_id)
+    for i, disc_id in enumerate(disc_ids):
+        try:
+            await _sync_canvas_materials(disc_id, user_id)
+        except Exception as e:
+            logger.error("[sync-all] discipline %s failed: %s", disc_id, e)
+        # Delay between disciplines to avoid Canvas rate limiting
+        if i < len(disc_ids) - 1:
+            await asyncio.sleep(2)
+    logger.info("[sync-all] completed for user %s", user_id)
+
+
 async def sync_all_user_materials(user_id: UUID) -> None:
     """
     Sync materials for ALL user's disciplines with canvas_course_id.
@@ -544,7 +562,5 @@ async def sync_all_user_materials(user_id: UUID) -> None:
     if not rows:
         return
 
-    logger.info("[sync-all] starting sync for %d disciplines (user %s)", len(rows), user_id)
-    for row in rows:
-        await _sync_canvas_materials(row["id"], user_id)
-    logger.info("[sync-all] completed for user %s", user_id)
+    disc_ids = [row["id"] for row in rows]
+    await _sync_all_sequential(disc_ids, user_id)

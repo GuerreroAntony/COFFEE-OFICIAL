@@ -592,7 +592,9 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
     """
     headers = {"Authorization": f"Bearer {canvas_token}"}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # Use longer timeout — each module requires multiple sequential API calls,
+    # and on Railway the latency per call is higher than local.
+    async with httpx.AsyncClient(timeout=60.0) as client:
         # 1. Get all modules for the course
         modules_url = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/modules"
         try:
@@ -611,18 +613,28 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
         files: list[dict] = []
         seen_file_ids: set[int] = set()  # deduplicate
 
-        for mod in modules:
+        for mod_idx, mod in enumerate(modules):
             mod_id = mod.get("id")
+            mod_name = mod.get("name", "?")
             if not mod_id:
                 continue
 
             items_url = f"{CANVAS_API_BASE}/courses/{canvas_course_id}/modules/{mod_id}/items"
             try:
                 items = await _canvas_api_get_paginated(client, items_url, headers)
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    "[canvas] course %d, module %d/%d '%s': error fetching items: %s",
+                    canvas_course_id, mod_idx + 1, len(modules), mod_name, e,
+                )
                 continue
 
             file_items = [it for it in items if isinstance(it, dict) and it.get("type") == "File"]
+            logger.info(
+                "[canvas] course %d, module %d/%d '%s': %d items, %d files",
+                canvas_course_id, mod_idx + 1, len(modules), mod_name,
+                len(items), len(file_items),
+            )
             if not file_items:
                 continue
 
@@ -665,6 +677,10 @@ async def fetch_canvas_course_files(canvas_token: str, canvas_course_id: int) ->
                     file_meta["display_name"] = title
 
                 files.append(file_meta)
+
+            # Small delay between modules to avoid Canvas rate limiting
+            if mod_idx < len(modules) - 1:
+                await asyncio.sleep(0.2)
 
     # Filter out oversized files
     valid = [f for f in files if isinstance(f, dict) and f.get("size", 0) <= _MAX_SYNC_FILE_BYTES]
