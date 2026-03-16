@@ -1,3 +1,4 @@
+# v2.4 — appearance endpoint deployed
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
