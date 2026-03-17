@@ -4,6 +4,8 @@ import Speech
 
 // MARK: - WhisperKit Manager
 // Real-time Portuguese speech-to-text using Apple SFSpeechRecognizer
+// Optimized for LECTURE RECORDING: .measurement mode for maximum mic sensitivity,
+// input gain at 1.0, taskHint = .dictation for continuous speech.
 // Uses APPEND-ONLY transcription: once a word is recognized, it's never deleted.
 // Apple's recognizer auto-corrects/removes words in partial results — we prevent
 // that by locking segments once they stabilize. GPT handles cleanup later.
@@ -74,12 +76,20 @@ final class WhisperKitManager {
         transcription = baseText
 
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
+        // .measurement = raw audio, maximum sensitivity, no echo cancellation or AGC
+        // Critical for lectures: professor is meters away, we need every sound captured
+        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+        // Maximize analog input gain (hardware amplification)
+        if audioSession.isInputGainSettable {
+            try audioSession.setInputGain(1.0)
+        }
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest else { return }
         recognitionRequest.shouldReportPartialResults = true
+        recognitionRequest.taskHint = .dictation  // Optimized for continuous speech (lectures)
         if #available(iOS 16, *) {
             recognitionRequest.addsPunctuation = true
         }
