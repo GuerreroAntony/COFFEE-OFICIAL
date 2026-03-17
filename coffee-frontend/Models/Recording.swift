@@ -32,6 +32,15 @@ struct Recording: Codable, Identifiable {
         case receivedFrom = "received_from"
         case createdAt = "created_at"
     }
+
+    /// e.g. "16 de março" from dateLabel "Domingo, 16 de março"
+    var displayTitle: String {
+        let components = dateLabel.components(separatedBy: ", ")
+        if components.count > 1 {
+            return components[1]
+        }
+        return date
+    }
 }
 
 enum RecordingStatus: String, Codable {
@@ -56,7 +65,7 @@ struct RecordingDetail: Codable, Identifiable {
     var transcription: String?
     var mindMap: MindMap?
     var media: [RecordingMedia]?
-    var materials: [Material]?
+    var materials: [RecordingMaterial]?
     var receivedFrom: String?
     let createdAt: Date?
 
@@ -72,6 +81,31 @@ struct RecordingDetail: Codable, Identifiable {
         case mindMap = "mind_map"
         case receivedFrom = "received_from"
         case createdAt = "created_at"
+    }
+}
+
+// MARK: - Recording Material (lightweight, from GET /gravacoes/{id})
+// Different from Material which has aiEnabled, fonte, etc.
+
+struct RecordingMaterial: Codable, Identifiable {
+    let id: String
+    let nome: String
+    let tipo: String
+    let sizeLabel: String?
+    let url: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, nome, tipo, url
+        case sizeLabel = "size_label"
+    }
+
+    var iconName: String {
+        switch tipo {
+        case "pdf": return "doc.fill"
+        case "slide": return "rectangle.on.rectangle.angled"
+        case "foto": return "photo.fill"
+        default: return "doc.fill"
+        }
     }
 }
 
@@ -136,6 +170,16 @@ struct Material: Codable, Identifiable {
         case sizeBytes = "size_bytes"
         case sizeLabel = "size_label"
         case createdAt = "created_at"
+    }
+
+    /// SF Symbol icon for the material type
+    var iconName: String {
+        switch tipo {
+        case "pdf": return "doc.fill"
+        case "slide": return "rectangle.on.rectangle.angled"
+        case "foto": return "photo.fill"
+        default: return "doc.fill"
+        }
     }
 }
 

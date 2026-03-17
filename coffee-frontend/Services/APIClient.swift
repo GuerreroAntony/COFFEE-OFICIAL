@@ -13,7 +13,7 @@ final class APIClient: @unchecked Sendable {
     /// Toggle between mock data and live API
     static var useMocks = false
 
-    private let baseURL = "https://coffee-oficial-production.up.railway.app/api/v1"
+    static let baseURL = "https://coffee-oficial-production.up.railway.app/api/v1"
     private let session: URLSession
     private let decoder: JSONDecoder
 
@@ -39,7 +39,7 @@ final class APIClient: @unchecked Sendable {
         body: Encodable? = nil,
         authenticated: Bool = true
     ) throws -> URLRequest {
-        guard let url = URL(string: "\(baseURL)\(path)") else {
+        guard let url = URL(string: "\(Self.baseURL)\(path)") else {
             throw APIError.unknown("URL invalida: \(path)")
         }
 

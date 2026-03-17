@@ -68,42 +68,51 @@ struct RippleEffect: View {
     }
 }
 
-// MARK: - Waveform Animation (Recording active)
+// MARK: - Waveform Animation (Recording active — responsive to audio)
 
 struct WaveformBar: View {
     let index: Int
+    let barCount: Int
     let color: Color
-    @State private var height: CGFloat = 4
+    let audioLevel: Float
+
+    /// Each bar gets a slightly different response based on position
+    private var barLevel: CGFloat {
+        let base = CGFloat(audioLevel)
+        // Create wave-like variation across bars using sin
+        let phase = sin(Double(index) * 0.5 + Double(audioLevel) * 10) * 0.3
+        return max(0, min(1, base + CGFloat(phase)))
+    }
+
+    private var targetHeight: CGFloat {
+        let minH: CGFloat = 3
+        let maxH: CGFloat = 32
+        return minH + barLevel * (maxH - minH)
+    }
 
     var body: some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(color)
-            .frame(width: 3, height: height)
-            .onAppear {
-                withAnimation(
-                    .easeInOut(duration: Double.random(in: 0.3...0.7))
-                    .repeatForever(autoreverses: true)
-                    .delay(Double(index) * 0.05)
-                ) {
-                    height = CGFloat.random(in: 8...32)
-                }
-            }
+            .frame(width: 3, height: targetHeight)
+            .animation(.easeOut(duration: 0.08), value: audioLevel)
     }
 }
 
 struct WaveformView: View {
     let barCount: Int
     let color: Color
+    var audioLevel: Float
 
-    init(barCount: Int = 40, color: Color = .coffeePrimaryLight) {
+    init(barCount: Int = 40, color: Color = .coffeePrimaryLight, audioLevel: Float = 0) {
         self.barCount = barCount
         self.color = color
+        self.audioLevel = audioLevel
     }
 
     var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<barCount, id: \.self) { index in
-                WaveformBar(index: index, color: color)
+                WaveformBar(index: index, barCount: barCount, color: color, audioLevel: audioLevel)
             }
         }
         .frame(height: 32)
@@ -262,5 +271,62 @@ struct PulseModifier: ViewModifier {
 extension View {
     func coffeePulse() -> some View {
         modifier(PulseModifier())
+    }
+}
+
+// MARK: - Barista Avatar (reusable AI identity icon)
+
+struct BaristaAvatar: View {
+    var size: CGFloat = 28
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.coffeePrimary.opacity(0.1))
+                .frame(width: size, height: size)
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: size * 0.46))
+                .foregroundStyle(Color.coffeePrimary)
+        }
+    }
+}
+
+// MARK: - Thinking Steps (AI Chat — replaces TypingIndicator)
+
+struct ThinkingStepsView: View {
+    private let steps = [
+        "Preparando sua resposta...",
+        "Buscando nos seus materiais...",
+        "Analisando transcrições...",
+        "Formulando resposta..."
+    ]
+
+    @State private var currentStep = 0
+    @State private var opacity: Double = 0
+
+    let timer = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+                .padding(.bottom, 16)
+
+            HStack(spacing: 8) {
+                BaristaAvatar(size: 28)
+                Text(steps[currentStep])
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .opacity(opacity)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeIn(duration: 0.4)) { opacity = 1 }
+        }
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) { opacity = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                currentStep = (currentStep + 1) % steps.count
+                withAnimation(.easeInOut(duration: 0.3)) { opacity = 1 }
+            }
+        }
     }
 }

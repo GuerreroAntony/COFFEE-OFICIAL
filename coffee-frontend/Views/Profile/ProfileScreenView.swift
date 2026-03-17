@@ -13,6 +13,7 @@ struct ProfileScreenView: View {
     @State private var showDeleteAccount = false
     @State private var isPurchasing = false
     @State private var profile: UserProfile? = nil
+    @State private var espmStatus: ESPMStatus? = nil
     @State private var isLoading = true
 
     private var userName: String {
@@ -47,17 +48,7 @@ struct ProfileScreenView: View {
                             .foregroundStyle(Color.coffeeTextSecondary)
 
                         // Plan badge (reactive to subscription state)
-                        HStack(spacing: 6) {
-                            Image(systemName: subscription.isPremium ? "crown.fill" : "clock.fill")
-                                .font(.system(size: 12))
-                            Text(subscription.isPremium ? "Premium" : "Gratuito")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundStyle(subscription.isPremium ? .orange : Color.coffeeTextSecondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        .background(subscription.isPremium ? Color.orange.opacity(0.1) : Color.coffeeTextSecondary.opacity(0.1))
-                        .clipShape(Capsule())
+                        planBadgeView
                     }
                     .padding(.top, 16)
 
@@ -124,6 +115,32 @@ struct ProfileScreenView: View {
                                 trailing: .text(login)
                             )
                         }
+                        if let expiresAt = espmStatus?.tokenExpiresAt {
+                            let daysLeft = max(0, Calendar.current.dateComponents([.day], from: Date(), to: expiresAt).day ?? 0)
+                            CoffeeCell(
+                                icon: "key.fill",
+                                title: "Token Canvas",
+                                subtitle: nil,
+                                trailing: .text(daysLeft > 0 ? "Expira em \(daysLeft) dias" : "Expirado")
+                            )
+
+                            Button {
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    router.showLinkESPM = true
+                                }
+                            } label: {
+                                CoffeeCell(
+                                    icon: "arrow.triangle.2.circlepath",
+                                    title: "Reconectar ESPM",
+                                    subtitle: daysLeft <= 0 ? "Token expirado" : daysLeft <= 7 ? "Expira em breve" : nil,
+                                    trailing: .chevron
+                                )
+                            }
+                            .buttonStyle(CoffeeCellButtonStyle())
+                            .disabled(daysLeft > 7)
+                            .opacity(daysLeft <= 7 ? 1 : 0.4)
+                        }
                     }
                     .padding(.horizontal, 16)
 
@@ -144,22 +161,25 @@ struct ProfileScreenView: View {
                             }
                             .buttonStyle(CoffeeCellButtonStyle())
                         } else {
-                            // User is NOT premium — show subscribe option (no trial)
-                            Button { handleResubscribe() } label: {
+                            // User is NOT premium — show upgrade option
+                            Button { showUpgradeSheet() } label: {
                                 HStack(spacing: 14) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill(Color.coffeePrimary.opacity(0.1))
                                             .frame(width: 50, height: 50)
-                                        Image(systemName: "crown.fill")
+                                        Image(systemName: "cup.and.saucer.fill")
                                             .font(.system(size: 20))
                                             .foregroundStyle(Color.coffeePrimary)
                                     }
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Assinar Premium")
+                                        Text("Ver planos")
                                             .font(.system(size: 16, weight: .semibold))
                                             .foregroundStyle(Color.coffeePrimary)
                                         HStack(spacing: 4) {
+                                            Text("A partir de")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(Color.coffeeTextSecondary)
                                             Text("R$59,90")
                                                 .font(.system(size: 13))
                                                 .strikethrough()
@@ -170,20 +190,14 @@ struct ProfileScreenView: View {
                                         }
                                     }
                                     Spacer()
-                                    if isPurchasing {
-                                        ProgressView()
-                                            .tint(Color.coffeePrimary)
-                                    } else {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
-                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
                             }
                             .buttonStyle(CoffeeCellButtonStyle())
-                            .disabled(isPurchasing)
                         }
 
                         Button { router.logout() } label: {
@@ -268,19 +282,64 @@ struct ProfileScreenView: View {
         } catch {
             print("[ProfileScreen] Error loading profile: \(error)")
         }
+        // Fetch ESPM status for token expiration
+        if router.currentUser?.espmConnected == true {
+            do {
+                espmStatus = try await DisciplineService.getESPMStatus()
+            } catch {
+                print("[ProfileScreen] Error loading ESPM status: \(error)")
+            }
+        }
         isLoading = false
     }
 
-    // MARK: - Resubscribe (direct purchase, no trial)
+    // MARK: - Show Upgrade Sheet
 
-    private func handleResubscribe() {
-        isPurchasing = true
-        Task {
-            if let plan = subscription.availablePlans.first {
-                let _ = try? await subscription.purchase(plan: plan)
-            }
-            isPurchasing = false
+    private func showUpgradeSheet() {
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            router.showPremiumGate = true
         }
+    }
+
+    // MARK: - Plan Badge
+
+    private var planBadgeView: some View {
+        let plan = subscription.userPlan
+        let icon: String
+        let label: String
+        let color: Color
+
+        switch plan {
+        case .black:
+            icon = "flame.fill"
+            label = "Black"
+            color = Color(hex: "1A1008")
+        case .cafeComLeite:
+            icon = "cup.and.saucer.fill"
+            label = "Café com Leite"
+            color = Color.coffeePrimary
+        case .trial:
+            icon = "clock.fill"
+            label = "Degustação"
+            color = Color.coffeeWarning
+        case .expired:
+            icon = "clock.fill"
+            label = "Expirado"
+            color = Color.coffeeTextSecondary
+        }
+
+        return HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.1))
+        .clipShape(Capsule())
     }
 }
 

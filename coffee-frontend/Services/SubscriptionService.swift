@@ -4,15 +4,15 @@ import SwiftUI
 
 // MARK: - Subscription Service
 // StoreKit 2 integration for Apple In-App Purchases
+// Two plans: Café com Leite (R$29,90) + Black (R$49,90)
 // POST /subscription/verify, GET /subscription/status
-// GET /gift-codes, POST /gift-codes/validate, POST /gift-codes/redeem
-// Pricing: R$59,90/mes (cheio), R$29,90/mes (promo lancamento). So mensal.
 
 @Observable
 final class SubscriptionService {
 
-    // Product identifier matching App Store Connect (monthly only)
-    static let monthlyProductID = "com.coffee.premium.monthly"
+    // Product identifiers matching App Store Connect
+    static let cafeComLeiteProductID = "com.coffee.cafe_com_leite.monthly"
+    static let blackProductID = "com.coffee.black.monthly"
 
     var isSubscribed = false
     var currentPlan: SubscriptionPlan? = nil
@@ -22,14 +22,30 @@ final class SubscriptionService {
     /// Tracks whether user has already used their free 7-day trial
     var hasUsedTrial = false
 
-    /// Convenience: true when user has active premium subscription
+    /// Current user plan type from backend
+    var userPlan: UserPlan = .trial
+
+    /// Convenience: true when user has active paid subscription or valid trial
     var isPremium: Bool { isSubscribed }
+
+    /// The Café com Leite plan (first plan)
+    var cafeComLeitePlan: SubscriptionPlan? {
+        availablePlans.first { $0.planId == "cafe_com_leite" }
+    }
+
+    /// The Black plan (highlighted)
+    var blackPlan: SubscriptionPlan? {
+        availablePlans.first { $0.planId == "black" }
+    }
 
     // MARK: - Sync with User Data
 
     /// Sync subscription state from user model (mock or API)
     func syncWithUser(_ user: User) {
-        isSubscribed = user.subscriptionActive || user.plano == .premium
+        userPlan = user.plano
+        let trialValid = user.plano == .trial && (user.trialEnd ?? .distantPast) > Date()
+        isSubscribed = user.subscriptionActive || user.plano.isPaid || trialValid
+        hasUsedTrial = user.plano != .trial
     }
 
     // MARK: - Load Products
@@ -38,7 +54,10 @@ final class SubscriptionService {
     func loadProducts() async {
         // StoreKit 2 implementation:
         // do {
-        //     let products = try await Product.products(for: [Self.monthlyProductID])
+        //     let products = try await Product.products(for: [
+        //         Self.cafeComLeiteProductID,
+        //         Self.blackProductID
+        //     ])
         //     // Map to SubscriptionPlan
         // } catch {
         //     print("Failed to load products: \(error)")
@@ -56,17 +75,19 @@ final class SubscriptionService {
         try await Task.sleep(for: .seconds(1.5))
         isSubscribed = true
         currentPlan = plan
+        userPlan = plan.planId == "black" ? .black : .cafeComLeite
         return true
     }
 
-    // MARK: - Start Free Trial (no card needed)
+    // MARK: - Start Free Trial (no card needed — linked to Café com Leite)
 
-    /// Activate 7-day free trial — only available once
+    /// Activate 7-day free trial with Café com Leite limits
     func startFreeTrial() async {
-        // Mock: instantly activate premium for 7 days
+        // Mock: instantly activate with trial limits (= Café com Leite)
         try? await Task.sleep(for: .seconds(0.8))
         isSubscribed = true
         hasUsedTrial = true
+        userPlan = .trial
     }
 
     // MARK: - Cancel Subscription
@@ -75,6 +96,7 @@ final class SubscriptionService {
     func cancelSubscription() {
         isSubscribed = false
         currentPlan = nil
+        userPlan = .expired
         hasUsedTrial = true
     }
 
@@ -97,21 +119,22 @@ final class SubscriptionService {
 
     // MARK: - Verify Receipt with Backend (POST /subscription/verify)
 
-    func verifyReceipt(receiptData: String, transactionId: String) async throws -> SubscriptionStatus {
+    func verifyReceipt(receiptData: String, transactionId: String, plano: String) async throws -> SubscriptionStatus {
         if APIClient.useMocks {
             try await Task.sleep(for: .seconds(0.5))
             let status = SubscriptionStatus(
-                plano: "premium",
+                plano: plano,
                 subscriptionActive: true,
                 expiresAt: Calendar.current.date(byAdding: .month, value: 1, to: Date()),
                 giftCodes: nil
             )
             isSubscribed = true
             subscriptionStatus = status
+            userPlan = plano == "black" ? .black : .cafeComLeite
             return status
         }
 
-        let body = VerifyReceiptRequest(receiptData: receiptData, transactionId: transactionId)
+        let body = VerifyReceiptRequest(receiptData: receiptData, transactionId: transactionId, plano: plano)
         let status: SubscriptionStatus = try await APIClient.shared.request(
             path: APIEndpoints.subscriptionVerify,
             method: .POST,

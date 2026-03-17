@@ -140,7 +140,12 @@ struct PDFExportService {
         let contentWidth = pageWidth - margin * 2
 
         let branchColors: [UIColor] = [
-            .systemBlue, .systemGreen, .systemOrange, .systemPurple
+            UIColor(red: 0x8B/255, green: 0x69/255, blue: 0x14/255, alpha: 1), // Dourado escuro
+            UIColor(red: 0xA0/255, green: 0x52/255, blue: 0x2D/255, alpha: 1), // Terracotta
+            UIColor(red: 0x5B/255, green: 0x75/255, blue: 0x53/255, alpha: 1), // Verde oliva
+            UIColor(red: 0x4A/255, green: 0x55/255, blue: 0x68/255, alpha: 1), // Cinza azulado
+            UIColor(red: 0x8B/255, green: 0x45/255, blue: 0x57/255, alpha: 1), // Vinho rosado
+            UIColor(red: 0x6B/255, green: 0x5B/255, blue: 0x3E/255, alpha: 1), // Marrom quente
         ]
 
         let renderer = UIGraphicsPDFRenderer(
@@ -303,6 +308,33 @@ struct PDFExportService {
     static func shareText(_ text: String) {
         let activityVC = UIActivityViewController(
             activityItems: [text],
+            applicationActivities: nil
+        )
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = topVC.view
+                popover.sourceRect = CGRect(x: topVC.view.bounds.midX, y: topVC.view.bounds.midY, width: 0, height: 0)
+            }
+            topVC.present(activityVC, animated: true)
+        }
+    }
+
+    /// Present a share sheet with a PNG image
+    @MainActor
+    static func shareImage(_ image: UIImage, fileName: String) {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        if let pngData = image.pngData() {
+            try? pngData.write(to: tempURL)
+        }
+
+        let activityVC = UIActivityViewController(
+            activityItems: [tempURL],
             applicationActivities: nil
         )
 

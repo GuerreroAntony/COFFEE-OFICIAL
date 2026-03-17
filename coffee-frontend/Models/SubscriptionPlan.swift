@@ -1,15 +1,26 @@
 import Foundation
 
-// MARK: - Subscription Models (from API Contract v3.1)
-// Pricing: R$59,90/mês (cheio), R$29,90/mês (promo lançamento). Só mensal.
+// MARK: - Subscription Models
+// Two plans: Café com Leite (R$29,90) + Black (R$49,90)
 
 struct SubscriptionPlan: Identifiable {
     let id: String
+    let planId: String          // "cafe_com_leite" or "black" — sent to backend
     let name: String
-    let price: Double           // R$59.90 cheio or R$29.90 promo
-    let originalPrice: Double?  // R$59.90 shown as strikethrough when promo
+    let price: Double
+    let originalPrice: Double?  // Shown as strikethrough when isPromo
     let isPromo: Bool
-    let features: [String]
+    let features: [PlanFeature]
+    let isHighlighted: Bool     // "Mais Popular" badge
+    let badge: String?          // e.g. "Lançamento"
+
+    /// Feature with limit detail for comparison
+    struct PlanFeature: Identifiable {
+        let id = UUID()
+        let text: String
+        let detail: String?     // e.g. "75/mês" or "Ilimitado"
+        let included: Bool
+    }
 }
 
 // MARK: - Subscription Status (GET /subscription/status, POST /subscription/verify)
@@ -33,10 +44,12 @@ struct SubscriptionStatus: Codable {
 struct VerifyReceiptRequest: Codable {
     let receiptData: String
     let transactionId: String
+    let plano: String           // "cafe_com_leite" or "black"
 
     enum CodingKeys: String, CodingKey {
         case receiptData = "receipt_data"
         case transactionId = "transaction_id"
+        case plano
     }
 }
 
@@ -89,4 +102,11 @@ struct CancelReason: Identifiable {
     let id = UUID()
     let icon: String
     let label: String
+
+    static let all: [CancelReason] = [
+        CancelReason(icon: CoffeeIcon.payments, label: "Está muito caro"),
+        CancelReason(icon: CoffeeIcon.eventBusy, label: "Não uso o suficiente"),
+        CancelReason(icon: CoffeeIcon.thumbDown, label: "Conteúdo inadequado"),
+        CancelReason(icon: CoffeeIcon.bugReport, label: "Problemas técnicos"),
+    ]
 }

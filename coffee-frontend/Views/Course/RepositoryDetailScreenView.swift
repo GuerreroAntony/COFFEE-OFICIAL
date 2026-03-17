@@ -9,6 +9,7 @@ struct RepositoryDetailScreenView: View {
     @Environment(\.router) private var router
     @State private var selectedRecording: Recording? = nil
     @State private var recordings: [Recording] = []
+    @State private var isLoadingRecordings = true
     @State private var recordingToDelete: Recording? = nil
 
     // Rename
@@ -55,7 +56,17 @@ struct RepositoryDetailScreenView: View {
                     .padding(.top, 20)
 
                     // Recordings section
-                    if !recordings.isEmpty {
+                    if isLoadingRecordings {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .tint(Color.coffeePrimary)
+                            Text("Carregando aulas...")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                    } else if !recordings.isEmpty {
                         CoffeeSectionHeader(title: "\(recordings.count) AULAS")
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
@@ -148,11 +159,13 @@ struct RepositoryDetailScreenView: View {
     }
 
     private func loadRecordings() async {
+        isLoadingRecordings = true
         do {
             recordings = try await RecordingService.getRecordings(sourceType: "repositorio", sourceId: repository.id)
         } catch {
             print("[RepositoryDetail] Error loading recordings: \(error)")
         }
+        isLoadingRecordings = false
     }
 
     private func recordingRow(_ rec: Recording) -> some View {
@@ -238,7 +251,7 @@ struct RepositoryDetailScreenView: View {
 
 #Preview {
     RepositoryDetailScreenView(
-        repository: MockData.repositories[0]
+        repository: Repository(id: "preview", nome: "Preview", icone: "folder", gravacoesCount: 0, aiActive: false, createdAt: nil)
     )
     .environment(\.router, NavigationRouter())
 }

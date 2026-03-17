@@ -57,7 +57,7 @@ struct PromoCodesScreenView: View {
             CoffeeSectionHeader(title: "Meus Códigos")
                 .padding(.horizontal, 20)
 
-            Text("Compartilhe seus códigos com amigos para que ganhem 7 dias de Premium grátis.")
+            Text("Compartilhe seus códigos com amigos para que ganhem 7 dias grátis no Coffee.")
                 .font(.system(size: 14))
                 .foregroundStyle(Color.coffeeTextSecondary)
                 .padding(.horizontal, 20)
@@ -71,12 +71,22 @@ struct PromoCodesScreenView: View {
                 }
                 .padding(.vertical, 24)
             } else if giftCodes.isEmpty {
-                CoffeeEmptyState(
-                    icon: CoffeeIcon.gift,
-                    title: "Nenhum código",
-                    message: "Ao assinar o plano Premium, você receberá códigos para compartilhar com amigos."
-                )
-                .padding(.top, 8)
+                VStack(spacing: 12) {
+                    Image(systemName: CoffeeIcon.gift)
+                        .font(.system(size: 36))
+                        .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                    Text("Nenhum código")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.coffeeTextPrimary)
+                    Text("Ao assinar um plano, você receberá códigos para compartilhar com amigos.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
+                .padding(.bottom, 16)
             } else {
                 CoffeeCellGroup {
                     ForEach(Array(giftCodes.enumerated()), id: \.element.id) { index, code in
@@ -181,7 +191,7 @@ struct PromoCodesScreenView: View {
             CoffeeSectionHeader(title: "Resgatar Código")
                 .padding(.horizontal, 20)
 
-            Text("Digite um código promocional para ganhar 7 dias de Premium grátis.")
+            Text("Digite um código promocional para ganhar 7 dias grátis no Coffee.")
                 .font(.system(size: 14))
                 .foregroundStyle(Color.coffeeTextSecondary)
                 .padding(.horizontal, 20)

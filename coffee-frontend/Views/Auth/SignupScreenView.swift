@@ -38,28 +38,14 @@ struct SignupScreenView: View {
 
             ScrollView {
                 VStack(spacing: 0) {
-                    // Avatar
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.coffeePrimary)
-                                .frame(width: 80, height: 80)
-                                .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
+                    Spacer(minLength: 40)
 
-                            Image("logo-wide")
-                                .resizable()
-                                .renderingMode(.template)
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 50)
-                                .foregroundStyle(.white)
-                        }
-
-                        Text("Junte-se à comunidade COFFEE")
-                            .font(.coffeeFootnote)
-                            .foregroundStyle(Color.coffeeTextSecondary)
-                    }
-                    .padding(.top, 32)
-                    .padding(.bottom, 32)
+                    // Title
+                    Text("Nunca mais tenha\nque anotar nada.")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color.coffeeTextPrimary)
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom, 36)
 
                     // Form fields (inline label style)
                     VStack(spacing: 0) {
@@ -135,9 +121,11 @@ struct SignupScreenView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 24)
-                    .padding(.bottom, 40)
+                    .padding(.top, 28)
+
+                    Spacer(minLength: 40)
                 }
+                .frame(minHeight: UIScreen.main.bounds.height - 160)
             }
         }
         .background(Color.coffeeBackground)

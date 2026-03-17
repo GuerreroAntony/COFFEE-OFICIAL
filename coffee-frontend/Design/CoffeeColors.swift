@@ -11,7 +11,9 @@ extension Color {
     // Backgrounds
     static let coffeeBackground = Color(hex: "F2F2F7")
     static let coffeeCardBackground = Color.white
-    static let coffeeRecordingBackground = Color(hex: "1A1008")
+    static let coffeeRecordingBackground = Color(hex: "2A1E14")
+    static let coffeeHeaderGradientTop = Color(hex: "2A1E14")
+    static let coffeeHeaderGradientBottom = Color(hex: "3D2E22")
 
     // Text
     static let coffeeTextPrimary = Color(hex: "1C1C1E")

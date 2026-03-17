@@ -27,7 +27,7 @@ struct LoginScreenView: View {
                     .frame(height: 110)
                     .foregroundStyle(Color.coffeePrimary)
 
-                Text("Seu caderno automático de aulas.")
+                Text("mais foco no que importa.")
                     .font(.system(size: 22))
                     .foregroundStyle(Color.coffeeTextSecondary)
             }

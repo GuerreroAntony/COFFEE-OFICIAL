@@ -4,11 +4,10 @@ import SwiftUI
 // Custom swipe-to-delete for ScrollView+ForEach (`.swipeActions` only works in List).
 //
 // Architecture:
-// - Content & delete button have `.allowsHitTesting(false)`
-// - ALL interactions handled by two gestures on the ZStack container:
-//   1) SpatialTapGesture → detects tap location → routes to onTap or onDelete
-//   2) DragGesture → handles horizontal swipe to reveal/hide delete
-// - This avoids all Button-vs-DragGesture conflicts
+// - When onTap is provided: content has `.allowsHitTesting(false)` and ALL taps
+//   are routed via SpatialTapGesture on the container (original behavior).
+// - When onTap is nil: content keeps hit testing so internal controls (Toggle,
+//   Button) work normally. Only drag + swiped-state taps are handled by container.
 
 struct SwipeableRow<Content: View>: View {
     var onTap: (() -> Void)? = nil
@@ -21,6 +20,9 @@ struct SwipeableRow<Content: View>: View {
 
     private let deleteWidth: CGFloat = 80
     private let threshold: CGFloat = 40
+
+    /// When onTap is nil, let content handle its own taps (Toggle, Button, etc.)
+    private var contentHitTesting: Bool { onTap == nil && !isSwiped }
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -40,12 +42,12 @@ struct SwipeableRow<Content: View>: View {
                     .allowsHitTesting(false)
             }
 
-            // Content (visual only — taps handled by SpatialTapGesture)
+            // Content
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.coffeeCardBackground)
                 .offset(x: offset)
-                .allowsHitTesting(false)
+                .allowsHitTesting(contentHitTesting)
         }
         .background(
             GeometryReader { proxy in
@@ -110,8 +112,8 @@ struct SwipeableRow<Content: View>: View {
                             // Tapped on content area → close swipe
                             close()
                         }
-                    } else {
-                        // Not swiped → forward tap to onTap
+                    } else if onTap != nil {
+                        // Only forward tap when onTap is set (content has no hit testing)
                         onTap?()
                     }
                 }

@@ -39,6 +39,7 @@ struct RecordingFlowView: View {
                     seconds: seconds,
                     transcription: transcription,
                     photosCount: capturedPhotos.count,
+                    audioLevel: whisperKit.audioLevel,
                     showStopSheet: $showStopSheet,
                     showFullTranscription: $showFullTranscription,
                     onPause: {
@@ -46,15 +47,20 @@ struct RecordingFlowView: View {
                         whisperKit.stopRealtimeTranscription()
                     },
                     onResume: {
+                        let previousText = transcription
                         withAnimation {
                             state = .recording
                             startTimer()
                         }
-                        // Restart transcription on resume
+                        // Restart transcription on resume, preserving previous text
                         do {
                             try whisperKit.startRealtimeTranscription { text in
                                 Task { @MainActor in
-                                    transcription = text
+                                    if !previousText.isEmpty && !text.isEmpty {
+                                        transcription = previousText + " " + text
+                                    } else {
+                                        transcription = previousText + text
+                                    }
                                 }
                             }
                         } catch {
@@ -156,9 +162,15 @@ struct RecordingFlowView: View {
         timer?.invalidate()
         timer = nil
 
-        // Stop transcription and get final text
+        // Stop the speech engine — but keep our accumulated transcription.
+        // After pause/resume cycles, `transcription` (the @State) already holds
+        // the full concatenated text. whisperKit.transcription only has the
+        // last segment, so we must NOT overwrite.
         let finalText = whisperKit.stopRealtimeTranscription()
-        if !finalText.isEmpty {
+
+        // Only use whisperKit's text if we have nothing yet
+        // (e.g. user never paused, so our @State and whisperKit are in sync)
+        if transcription.isEmpty && !finalText.isEmpty {
             transcription = finalText
         }
 
@@ -206,10 +218,13 @@ struct RecordingFlowView: View {
                 dateFormatter.dateFormat = "yyyy-MM-dd"
                 let dateStr = dateFormatter.string(from: Date())
 
+                let wordCount = transcription.split(separator: " ").count
+                print("[Recording] Saving with \(wordCount) words, \(transcription.count) chars")
+
                 let recording = try await RecordingService.createRecording(
                     sourceType: sourceType,
                     sourceId: sourceId,
-                    transcription: transcription.isEmpty ? "Gravação sem transcrição" : transcription,
+                    transcription: transcription,
                     durationSeconds: max(seconds, 1),
                     date: dateStr
                 )
@@ -445,6 +460,7 @@ struct RecordingActiveView: View {
     let seconds: Int
     let transcription: String
     let photosCount: Int
+    var audioLevel: Float = 0
     @Binding var showStopSheet: Bool
     @Binding var showFullTranscription: Bool
     let onPause: () -> Void
@@ -501,7 +517,7 @@ struct RecordingActiveView: View {
     }
 
     private var waveform: some View {
-        WaveformView(barCount: 40, color: Color.coffeePrimaryLight)
+        WaveformView(barCount: 40, color: Color.coffeePrimaryLight, audioLevel: isRecording ? audioLevel : 0)
             .opacity(isRecording ? 1.0 : 0.3)
             .frame(height: 90)
             .padding(.horizontal, 16)
@@ -759,6 +775,7 @@ struct RecordingStoppedView: View {
             ForEach(Array(localDisciplines.enumerated()), id: \.element.id) { index, disc in
                 StoppedDisciplineRow(
                     disc: disc,
+                    index: index,
                     isSelected: selectedDiscipline?.id == disc.id,
                     onTap: {
                         selectedDiscipline = selectedDiscipline?.id == disc.id ? nil : disc
@@ -907,19 +924,21 @@ struct RecordingStoppedView: View {
 
 struct StoppedDisciplineRow: View {
     let disc: Discipline
+    let index: Int
     let isSelected: Bool
     let onTap: () -> Void
 
     var body: some View {
-        let bg: Color = isSelected ? Color.coffeePrimary : Color.coffeeTextSecondary.opacity(0.12)
-        let fg: Color = isSelected ? .white : Color.coffeeTextSecondary
+        let discColor = Color(hex: disc.displayColorHex(at: index))
+        let bg: Color = isSelected ? discColor : discColor.opacity(0.1)
+        let fg: Color = isSelected ? .white : discColor
 
         Button(action: onTap) {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(bg).frame(width: 50, height: 50)
-                    Image(systemName: CoffeeIcon.menuBook)
+                    Image(systemName: disc.displayIcon(at: index))
                         .font(.system(size: 20)).foregroundStyle(fg)
                 }
                 VStack(alignment: .leading, spacing: 3) {

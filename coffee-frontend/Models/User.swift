@@ -25,8 +25,24 @@ struct User: Codable, Identifiable {
 
 enum UserPlan: String, Codable {
     case trial
-    case premium
+    case cafeComLeite = "cafe_com_leite"
+    case black
     case expired
+
+    /// Display name for UI
+    var displayName: String {
+        switch self {
+        case .trial: return "Degustação"
+        case .cafeComLeite: return "Café com Leite"
+        case .black: return "Black"
+        case .expired: return "Expirado"
+        }
+    }
+
+    /// Whether this is an active paid plan
+    var isPaid: Bool {
+        self == .cafeComLeite || self == .black
+    }
 }
 
 // MARK: - Auth Responses

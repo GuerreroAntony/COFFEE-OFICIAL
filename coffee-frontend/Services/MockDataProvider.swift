@@ -38,7 +38,7 @@ enum MockData {
             gravacoesTotal: 20,
             horasGravadas: 12.5,
             questionsRemaining: QuestionsRemaining(
-                espresso: -1,
+                espresso: 68,
                 lungo: 27,
                 coldBrew: 14
             ),
@@ -369,44 +369,64 @@ enum MockData {
                 RecordingMedia(id: "med4", type: "photo", label: "Anotação", timestampSeconds: 3420, timestampLabel: "57:00", url: nil)
             ],
             materials: [
-                Material(id: "mat1", disciplinaId: "d1", tipo: "pdf", nome: "Cap. 3.pdf", urlStorage: nil, fonte: "canvas", aiEnabled: true, sizeBytes: 2_516_582, sizeLabel: "2.4 MB", createdAt: Date())
+                RecordingMaterial(id: "mat1", nome: "Cap. 3.pdf", tipo: "pdf", sizeLabel: "2.4 MB", url: nil)
             ],
             receivedFrom: nil,
             createdAt: recording.createdAt
         )
     }
 
-    // MARK: - Subscription Plans (API Contract v3.1)
-    // Pricing: R$59,90/mês (cheio), R$29,90/mês (promo lançamento). Só mensal.
+    // MARK: - Subscription Plans (Two-tier: Café com Leite + Black)
 
     static let subscriptionPlans: [SubscriptionPlan] = [
         SubscriptionPlan(
-            id: "premium_promo",
-            name: "Premium",
+            id: "cafe_com_leite_promo",
+            planId: "cafe_com_leite",
+            name: "Café com Leite",
             price: 29.90,
             originalPrice: 59.90,
             isPromo: true,
             features: [
-                "Gravações ilimitadas",
-                "Transcrição com WhisperKit",
-                "Resumos e mapas mentais com IA",
-                "Chat Barista (todos os modos)",
-                "Compartilhamento com colegas",
-                "Sincronização com Canvas ESPM",
-                "2 códigos de convite para amigos",
-            ]
+                .init(text: "Gravações ilimitadas", detail: nil, included: true),
+                .init(text: "Transcrição com WhisperKit", detail: nil, included: true),
+                .init(text: "Resumos e mapas mentais", detail: nil, included: true),
+                .init(text: "Espresso", detail: "75/mês", included: true),
+                .init(text: "Lungo", detail: "30/mês", included: true),
+                .init(text: "Cold Brew", detail: "15/mês", included: true),
+                .init(text: "Sync Canvas ESPM", detail: nil, included: true),
+                .init(text: "2 códigos de convite", detail: nil, included: true),
+            ],
+            isHighlighted: false,
+            badge: "Lançamento"
+        ),
+        SubscriptionPlan(
+            id: "black_promo",
+            planId: "black",
+            name: "Black",
+            price: 49.90,
+            originalPrice: 99.90,
+            isPromo: true,
+            features: [
+                .init(text: "Tudo do Café com Leite", detail: nil, included: true),
+                .init(text: "Espresso", detail: "Ilimitado", included: true),
+                .init(text: "Lungo", detail: "100/mês", included: true),
+                .init(text: "Cold Brew", detail: "25/mês", included: true),
+                .init(text: "3 códigos de convite", detail: nil, included: true),
+            ],
+            isHighlighted: true,
+            badge: "Lançamento"
         ),
     ]
 
     // MARK: - Premium Benefits
 
     static let premiumBenefits: [PremiumBenefit] = [
-        PremiumBenefit(icon: CoffeeIcon.mic, title: "Gravações ilimitadas", description: "Grave todas as suas aulas sem limite de tempo"),
+        PremiumBenefit(icon: CoffeeIcon.mic, title: "Gravações ilimitadas", description: "Grave todas as suas aulas sem limite"),
         PremiumBenefit(icon: CoffeeIcon.notes, title: "Resumos automáticos", description: "IA gera resumos estruturados de cada aula"),
-        PremiumBenefit(icon: CoffeeIcon.mindMap, title: "Mapas mentais", description: "Visualize conceitos conectados automaticamente"),
-        PremiumBenefit(icon: CoffeeIcon.sparkles, title: "Barista IA completo", description: "Acesso a todos os modos: Espresso, Lungo e Cold Brew"),
-        PremiumBenefit(icon: CoffeeIcon.share, title: "Compartilhamento", description: "Envie resumos e mapas para colegas"),
-        PremiumBenefit(icon: CoffeeIcon.sync, title: "Sync Canvas ESPM", description: "Sincronize disciplinas e materiais automaticamente"),
+        PremiumBenefit(icon: CoffeeIcon.mindMap, title: "Mapas mentais", description: "Visualize conceitos conectados"),
+        PremiumBenefit(icon: CoffeeIcon.sparkles, title: "Barista IA", description: "Espresso, Lungo e Cold Brew"),
+        PremiumBenefit(icon: CoffeeIcon.share, title: "Compartilhamento", description: "Envie resumos para colegas"),
+        PremiumBenefit(icon: CoffeeIcon.sync, title: "Sync Canvas ESPM", description: "Sincronize disciplinas e materiais"),
     ]
 
     // MARK: - Cancel Reasons

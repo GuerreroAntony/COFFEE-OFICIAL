@@ -63,27 +63,43 @@ struct CoffeeNavBar: View {
 }
 
 // MARK: - Large Title Header (for Disciplinas)
+// Dark gradient header with split greeting layout
 
 struct CoffeeLargeTitleHeader: View {
     let greeting: String
     let subtitle: String
+    var planStatus: UserPlan? = nil
+    var trialEnd: Date? = nil
     var onGiftTap: (() -> Void)? = nil
     var onSettingsTap: (() -> Void)? = nil
 
+    /// Extract just the name from "Olá, Leonardo"
+    private var userName: String {
+        if let commaIndex = greeting.firstIndex(of: ",") {
+            return String(greeting[greeting.index(after: commaIndex)...]).trimmingCharacters(in: .whitespaces)
+        }
+        return greeting
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Top row: settings
-            HStack {
+        VStack(alignment: .leading, spacing: 6) {
+            // Top row: "OLÁ," + action icons
+            HStack(alignment: .center) {
+                Text("Vai um cafezinho?")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.coffeePrimaryLight)
+                    .tracking(0.5)
+
                 Spacer()
 
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     if let onGiftTap {
                         Button(action: onGiftTap) {
                             Image(systemName: CoffeeIcon.gift)
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color.coffeeTextSecondary)
-                                .frame(width: 36, height: 36)
-                                .background(Color.coffeeInputBackground)
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.coffeePrimaryLight)
+                                .frame(width: 38, height: 38)
+                                .background(Color.white.opacity(0.12))
                                 .clipShape(Circle())
                         }
                     }
@@ -91,39 +107,106 @@ struct CoffeeLargeTitleHeader: View {
                     if let onSettingsTap {
                         Button(action: onSettingsTap) {
                             Image(systemName: CoffeeIcon.settings)
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color.coffeeTextSecondary)
-                                .frame(width: 36, height: 36)
-                                .background(Color.coffeeInputBackground)
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.coffeePrimaryLight)
+                                .frame(width: 38, height: 38)
+                                .background(Color.white.opacity(0.12))
                                 .clipShape(Circle())
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
 
-            // Large title
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting)
-                    .font(.coffeeLargeTitle)
-                    .foregroundStyle(Color.coffeeTextPrimary)
+            // Name — large and bold
+            Text(userName)
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(.white)
 
+            // Subtitle + plan badge
+            HStack(spacing: 8) {
                 Text(subtitle)
-                    .font(.coffeeFootnote)
-                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.white.opacity(0.55))
+
+                Spacer()
+
+                if let plan = planStatus {
+                    planBadge(plan)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-            .padding(.top, 4)
         }
-        .background(Color.coffeeCardBackground)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.coffeeSeparator)
-                .frame(height: 0.5)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.coffeeHeaderGradientTop
+                .ignoresSafeArea(edges: .top)
+        )
+    }
+
+    @ViewBuilder
+    private func planBadge(_ plan: UserPlan) -> some View {
+        switch plan {
+        case .cafeComLeite:
+            badgeCapsule(
+                icon: "cup.and.saucer.fill",
+                text: "Café com Leite",
+                color: Color.coffeePrimaryLight
+            )
+
+        case .black:
+            badgeCapsule(
+                icon: "flame.fill",
+                text: "Black",
+                color: Color.coffeePrimaryLight
+            )
+
+        case .trial:
+            badgeCapsule(
+                icon: nil,
+                text: trialDaysText,
+                color: Color.coffeeWarning,
+                showDot: true
+            )
+
+        case .expired:
+            badgeCapsule(
+                icon: nil,
+                text: "Expirado",
+                color: Color.coffeeDanger,
+                showDot: true
+            )
         }
+    }
+
+    private func badgeCapsule(icon: String?, text: String, color: Color, showDot: Bool = false) -> some View {
+        HStack(spacing: 5) {
+            if showDot {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+            }
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+            }
+            Text(text)
+                .font(.system(size: 11, weight: .bold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.white.opacity(0.15))
+        .clipShape(Capsule())
+    }
+
+    private var trialDaysText: String {
+        guard let end = trialEnd else { return "Trial" }
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: end).day ?? 0
+        if days <= 0 { return "Trial expirado" }
+        if days == 1 { return "Trial · 1 dia" }
+        return "Trial · \(days) dias"
     }
 }
 

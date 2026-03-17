@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 
 // MARK: - Coffee Chat Bubble
 // iOS-style chat bubbles matching .ios-bubble-sent / .ios-bubble-received from index.css
@@ -6,19 +7,27 @@ import SwiftUI
 struct CoffeeBubble: View {
     let text: String
     let isFromUser: Bool
+    var isStreaming: Bool = false
 
     var body: some View {
         HStack {
             if isFromUser { Spacer(minLength: 60) }
 
-            Text(text)
-                .font(.system(size: 15))
-                .lineSpacing(4)
-                .foregroundStyle(isFromUser ? .white : Color.coffeeTextPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(isFromUser ? Color.coffeePrimary : Color(hex: "E9E9EB"))
-                .clipShape(ChatBubbleShape(isFromUser: isFromUser))
+            Group {
+                if isFromUser || isStreaming {
+                    Text(text)
+                        .font(.system(size: 15))
+                        .lineSpacing(4)
+                } else {
+                    Markdown(text)
+                        .markdownTheme(.coffee)
+                }
+            }
+            .foregroundStyle(isFromUser ? .white : Color.coffeeTextPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(isFromUser ? Color.coffeePrimary : Color(hex: "E9E9EB"))
+            .clipShape(ChatBubbleShape(isFromUser: isFromUser))
 
             if !isFromUser { Spacer(minLength: 60) }
         }

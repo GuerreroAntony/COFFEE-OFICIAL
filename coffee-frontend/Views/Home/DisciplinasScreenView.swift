@@ -16,6 +16,10 @@ struct DisciplinasScreenView: View {
     @State private var newRepoName = ""
     @State private var allocatingItem: SharedItem? = nil
     @State private var repoToDelete: Repository? = nil
+    @State private var editingDiscipline: Discipline? = nil
+    @State private var editingDisciplineIndex: Int = 0
+
+    // Default styles now live on Discipline.defaultStyles
 
     private var newCount: Int { sharedItems.filter(\.isNew).count }
     private var tabs: [String] { ["Disciplinas", "Outros", "Recebidos\(newCount > 0 ? " (\(newCount))" : "")"] }
@@ -47,38 +51,55 @@ struct DisciplinasScreenView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Large Title Header
-            CoffeeLargeTitleHeader(
-                greeting: "Olá, \(router.currentUser?.nome ?? "Aluno")",
-                subtitle: dynamicSubtitle,
-                onGiftTap: { router.showPromoCodes = true },
-                onSettingsTap: { router.showSettings = true }
-            )
+        ZStack(alignment: .top) {
+            // Dark background fills behind status bar
+            Color.coffeeHeaderGradientTop
+                .ignoresSafeArea(edges: .top)
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Segmented Control
-                    CoffeeSegmentedControl(
-                        segments: tabs,
-                        selected: $activeTab
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
-                    .padding(.bottom, 20)
+            VStack(spacing: 0) {
+                // Large Title Header
+                CoffeeLargeTitleHeader(
+                    greeting: "Olá, \(router.currentUser?.nome ?? "Aluno")",
+                    subtitle: dynamicSubtitle,
+                    planStatus: router.currentUser?.plano,
+                    trialEnd: router.currentUser?.trialEnd,
+                    onGiftTap: { router.showPromoCodes = true },
+                    onSettingsTap: { router.showSettings = true }
+                )
 
-                    // Tab Content
-                    switch activeTab {
-                    case 0: disciplinasTab
-                    case 1: outrosTab
-                    case 2: recebidosTab
-                    default: EmptyView()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Segmented Control
+                        CoffeeSegmentedControl(
+                            segments: tabs,
+                            selected: $activeTab,
+                            style: .underline
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+                        .padding(.bottom, 20)
+
+                        // Tab Content
+                        switch activeTab {
+                        case 0: disciplinasTab
+                        case 1: outrosTab
+                        case 2: recebidosTab
+                        default: EmptyView()
+                        }
                     }
+                    .padding(.bottom, 120)
                 }
-                .padding(.bottom, 120)
+                .background(Color.coffeeBackground)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 24,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 24
+                    )
+                )
             }
         }
-        .background(Color.coffeeBackground)
         .task { await loadData() }
         .onChange(of: router.selectedRepository) { _, newValue in
             if newValue == nil { Task { await loadData() } }
@@ -115,6 +136,7 @@ struct DisciplinasScreenView: View {
                 repositories: repositories,
                 onAllocate: { _ in
                     sharedItems.removeAll { $0.id == item.id }
+                    router.cachedSharedItems = sharedItems
                     allocatingItem = nil
                 },
                 onClose: { allocatingItem = nil }
@@ -132,18 +154,21 @@ struct DisciplinasScreenView: View {
 
             CoffeeCellGroup {
                 ForEach(Array(disciplines.enumerated()), id: \.element.id) { index, discipline in
+                    let iconName = discipline.displayIcon(at: index)
+                    let iconColor = Color(hex: discipline.displayColorHex(at: index))
+
                     Button {
                         router.selectCourse(discipline)
                     } label: {
                         HStack(spacing: 14) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(Color.coffeePrimary.opacity(0.09))
+                                    .fill(iconColor.opacity(0.09))
                                     .frame(width: 52, height: 52)
 
-                                Image(systemName: CoffeeIcon.menuBook)
+                                Image(systemName: iconName)
                                     .font(.system(size: 20))
-                                    .foregroundStyle(Color.coffeePrimary)
+                                    .foregroundStyle(iconColor)
                             }
 
                             VStack(alignment: .leading, spacing: 3) {
@@ -166,6 +191,14 @@ struct DisciplinasScreenView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(CoffeeCellButtonStyle())
+                    .contextMenu {
+                        Button {
+                            editingDisciplineIndex = index
+                            editingDiscipline = discipline
+                        } label: {
+                            Label("Personalizar ícone", systemImage: "paintpalette.fill")
+                        }
+                    }
 
                     if index < disciplines.count - 1 {
                         Divider().padding(.leading, 82)
@@ -173,6 +206,30 @@ struct DisciplinasScreenView: View {
                 }
             }
             .padding(.horizontal, 16)
+        }
+        .sheet(item: $editingDiscipline) { disc in
+            IconPickerSheet(discipline: disc) { icon, color in
+                // Optimistic update: UI changes instantly
+                if let idx = disciplines.firstIndex(where: { $0.id == disc.id }) {
+                    disciplines[idx].icon = icon
+                    disciplines[idx].iconColor = color
+                }
+                router.cachedDisciplines = disciplines
+
+                // Persist to backend in background
+                Task {
+                    do {
+                        try await DisciplineService.updateAppearance(
+                            disciplinaId: disc.id,
+                            icon: icon,
+                            iconColor: color
+                        )
+                    } catch {
+                        print("[Appearance] Failed to save: \(error)")
+                    }
+                }
+            }
+            .presentationDetents([.large])
         }
     }
 
@@ -460,13 +517,36 @@ struct DisciplinasScreenView: View {
     // MARK: - Actions
 
     private func loadData() async {
-        isLoading = true
+        // Show cached data instantly (no blank screen on tab switch)
+        if let cached = router.cachedDisciplines {
+            disciplines = cached
+            repositories = router.cachedRepositories ?? []
+            sharedItems = router.cachedSharedItems ?? []
+            isLoading = false
+
+            // Skip refetch if data is fresh (< 30 seconds old)
+            if let lastFetch = router.lastHomeDataFetch,
+               Date().timeIntervalSince(lastFetch) < 30 {
+                return
+            }
+        }
+
+        // Fetch from API (first load or background refresh)
+        if disciplines.isEmpty { isLoading = true }
+
         async let d = try? DisciplineService.getDisciplines()
         async let r = try? DisciplineService.getRepositories()
         async let s = try? DisciplineService.getSharedItems()
-        disciplines = await d ?? []
-        repositories = await r ?? []
-        sharedItems = await s ?? []
+
+        disciplines = await d ?? disciplines
+        repositories = await r ?? repositories
+        sharedItems = await s ?? sharedItems
+
+        // Update cache
+        router.cachedDisciplines = disciplines
+        router.cachedRepositories = repositories
+        router.cachedSharedItems = sharedItems
+        router.lastHomeDataFetch = Date()
         isLoading = false
     }
 
@@ -479,6 +559,7 @@ struct DisciplinasScreenView: View {
             do {
                 let repo = try await DisciplineService.createRepository(name: name, icon: "folder.fill")
                 repositories.append(repo)
+                router.cachedRepositories = repositories
             } catch {
                 print("[DisciplinasScreen] Error creating repo: \(error)")
             }
@@ -488,6 +569,7 @@ struct DisciplinasScreenView: View {
     private func handleDeleteRepo(_ repo: Repository) {
         let repoId = repo.id
         withAnimation { repositories.removeAll { $0.id == repoId } }
+        router.cachedRepositories = repositories
         Task {
             do {
                 try await DisciplineService.deleteRepository(id: repoId)
@@ -503,6 +585,7 @@ struct DisciplinasScreenView: View {
             do {
                 try await DisciplineService.rejectSharedItem(id: item.id)
                 withAnimation { sharedItems.removeAll { $0.id == item.id } }
+                router.cachedSharedItems = sharedItems
             } catch {
                 print("[DisciplinasScreen] Error rejecting item: \(error)")
             }
@@ -558,11 +641,11 @@ struct AllocationSheet: View {
                                 HStack(spacing: 14) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(Color.coffeePrimary.opacity(0.1))
+                                            .fill(Color(hex: d.displayColorHex(at: index)).opacity(0.1))
                                             .frame(width: 50, height: 50)
-                                        Image(systemName: CoffeeIcon.menuBook)
+                                        Image(systemName: d.displayIcon(at: index))
                                             .font(.system(size: 20))
-                                            .foregroundStyle(Color.coffeePrimary)
+                                            .foregroundStyle(Color(hex: d.displayColorHex(at: index)))
                                     }
                                     Text(d.nome)
                                         .font(.system(size: 16, weight: .medium))

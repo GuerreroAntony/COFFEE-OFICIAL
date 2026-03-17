@@ -43,7 +43,7 @@ struct SplashScreenView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(height: 110)
 
-                Text("Seu caderno automático de aulas.")
+                Text("mais foco no que importa.")
                     .font(.system(size: 22))
                     .foregroundStyle(.white.opacity(0.7))
 
@@ -66,6 +66,21 @@ struct SplashScreenView: View {
                     }
                     .padding(.horizontal, 20)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // Credits (only on loading splash, not onboarding)
+                if !showButton {
+                    VStack(spacing: 6) {
+                        Text("Criado por:")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Text("Antony Guerrero")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Leonardo Di Giglio")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
                 }
 
                 Spacer().frame(height: 32)

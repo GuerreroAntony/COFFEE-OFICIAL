@@ -32,6 +32,12 @@ final class NavigationRouter {
 
     var activeTab: Tab = .record
 
+    // Cached home tab data — survives tab switches
+    var cachedDisciplines: [Discipline]?
+    var cachedRepositories: [Repository]?
+    var cachedSharedItems: [SharedItem]?
+    var lastHomeDataFetch: Date?
+
     // MARK: - Navigation State (Modals & Sheets)
 
     var selectedCourse: Discipline? = nil
@@ -112,6 +118,10 @@ final class NavigationRouter {
         }
         KeychainManager.clearAll()
         currentUser = nil
+        cachedDisciplines = nil
+        cachedRepositories = nil
+        cachedSharedItems = nil
+        lastHomeDataFetch = nil
         withAnimation(.easeInOut(duration: 0.3)) {
             authState = .login
             activeTab = .home

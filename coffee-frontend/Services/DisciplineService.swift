@@ -27,6 +27,20 @@ enum DisciplineService {
         )
     }
 
+    static func updateAppearance(disciplinaId: String, icon: String, iconColor: String) async throws {
+        if APIClient.useMocks {
+            try await Task.sleep(for: .seconds(0.3))
+            return
+        }
+
+        let body = UpdateAppearanceRequest(icon: icon, iconColor: iconColor)
+        let _: EmptyData = try await APIClient.shared.request(
+            path: APIEndpoints.disciplinaAppearance(id: disciplinaId),
+            method: .PATCH,
+            body: body
+        )
+    }
+
     // MARK: - Repositories
 
     static func getRepositories() async throws -> [Repository] {

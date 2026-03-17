@@ -47,6 +47,8 @@ enum APIEndpoints {
 
     /// GET - Discipline detail
     static func disciplina(id: String) -> String { "/disciplinas/\(id)" }
+    /// PATCH - Update discipline appearance (icon + color)
+    static func disciplinaAppearance(id: String) -> String { "/disciplinas/\(id)/appearance" }
 
     // MARK: - 4. Repositórios (4 endpoints)
 

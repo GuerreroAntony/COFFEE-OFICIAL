@@ -6,7 +6,6 @@ from app.database import execute_query, fetch_all, fetch_one
 from app.dependencies import get_current_user
 from app.schemas.base import error_response, success_response
 from app.schemas.disciplinas import (
-    AppearanceUpdate,
     DisciplinaDetailResponse,
     DisciplinaResponse,
 )
@@ -68,29 +67,4 @@ async def get_disciplina(
     disc = DisciplinaResponse(**dict(row))
     return success_response(disc.model_dump(mode="json"))
 
-
-@router.patch("/{disciplina_id}/appearance")
-async def update_appearance(
-    disciplina_id: UUID,
-    body: AppearanceUpdate,
-    user_id: UUID = Depends(get_current_user),
-):
-    """Atualiza ícone e cor da disciplina para o usuário."""
-    enrolled = await fetch_one(
-        "SELECT 1 FROM user_disciplinas WHERE user_id = $1 AND disciplina_id = $2",
-        user_id, disciplina_id,
-    )
-    if not enrolled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_response("ACCESS_DENIED", "Acesso negado"),
-        )
-
-    await execute_query(
-        """UPDATE user_disciplinas
-           SET icon = $3, icon_color = $4
-           WHERE user_id = $1 AND disciplina_id = $2""",
-        user_id, disciplina_id, body.icon, body.icon_color,
-    )
-
-    return success_response({"icon": body.icon, "icon_color": body.icon_color})
+# NOTE: PATCH /{disciplina_id}/appearance is defined in materiais.py:disc_router

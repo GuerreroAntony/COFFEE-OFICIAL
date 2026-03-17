@@ -35,28 +35,6 @@ struct SettingsScreenView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // ESPM
-                    CoffeeSectionHeader(title: "ESPM")
-                        .padding(.horizontal, 20)
-
-                    CoffeeCellGroup {
-                        Button {
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                router.showLinkESPM = true
-                            }
-                        } label: {
-                            CoffeeCell(
-                                icon: CoffeeIcon.school,
-                                title: "Reconectar ESPM",
-                                subtitle: "Atualizar credenciais do Portal",
-                                trailing: .chevron
-                            )
-                        }
-                        .buttonStyle(CoffeeCellButtonStyle())
-                    }
-                    .padding(.horizontal, 16)
-
                     // Sobre
                     CoffeeSectionHeader(title: "Sobre")
                         .padding(.horizontal, 20)
@@ -100,6 +78,20 @@ struct SettingsScreenView: View {
                         )
                     }
                     .padding(.horizontal, 16)
+
+                    VStack(spacing: 10) {
+                        Text("Criado por:")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                        Text("Antony Marques Guerrero")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                        Text("Leonardo Di Giglio Millan")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 12)
                 }
                 .padding(.bottom, 40)
             }

@@ -61,29 +61,26 @@ struct PremiumLockedTabView: View {
 
                 Spacer()
 
-                // Price info with strikethrough
-                HStack(spacing: 6) {
-                    if !subscription.hasUsedTrial {
-                        Text("Após o trial:")
+                // Price info — show both plans
+                VStack(spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text("A partir de")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.coffeeTextSecondary)
+                        Text("R$59,90")
+                            .font(.system(size: 14, weight: .medium))
+                            .strikethrough()
+                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
+                        Text("R$29,90/mês")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.coffeeTextPrimary)
                     }
-                    Text("R$59,90")
-                        .font(.system(size: 14, weight: .medium))
-                        .strikethrough()
-                        .foregroundStyle(Color.coffeeTextSecondary)
-                    Text("R$29,90/mês")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.coffeeTextPrimary)
-                    Text("· Cancele quando quiser")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.coffeeTextSecondary)
                 }
 
-                // CTA — opens PremiumGateSheet (handles trial vs payment)
+                // CTA — opens PremiumGateSheet
                 CoffeeButton(
-                    subscription.hasUsedTrial ? "Assinar Premium" : "Começar 7 dias grátis",
-                    icon: "crown.fill"
+                    subscription.hasUsedTrial ? "Ver planos" : "Começar 7 dias grátis",
+                    icon: "cup.and.saucer.fill"
                 ) {
                     showPremiumGate = true
                 }

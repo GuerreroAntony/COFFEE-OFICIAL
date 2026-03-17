@@ -1,14 +1,17 @@
 import SwiftUI
 
-// MARK: - Premium Offer Screen
-// Gradient hero + benefits list + promo code + CTA
-// Matches PremiumOffer.jsx
+// MARK: - Premium Offer Screen (Two-Plan Paywall)
+// Two plan cards: Café com Leite + Black
+// Trial as surprise CTA ("7 dias grátis") linked to Café com Leite
+// Persuasive but not cheap — intentional, assertive copy
 
 struct PremiumOfferScreenView: View {
     @Environment(\.router) private var router
     @Environment(\.subscriptionService) private var subscription
 
+    @State private var selectedPlanId: String = "black"
     @State private var isStartingTrial = false
+    @State private var isPurchasing = false
     @State private var promoCode = ""
     @State private var codeStatus: CodeStatus? = nil
     @State private var trialDays = 7
@@ -16,105 +19,31 @@ struct PremiumOfferScreenView: View {
 
     enum CodeStatus { case valid, invalid }
 
-    private let benefits: [(icon: String, text: String, sub: String, color: Color, bg: Color)] = [
-        ("infinity", "Aulas ilimitadas", "Sem limite mensal", .green, .green.opacity(0.1)),
-        (CoffeeIcon.sparkles, "IA sem limites", "Perguntas ilimitadas ao Barista", Color.coffeePrimary, Color.coffeePrimary.opacity(0.08)),
-        ("doc.text.fill", "IA nos materiais", "Resumos e análises automáticas", .blue, .blue.opacity(0.1)),
-        ("doc.richtext", "Exportar PDF", "Baixe seus resumos e notas", .orange, .orange.opacity(0.1)),
-    ]
-
-    private var isExpanded: Bool {
-        showPromo && codeStatus != .valid
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             // Hero gradient area
-            VStack(spacing: 0) {
-                Spacer().frame(height: 56)
+            heroSection
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.white.opacity(0.15))
-                        .frame(width: 56, height: 56)
-
-                    Image(systemName: CoffeeIcon.sparkles)
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white)
-                }
-                .padding(.bottom, 12)
-
-                Text("Desbloqueie tudo")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.bottom, 4)
-
-                HStack(spacing: 4) {
-                    Text("\(trialDays) dias grátis")
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                    Text("· Cancele quando quiser")
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                .font(.system(size: 14))
-
-                Spacer().frame(height: 24)
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    colors: [Color.coffeePrimary, Color(hex: "4A3425")],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-
-            // White card area
+            // Content + CTA
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 0) {
-                        // Benefits
-                        VStack(spacing: isExpanded ? 22 : 28) {
-                            ForEach(Array(benefits.enumerated()), id: \.offset) { _, item in
-                                benefitRow(item)
-                            }
-                        }
-                        .padding(.top, 28)
-                        .padding(.horizontal, 24)
-                        .animation(.easeInOut(duration: 0.3), value: isExpanded)
+                    VStack(spacing: 20) {
+                        // Plan cards
+                        planCardsSection
+                            .padding(.top, 24)
 
-                        // Promo code area
+                        // Selected plan features
+                        selectedPlanFeatures
+                            .padding(.horizontal, 20)
+
+                        // Promo code
                         promoCodeSection
-                            .padding(.horizontal, 24)
-                            .padding(.top, 20)
+                            .padding(.horizontal, 20)
                     }
                 }
 
-                // Bottom CTA
-                VStack(spacing: 16) {
-                    HStack(spacing: 6) {
-                        Text("Após o trial:")
-                            .foregroundStyle(Color.coffeeTextSecondary)
-                        Text("R$59,90")
-                            .strikethrough()
-                            .foregroundStyle(Color.coffeeTextSecondary)
-                        Text("R$29,90/mês")
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.coffeeTextPrimary)
-                    }
-                    .font(.system(size: 13))
-
-                    Text("Sem cartão de crédito necessário")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.coffeeTextSecondary)
-
-                    CoffeeButton("Começar \(trialDays) dias grátis", icon: "crown.fill", isLoading: isStartingTrial) {
-                        handleStartTrial()
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 48)
-                .padding(.top, 16)
+                // Bottom CTA area
+                bottomCTA
             }
             .background(Color.coffeeBackground)
             .clipShape(
@@ -137,33 +66,265 @@ struct PremiumOfferScreenView: View {
         )
     }
 
-    // MARK: - Benefit Row
+    // MARK: - Hero Section
 
-    private func benefitRow(_ item: (icon: String, text: String, sub: String, color: Color, bg: Color)) -> some View {
-        HStack(spacing: 16) {
+    private var heroSection: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 52)
+
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(item.bg)
-                    .frame(width: isExpanded ? 40 : 48, height: isExpanded ? 40 : 48)
+                    .fill(.white.opacity(0.15))
+                    .frame(width: 56, height: 56)
 
-                Image(systemName: item.icon)
-                    .font(.system(size: isExpanded ? 18 : 22))
-                    .foregroundStyle(item.color)
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.white)
             }
-            .animation(.easeInOut(duration: 0.3), value: isExpanded)
+            .padding(.bottom, 12)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.text)
-                    .font(.system(size: isExpanded ? 15 : 17, weight: .semibold))
-                    .foregroundStyle(Color.coffeeTextPrimary)
+            Text("Escolha seu café")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.bottom, 4)
 
-                Text(item.sub)
-                    .font(.system(size: isExpanded ? 12 : 14))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-            }
-            .animation(.easeInOut(duration: 0.3), value: isExpanded)
+            Text("Dois planos, um propósito: suas notas perfeitas")
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Spacer().frame(height: 24)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .background(
+            LinearGradient(
+                colors: [Color.coffeePrimary, Color(hex: "4A3425")],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    // MARK: - Plan Cards Section
+
+    private var planCardsSection: some View {
+        HStack(spacing: 12) {
+            if let cafe = subscription.cafeComLeitePlan {
+                planCard(cafe)
+            }
+            if let black = subscription.blackPlan {
+                planCard(black)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Single Plan Card
+
+    private func planCard(_ plan: SubscriptionPlan) -> some View {
+        let isSelected = selectedPlanId == plan.planId
+        let isBlack = plan.planId == "black"
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedPlanId = plan.planId
+            }
+        } label: {
+            VStack(spacing: 0) {
+                // Badge ribbon
+                if plan.isHighlighted {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 9))
+                        Text("Mais Popular")
+                            .font(.system(size: 10, weight: .bold))
+                            .textCase(.uppercase)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity)
+                    .background(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
+                } else if let badge = plan.badge {
+                    Text(badge)
+                        .font(.system(size: 10, weight: .bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(Color.coffeePrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.coffeePrimary.opacity(0.1))
+                }
+
+                VStack(spacing: 10) {
+                    // Plan icon
+                    ZStack {
+                        Circle()
+                            .fill(isBlack
+                                ? Color(hex: "1A1008").opacity(0.1)
+                                : Color.coffeePrimary.opacity(0.1)
+                            )
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: isBlack ? "flame.fill" : "cup.and.saucer.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
+                    }
+
+                    // Plan name
+                    Text(plan.name)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.coffeeTextPrimary)
+
+                    // Pricing
+                    VStack(spacing: 2) {
+                        if let original = plan.originalPrice {
+                            Text("R$\(String(format: "%.2f", original))")
+                                .font(.system(size: 12))
+                                .strikethrough()
+                                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
+                        }
+
+                        HStack(spacing: 0) {
+                            Text("R$\(String(format: "%.2f", plan.price))")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
+                            Text("/mês")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                        }
+                    }
+
+                    // Key differentiator
+                    Text(isBlack ? "Espresso ilimitado" : "Todas as funções")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isBlack ? Color(hex: "1A1008").opacity(0.7) : Color.coffeePrimary.opacity(0.7))
+                }
+                .padding(.vertical, 16)
+                .padding(.horizontal, 12)
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color.coffeeCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        isSelected
+                            ? (isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
+                            : Color.coffeeSeparator,
+                        lineWidth: isSelected ? 2.5 : 1
+                    )
+            )
+            .shadow(
+                color: isSelected ? (isBlack ? Color(hex: "1A1008").opacity(0.15) : Color.coffeePrimary.opacity(0.15)) : .clear,
+                radius: 8, y: 4
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Selected Plan Features
+
+    private var selectedPlanFeatures: some View {
+        let plan = subscription.availablePlans.first { $0.planId == selectedPlanId }
+            ?? subscription.availablePlans[0]
+
+        return VStack(spacing: 0) {
+            HStack {
+                Text("O que você recebe")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                Spacer()
+            }
+            .padding(.bottom, 12)
+
+            VStack(spacing: 0) {
+                ForEach(Array(plan.features.enumerated()), id: \.offset) { index, feature in
+                    HStack(spacing: 12) {
+                        Image(systemName: feature.included ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(feature.included ? .green : Color.coffeeTextSecondary.opacity(0.3))
+
+                        Text(feature.text)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.coffeeTextPrimary)
+
+                        Spacer()
+
+                        if let detail = feature.detail {
+                            Text(detail)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(
+                                    detail == "Ilimitado"
+                                        ? Color(hex: "1A1008")
+                                        : Color.coffeeTextSecondary
+                                )
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    detail == "Ilimitado"
+                                        ? Color(hex: "1A1008").opacity(0.08)
+                                        : Color.coffeeTextSecondary.opacity(0.08)
+                                )
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+
+                    if index < plan.features.count - 1 {
+                        Divider().padding(.leading, 44)
+                    }
+                }
+            }
+            .background(Color.coffeeCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    // MARK: - Bottom CTA
+
+    private var bottomCTA: some View {
+        let isBlack = selectedPlanId == "black"
+        let plan = subscription.availablePlans.first { $0.planId == selectedPlanId }
+            ?? subscription.availablePlans[0]
+
+        return VStack(spacing: 12) {
+            // Main CTA — subscribe to selected plan
+            CoffeeButton(
+                "Assinar \(plan.name)",
+                icon: isBlack ? "flame.fill" : "cup.and.saucer.fill",
+                isLoading: isPurchasing
+            ) {
+                handlePurchase(plan)
+            }
+
+            // Trial CTA — surprise "7 dias grátis" linked to Café com Leite
+            if !subscription.hasUsedTrial {
+                Button {
+                    handleStartTrial()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 13))
+                        Text("Ou experimente \(trialDays) dias grátis")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isStartingTrial)
+                .opacity(isStartingTrial ? 0.5 : 1)
+
+                Text("Sem cartão. Limites do Café com Leite.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.coffeeTextTertiary)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 48)
+        .padding(.top, 16)
     }
 
     // MARK: - Promo Code Section
@@ -171,7 +332,6 @@ struct PremiumOfferScreenView: View {
     @ViewBuilder
     private var promoCodeSection: some View {
         if codeStatus == .valid {
-            // Success
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -184,7 +344,6 @@ struct PremiumOfferScreenView: View {
             .transition(.opacity)
 
         } else if showPromo {
-            // Expanded promo input
             VStack(spacing: 12) {
                 HStack {
                     Text("Código promocional")
@@ -239,7 +398,6 @@ struct PremiumOfferScreenView: View {
             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
         } else {
-            // Collapsed button
             Button {
                 withAnimation { showPromo = true }
             } label: {
@@ -262,6 +420,17 @@ struct PremiumOfferScreenView: View {
 
     // MARK: - Actions
 
+    private func handlePurchase(_ plan: SubscriptionPlan) {
+        isPurchasing = true
+        Task {
+            let _ = try? await subscription.purchase(plan: plan)
+            isPurchasing = false
+            if let user = router.currentUser {
+                router.login(user: user)
+            }
+        }
+    }
+
     private func handleStartTrial() {
         isStartingTrial = true
         Task {
@@ -277,7 +446,8 @@ struct PremiumOfferScreenView: View {
         let code = promoCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty else { return }
 
-        if MockData.validPromoCodes.contains(code) {
+        let validCodes = ["COFFEE2026", "ESPM", "BARISTA", "AMIGO"]
+        if validCodes.contains(code) {
             withAnimation {
                 codeStatus = .valid
                 trialDays = 14

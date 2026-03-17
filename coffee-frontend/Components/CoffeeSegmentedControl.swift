@@ -1,17 +1,35 @@
 import SwiftUI
 
+// MARK: - Segmented Control Style
+
+enum SegmentedStyle {
+    case pill      // Original iOS-style with white pill on gray background
+    case underline // Text with animated underline bar
+}
+
 // MARK: - Coffee Segmented Control
-// iOS-style segmented control matching .ios-segmented from index.css
-// Pill-shaped with animated selection indicator
+// Supports two styles: pill (default) and underline
 
 struct CoffeeSegmentedControl: View {
     let segments: [String]
     @Binding var selected: Int
     var badgeCounts: [Int]? = nil
+    var style: SegmentedStyle = .pill
 
     @Namespace private var animation
 
     var body: some View {
+        switch style {
+        case .pill:
+            pillStyle
+        case .underline:
+            underlineStyle
+        }
+    }
+
+    // MARK: - Pill Style (original)
+
+    private var pillStyle: some View {
         HStack(spacing: 0) {
             ForEach(Array(segments.enumerated()), id: \.offset) { index, title in
                 Button {
@@ -28,7 +46,6 @@ struct CoffeeSegmentedControl: View {
                                 : Color.coffeeTextSecondary
                             )
 
-                        // Badge
                         if let counts = badgeCounts, index < counts.count, counts[index] > 0 {
                             Text("(\(counts[index]))")
                                 .font(.system(size: 13, weight: .semibold))
@@ -58,6 +75,64 @@ struct CoffeeSegmentedControl: View {
         .background(Color.coffeeSegmentedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
+
+    // MARK: - Underline Style
+
+    private var underlineStyle: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(segments.enumerated()), id: \.offset) { index, title in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        selected = index
+                    }
+                } label: {
+                    VStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Text(title)
+                                .font(.system(size: 15, weight: selected == index ? .semibold : .regular))
+                                .foregroundStyle(
+                                    selected == index
+                                    ? Color.coffeeTextPrimary
+                                    : Color.coffeeTextSecondary
+                                )
+
+                            if let counts = badgeCounts, index < counts.count, counts[index] > 0 {
+                                Text("(\(counts[index]))")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(
+                                        selected == index
+                                        ? Color.coffeePrimary
+                                        : Color.coffeeTextSecondary
+                                    )
+                            }
+                        }
+
+                        // Underline bar
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 2.5)
+
+                            if selected == index {
+                                Rectangle()
+                                    .fill(Color.coffeePrimary)
+                                    .frame(height: 2.5)
+                                    .clipShape(Capsule())
+                                    .matchedGeometryEffect(id: "underline", in: animation)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.coffeeSeparator)
+                .frame(height: 0.5)
+        }
+    }
 }
 
 // MARK: - Preview
@@ -67,17 +142,19 @@ struct CoffeeSegmentedControl: View {
         CoffeeSegmentedControl(
             segments: ["Disciplinas", "Outros", "Recebidos"],
             selected: .constant(0),
+            badgeCounts: [0, 0, 2],
+            style: .underline
+        )
+
+        CoffeeSegmentedControl(
+            segments: ["Disciplinas", "Outros", "Recebidos"],
+            selected: .constant(0),
             badgeCounts: [0, 0, 2]
         )
 
         CoffeeSegmentedControl(
             segments: ["Resumo", "Mapa Mental"],
             selected: .constant(1)
-        )
-
-        CoffeeSegmentedControl(
-            segments: ["Mensal", "Anual"],
-            selected: .constant(0)
         )
     }
     .padding(20)

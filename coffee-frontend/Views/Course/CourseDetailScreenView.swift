@@ -24,32 +24,58 @@ struct CourseDetailScreenView: View {
     @State private var showFileImporter = false
     @State private var isUploading = false
     @State private var previewMaterial: Material? = nil
-
+    @State private var isLoadingRecordings = true
+    @State private var isLoadingMaterials = true
     private let tabs = ["Aulas", "Conteúdo"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Nav Bar
-            CoffeeNavBar(
-                title: discipline.nome,
-                trailingIcon: CoffeeIcon.sparkles,
-                trailingAction: {
-                    if subscriptionService.isPremium {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            router.openAIFromCourse(
-                                disciplineName: discipline.nome,
-                                recordingDate: "Todas"
-                            )
-                        }
-                    } else {
-                        router.showPremiumOffer()
-                    }
-                },
-                onBack: { dismiss() }
+        mainContent
+            .background(Color.coffeeBackground)
+            .task { await loadInitialData() }
+            .sheet(item: $selectedRecording) { recording in
+                RecordingDetailSheet(recording: recording, disciplineName: discipline.nome)
+            }
+            .sheet(item: $previewMaterial) { material in
+                MaterialPreviewSheet(material: material)
+            }
+            .confirmationDialog(
+                "Apagar gravação?",
+                isPresented: Binding(
+                    get: { recordingToDelete != nil },
+                    set: { if !$0 { recordingToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                deleteRecordingButtons
+            } message: {
+                Text("Esta ação não pode ser desfeita.")
+            }
+            .confirmationDialog(
+                "Apagar material?",
+                isPresented: Binding(
+                    get: { materialToDelete != nil },
+                    set: { if !$0 { materialToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                deleteMaterialButtons
+            } message: {
+                Text("Esta ação não pode ser desfeita.")
+            }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.pdf, .presentation, UTType("org.openxmlformats.wordprocessingml.document") ?? .data],
+                allowsMultipleSelection: false,
+                onCompletion: handleFileImport
             )
+    }
 
-            // Segmented Control
+    // MARK: - Body Subviews (split to help Swift type-checker)
+
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            courseNavBar
+
             CoffeeSegmentedControl(segments: tabs, selected: $activeTab)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -65,120 +91,169 @@ struct CourseDetailScreenView: View {
                 }
             }
         }
-        .background(Color.coffeeBackground)
-        .task {
-            async let r = try? RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id)
-            async let m = try? MaterialService.getMaterials(disciplinaId: discipline.id)
-            recordings = await r ?? []
-            materials = await m ?? []
+    }
 
-            // Auto-sync materials from Canvas if empty and discipline is linked
-            if materials.isEmpty && discipline.canvasCourseId != nil && !hasAutoSynced {
-                hasAutoSynced = true
-                await syncMaterials()
-            }
+    private func loadInitialData() async {
+        async let r = try? RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id)
+        async let m = try? MaterialService.getMaterials(disciplinaId: discipline.id)
+        recordings = await r ?? []
+        isLoadingRecordings = false
+        materials = await m ?? []
+        isLoadingMaterials = false
+
+        if materials.isEmpty && discipline.canvasCourseId != nil && !hasAutoSynced {
+            hasAutoSynced = true
+            await syncMaterials()
         }
-        .sheet(item: $selectedRecording) { recording in
-            RecordingDetailSheet(recording: recording, disciplineName: discipline.nome)
-        }
-        .confirmationDialog(
-            "Apagar gravação?",
-            isPresented: Binding(
-                get: { recordingToDelete != nil },
-                set: { if !$0 { recordingToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Apagar", role: .destructive) {
-                if let rec = recordingToDelete {
-                    let recId = rec.id
-                    withAnimation { recordings.removeAll { $0.id == recId } }
-                    recordingToDelete = nil
-                    Task {
-                        do {
-                            try await RecordingService.deleteRecording(id: recId)
-                        } catch {
-                            print("[CourseDetail] Error deleting recording: \(error)")
-                            // Reload to restore if API failed
-                            if let recs = try? await RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id) {
-                                recordings = recs
-                            }
-                        }
-                    }
-                }
-            }
-            Button("Cancelar", role: .cancel) { recordingToDelete = nil }
-        } message: {
-            Text("Esta ação não pode ser desfeita.")
-        }
-        .confirmationDialog(
-            "Apagar material?",
-            isPresented: Binding(
-                get: { materialToDelete != nil },
-                set: { if !$0 { materialToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Apagar", role: .destructive) {
-                if let mat = materialToDelete {
-                    withAnimation { materials.removeAll { $0.id == mat.id } }
-                    materialToDelete = nil
-                }
-            }
-            Button("Cancelar", role: .cancel) { materialToDelete = nil }
-        } message: {
-            Text("Esta ação não pode ser desfeita.")
-        }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [.pdf, .presentation, UTType("org.openxmlformats.wordprocessingml.document") ?? .data],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                guard url.startAccessingSecurityScopedResource() else { return }
-                defer { url.stopAccessingSecurityScopedResource() }
+    }
+
+    @ViewBuilder
+    private var deleteRecordingButtons: some View {
+        Button("Apagar", role: .destructive) {
+            if let rec = recordingToDelete {
+                let recId = rec.id
+                withAnimation { recordings.removeAll { $0.id == recId } }
+                recordingToDelete = nil
                 Task {
-                    isUploading = true
                     do {
-                        let data = try Data(contentsOf: url)
-                        let fileName = url.lastPathComponent
-                        let ext = url.pathExtension.lowercased()
-                        let mimeType: String
-                        switch ext {
-                        case "pdf": mimeType = "application/pdf"
-                        case "pptx", "ppt": mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        case "docx", "doc": mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        default: mimeType = "application/octet-stream"
-                        }
-                        let material = try await MaterialService.uploadMaterial(
-                            disciplinaId: discipline.id,
-                            fileData: data,
-                            fileName: fileName,
-                            mimeType: mimeType,
-                            aiEnabled: true
-                        )
-                        materials.append(material)
+                        try await RecordingService.deleteRecording(id: recId)
                     } catch {
-                        print("[CourseDetail] Upload error: \(error)")
+                        print("[CourseDetail] Error deleting recording: \(error)")
+                        if let recs = try? await RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id) {
+                            recordings = recs
+                        }
                     }
-                    isUploading = false
                 }
-            case .failure(let error):
-                print("[CourseDetail] File picker error: \(error)")
             }
         }
-        .sheet(item: $previewMaterial) { material in
-            MaterialPreviewSheet(material: material)
+        Button("Cancelar", role: .cancel) { recordingToDelete = nil }
+    }
+
+    @ViewBuilder
+    private var deleteMaterialButtons: some View {
+        Button("Apagar", role: .destructive) {
+            if let mat = materialToDelete {
+                withAnimation { materials.removeAll { $0.id == mat.id } }
+                materialToDelete = nil
+            }
         }
+        Button("Cancelar", role: .cancel) { materialToDelete = nil }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            guard url.startAccessingSecurityScopedResource() else { return }
+            defer { url.stopAccessingSecurityScopedResource() }
+            Task {
+                isUploading = true
+                do {
+                    let data = try Data(contentsOf: url)
+                    let fileName = url.lastPathComponent
+                    let ext = url.pathExtension.lowercased()
+                    let mimeType: String
+                    switch ext {
+                    case "pdf": mimeType = "application/pdf"
+                    case "pptx", "ppt": mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    case "docx", "doc": mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    default: mimeType = "application/octet-stream"
+                    }
+                    let material = try await MaterialService.uploadMaterial(
+                        disciplinaId: discipline.id,
+                        fileData: data,
+                        fileName: fileName,
+                        mimeType: mimeType,
+                        aiEnabled: true
+                    )
+                    materials.append(material)
+                } catch {
+                    print("[CourseDetail] Upload error: \(error)")
+                }
+                isUploading = false
+            }
+        case .failure(let error):
+            print("[CourseDetail] File picker error: \(error)")
+        }
+    }
+
+    // MARK: - Course Nav Bar
+
+    private var courseNavBar: some View {
+        ZStack {
+            // Centered title
+            Text(discipline.nome)
+                .font(.coffeeNavTitle)
+                .foregroundStyle(Color.coffeeTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 72)
+
+            HStack {
+                // Back
+                Button { dismiss() } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: CoffeeIcon.back)
+                            .font(.system(size: 22, weight: .medium))
+                        Text("Voltar")
+                            .font(.coffeeBody)
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                }
+
+                Spacer()
+
+                // Barista
+                HStack(spacing: 8) {
+                    Button {
+                        if subscriptionService.isPremium {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                router.openAIFromCourse(
+                                    disciplineName: discipline.nome,
+                                    recordingDate: "Todas"
+                                )
+                            }
+                        } else {
+                            router.showPremiumOffer()
+                        }
+                    } label: {
+                        Image(systemName: CoffeeIcon.sparkles)
+                            .font(.system(size: 18))
+                            .foregroundStyle(Color.coffeePrimary)
+                            .frame(width: 32, height: 32)
+                            .background(Color.coffeeInputBackground)
+                            .clipShape(Circle())
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 56)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+        )
     }
 
     // MARK: - Aulas Tab
 
     @ViewBuilder
     private func aulasTab(scrollHeight: CGFloat) -> some View {
-        if recordings.isEmpty {
+        if isLoadingRecordings {
+            VStack {
+                Spacer()
+                ProgressView()
+                    .tint(Color.coffeePrimary)
+                Text("Carregando aulas...")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .padding(.top, 8)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: scrollHeight)
+        } else if recordings.isEmpty {
             VStack(spacing: 12) {
                 Spacer()
                 CoffeeEmptyState(
@@ -221,7 +296,20 @@ struct CourseDetailScreenView: View {
 
     @ViewBuilder
     private func conteudoTab(scrollHeight: CGFloat) -> some View {
-        if materials.isEmpty {
+        if isLoadingMaterials {
+            VStack {
+                Spacer()
+                ProgressView()
+                    .tint(Color.coffeePrimary)
+                Text("Carregando materiais...")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .padding(.top, 8)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: scrollHeight)
+        } else if materials.isEmpty {
             VStack(spacing: 16) {
                 Spacer()
                 CoffeeEmptyState(
@@ -328,7 +416,6 @@ struct CourseDetailScreenView: View {
                 CoffeeCellGroup {
                     ForEach(Array(materials.enumerated()), id: \.element.id) { index, material in
                         SwipeableRow(
-                            onTap: { previewMaterial = material },
                             onDelete: { materialToDelete = material }
                         ) {
                             materialRow(material)
@@ -523,10 +610,19 @@ struct CourseDetailScreenView: View {
             ))
             .labelsHidden()
             .tint(Color.coffeePrimary)
+            .allowsHitTesting(true)
 
-            Image(systemName: CoffeeIcon.forward)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.35))
+            Button {
+                previewMaterial = material
+            } label: {
+                Image(systemName: CoffeeIcon.forward)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.35))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .allowsHitTesting(true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -545,8 +641,8 @@ struct RecordingDetailSheet: View {
 
     @State private var detail: RecordingDetail? = nil
     @State private var activeTab = 0
-    @State private var mindMapExpanded = false
     @State private var showShareSheet = false
+    @State private var showMindMapFullscreen = false
 
     private let tabs = ["Resumo", "Mapa Mental", "Mídia"]
 
@@ -634,7 +730,10 @@ struct RecordingDetailSheet: View {
             do {
                 detail = try await RecordingService.getRecordingDetail(id: recording.id)
             } catch {
-                print("[RecordingDetail] Error loading: \(error)")
+                print("[RecordingDetail] Error loading detail for \(recording.id): \(error)")
+                if let decodingError = error as? DecodingError {
+                    print("[RecordingDetail] DecodingError details: \(decodingError)")
+                }
             }
         }
         .sheet(isPresented: $showShareSheet) {
@@ -702,134 +801,21 @@ struct RecordingDetailSheet: View {
     private func mindMapView(_ detail: RecordingDetail) -> some View {
         VStack(spacing: 16) {
             if let mindMap = detail.mindMap {
-                // Collapsible mind map card
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        mindMapExpanded.toggle()
-                    }
-                } label: {
-                    VStack(spacing: 0) {
-                        // Central topic pill
-                        Text(mindMap.topic)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(Color.coffeePrimary)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.coffeePrimary.opacity(0.1))
-                            .clipShape(Capsule())
-                            .padding(.top, 20)
-                            .padding(.bottom, 16)
-
-                        if mindMapExpanded {
-                            // Expanded: full branches with children
-                            VStack(spacing: 12) {
-                                ForEach(Array(mindMap.branches.enumerated()), id: \.offset) { index, branch in
-                                    let colors: [Color] = [.blue, .green, .orange, .purple]
-                                    let color = colors[index % colors.count]
-
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        HStack(spacing: 8) {
-                                            Circle()
-                                                .fill(color)
-                                                .frame(width: 8, height: 8)
-                                            Text(branch.topic)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundStyle(Color.coffeeTextPrimary)
-                                        }
-
-                                        ForEach(branch.children, id: \.self) { child in
-                                            HStack(spacing: 8) {
-                                                Rectangle()
-                                                    .fill(color.opacity(0.3))
-                                                    .frame(width: 2, height: 16)
-                                                    .padding(.leading, 3)
-                                                Text(child)
-                                                    .font(.system(size: 14))
-                                                    .foregroundStyle(Color.coffeeTextSecondary)
-                                                    .multilineTextAlignment(.leading)
-                                            }
-                                            .padding(.leading, 12)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
-
-                            // Collapse footer
-                            HStack(spacing: 6) {
-                                Image(systemName: "chevron.up")
-                                    .font(.system(size: 11, weight: .semibold))
-                                Text("Toque para recolher")
-                                    .font(.system(size: 13))
-                            }
-                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
-                            .padding(.bottom, 16)
-                        } else {
-                            // Collapsed: branch capsules preview
-                            let colors: [Color] = [.blue, .green, .orange, .purple]
-
-                            // Branch capsules in a flowing layout
-                            VStack(spacing: 8) {
-                                HStack(spacing: 8) {
-                                    ForEach(Array(mindMap.branches.prefix(2).enumerated()), id: \.offset) { index, branch in
-                                        branchCapsule(branch.topic, color: colors[index % colors.count])
-                                    }
-                                }
-                                if mindMap.branches.count > 2 {
-                                    HStack(spacing: 8) {
-                                        ForEach(Array(mindMap.branches.dropFirst(2).enumerated()), id: \.offset) { index, branch in
-                                            branchCapsule(branch.topic, color: colors[(index + 2) % colors.count])
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 12)
-
-                            // Divider
-                            Rectangle()
-                                .fill(Color.coffeeSeparator)
-                                .frame(height: 0.5)
-                                .padding(.horizontal, 16)
-
-                            // Footer
-                            HStack(spacing: 6) {
-                                Text("\(mindMap.branches.count) ramificações")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.coffeeTextSecondary)
-                                Text("·")
-                                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.5))
-                                Text("Toque para expandir")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.coffeePrimary)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Color.coffeePrimary)
-                            }
-                            .padding(.vertical, 12)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .background(Color.coffeeCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                MindMapCanvasView(
+                    mindMap: mindMap,
+                    onFullscreen: { showMindMapFullscreen = true }
+                )
                 .padding(.top, 8)
 
-                // Download PDF button
+                // Download mind map image
                 downloadButton(label: "Baixar mapa mental") {
-                    let pdf = PDFExportService.generateMindMapPDF(
-                        title: recording.displayTitle,
-                        disciplineName: disciplineName,
-                        date: recording.dateLabel,
-                        mindMap: mindMap
-                    )
-                    PDFExportService.sharePDF(
-                        data: pdf,
-                        fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).pdf"
-                    )
+                    let exportView = MindMapCanvasView(mindMap: mindMap)
+                    if let image = exportView.renderAsImage() {
+                        PDFExportService.shareImage(
+                            image,
+                            fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).png"
+                        )
+                    }
                 }
             } else {
                 CoffeeEmptyState(
@@ -842,6 +828,11 @@ struct RecordingDetailSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
+        .fullScreenCover(isPresented: $showMindMapFullscreen) {
+            if let mindMap = detail.mindMap {
+                MindMapFullscreenSheet(mindMap: mindMap)
+            }
+        }
     }
 
     // MARK: - Media
@@ -927,18 +918,6 @@ struct RecordingDetailSheet: View {
         }
     }
 
-    // MARK: - Branch Capsule
-
-    private func branchCapsule(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(color.opacity(0.1))
-            .clipShape(Capsule())
-    }
-
     // MARK: - Download Button
 
     private func downloadButton(label: String, action: @escaping () -> Void) -> some View {
@@ -969,8 +948,7 @@ struct MaterialPreviewSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             CoffeeSheetHeader(
-                title: material.nome,
-                onClose: { dismiss() }
+                title: material.nome
             )
 
             if let urlString = material.urlStorage, let url = URL(string: urlString) {

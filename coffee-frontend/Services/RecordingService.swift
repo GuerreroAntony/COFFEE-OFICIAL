@@ -126,7 +126,7 @@ enum RecordingService {
         }
 
         // Multipart upload — uses URLSession directly
-        let url = URL(string: "https://coffee-oficial-production.up.railway.app/api/v1\(APIEndpoints.gravacaoMedia(id: recordingId))")!
+        let url = URL(string: "\(APIClient.baseURL)\(APIEndpoints.gravacaoMedia(id: recordingId))")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         if let token = KeychainManager.accessToken {
@@ -169,12 +169,12 @@ enum RecordingService {
 
     /// Get summary PDF URL for download
     static func getSummaryPDFURL(recordingId: String) -> URL? {
-        URL(string: "https://coffee-oficial-production.up.railway.app/api/v1\(APIEndpoints.gravacaoPdfResumo(id: recordingId))")
+        URL(string: "\(APIClient.baseURL)\(APIEndpoints.gravacaoPdfResumo(id: recordingId))")
     }
 
     /// Get mind map PDF URL for download
     static func getMindMapPDFURL(recordingId: String) -> URL? {
-        URL(string: "https://coffee-oficial-production.up.railway.app/api/v1\(APIEndpoints.gravacaoPdfMindmap(id: recordingId))")
+        URL(string: "\(APIClient.baseURL)\(APIEndpoints.gravacaoPdfMindmap(id: recordingId))")
     }
 
     // MARK: - Poll Recording Status

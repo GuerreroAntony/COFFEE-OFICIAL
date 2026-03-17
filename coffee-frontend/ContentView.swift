@@ -77,24 +77,29 @@ struct ContentView: View {
     @ViewBuilder
     private var authenticatedContent: some View {
         ZStack {
-            switch router.activeTab {
-            case .home:
-                DisciplinasScreenView()
+            DisciplinasScreenView()
+                .opacity(router.activeTab == .home ? 1 : 0)
+                .allowsHitTesting(router.activeTab == .home)
 
-            case .record:
+            Group {
                 if subscriptionService.isPremium {
                     RecordingFlowView()
                 } else {
                     PremiumLockedTabView(feature: .recording)
                 }
+            }
+            .opacity(router.activeTab == .record ? 1 : 0)
+            .allowsHitTesting(router.activeTab == .record)
 
-            case .ai:
+            Group {
                 if subscriptionService.isPremium {
                     AIChatScreenView()
                 } else {
                     PremiumLockedTabView(feature: .aiChat)
                 }
             }
+            .opacity(router.activeTab == .ai ? 1 : 0)
+            .allowsHitTesting(router.activeTab == .ai)
         }
         // Course detail push
         .fullScreenCover(item: $router.selectedCourse) { course in
@@ -141,6 +146,9 @@ struct PaymentSheetView: View {
     @Environment(\.subscriptionService) private var subscriptionService
     @State private var isPurchasing = false
 
+    private var isBlack: Bool { plan.planId == "black" }
+    private var accent: Color { isBlack ? Color(hex: "1A1008") : Color.coffeePrimary }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -149,24 +157,32 @@ struct PaymentSheetView: View {
                     VStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Color.coffeePrimary.opacity(0.1))
+                                .fill(accent.opacity(0.1))
                                 .frame(width: 64, height: 64)
-                            Image(systemName: "crown.fill")
+                            Image(systemName: isBlack ? "flame.fill" : "cup.and.saucer.fill")
                                 .font(.system(size: 28))
-                                .foregroundStyle(Color.coffeePrimary)
+                                .foregroundStyle(accent)
                         }
 
                         Text(plan.name)
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(Color.coffeeTextPrimary)
 
-                        HStack(spacing: 4) {
-                            Text("R$\(String(format: "%.2f", plan.price))")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(Color.coffeePrimary)
-                            Text("/mês")
-                                .font(.system(size: 15))
-                                .foregroundStyle(Color.coffeeTextSecondary)
+                        VStack(spacing: 2) {
+                            if let original = plan.originalPrice {
+                                Text("R$\(String(format: "%.2f", original))")
+                                    .font(.system(size: 14))
+                                    .strikethrough()
+                                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
+                            }
+                            HStack(spacing: 4) {
+                                Text("R$\(String(format: "%.2f", plan.price))")
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundStyle(accent)
+                                Text("/mês")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(Color.coffeeTextSecondary)
+                            }
                         }
                     }
                     .padding(.top, 16)
@@ -175,12 +191,17 @@ struct PaymentSheetView: View {
                     CoffeeCellGroup {
                         ForEach(Array(plan.features.enumerated()), id: \.offset) { index, feature in
                             HStack(spacing: 12) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                Text(feature)
+                                Image(systemName: feature.included ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(feature.included ? .green : Color.coffeeTextSecondary.opacity(0.3))
+                                Text(feature.text)
                                     .font(.system(size: 15))
                                     .foregroundStyle(Color.coffeeTextPrimary)
                                 Spacer()
+                                if let detail = feature.detail {
+                                    Text(detail)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                }
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
@@ -204,7 +225,7 @@ struct PaymentSheetView: View {
                     }
                     .padding(.horizontal, 24)
 
-                    CoffeeButton("Assinar com Apple Pay", isLoading: isPurchasing) {
+                    CoffeeButton("Assinar \(plan.name)", isLoading: isPurchasing) {
                         isPurchasing = true
                         Task {
                             let _ = try? await subscriptionService.purchase(plan: plan)

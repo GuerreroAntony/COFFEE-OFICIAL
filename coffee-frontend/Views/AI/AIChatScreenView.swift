@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 import Speech
 import AVFoundation
 import UniformTypeIdentifiers
@@ -14,12 +15,14 @@ struct ChatBubbleItem: Identifiable {
     let sender: MessageSender
     let text: String
     var sources: [ChatSource] = []
+    var isStreaming: Bool = false
 }
 
 struct AIChatPickerDiscipline: Identifiable, Equatable {
     let id: String
     let name: String
     let icon: String
+    let iconColor: String
     let recordingsCount: Int
 }
 
@@ -67,6 +70,7 @@ struct AIChatScreenView: View {
     @State private var messages: [ChatBubbleItem] = []
     @State private var input = ""
     @State private var isTyping = false
+    @State private var isStreaming = false
     @AppStorage("hasSeenBaristaIntro") private var hasSeenIntro = false
     @State private var showIntro = false
     @State private var showHistory = false
@@ -345,16 +349,17 @@ struct AIChatScreenView: View {
                     emptyState
                         .frame(minHeight: geo.size.height)
                 } else {
-                    LazyVStack(spacing: 20) {
+                    LazyVStack(spacing: 16) {
                         ForEach(messages) { msg in
                             AIChatMessageRow(msg: msg)
                         }
 
-                        if isTyping {
+                        if isTyping && !isStreaming {
                             HStack {
-                                TypingIndicator()
+                                ThinkingStepsView()
                                 Spacer()
                             }
+                            .transition(.opacity)
                         }
 
                         Color.clear.frame(height: 1).id("bottom")
@@ -535,9 +540,8 @@ struct AIChatScreenView: View {
                     gravacaoId: selectedRecording?.id
                 )
 
-                // Add empty AI bubble that will accumulate text
-                let aiIndex = messages.count
-                messages.append(ChatBubbleItem(sender: .ai, text: ""))
+                // AI bubble will be added on first real chunk
+                var aiIndex: Int?
                 var extractedSources: [ChatSource] = []
 
                 for try await chunk in stream {
@@ -550,13 +554,27 @@ struct AIChatScreenView: View {
                         }
                         continue
                     }
+
+                    // First chunk: add AI bubble, hide thinking steps
+                    if aiIndex == nil {
+                        aiIndex = messages.count
+                        messages.append(ChatBubbleItem(sender: .ai, text: "", isStreaming: true))
+                        isStreaming = true
+                    }
+
                     responseText += chunk
-                    messages[aiIndex] = ChatBubbleItem(sender: .ai, text: responseText)
+                    messages[aiIndex!] = ChatBubbleItem(sender: .ai, text: responseText, isStreaming: true)
                 }
 
-                // Attach sources to the AI bubble
-                messages[aiIndex] = ChatBubbleItem(sender: .ai, text: responseText, sources: extractedSources)
+                // Final: attach sources, mark streaming complete
+                if let idx = aiIndex {
+                    messages[idx] = ChatBubbleItem(sender: .ai, text: responseText, sources: extractedSources, isStreaming: false)
+                } else {
+                    // No chunks received — add a fallback bubble
+                    messages.append(ChatBubbleItem(sender: .ai, text: responseText.isEmpty ? "Não foi possível gerar uma resposta." : responseText, sources: extractedSources))
+                }
                 isTyping = false
+                isStreaming = false
             } catch {
                 print("[AIChat] Error sending message: \(error)")
                 messages.append(ChatBubbleItem(sender: .ai, text: "Erro ao processar sua pergunta. Tente novamente."))
@@ -572,8 +590,14 @@ struct AIChatScreenView: View {
         do {
             let discs = try await DisciplineService.getDisciplines()
             print("[AIChat] Loaded \(discs.count) disciplines from API")
-            disciplines = discs.map {
-                AIChatPickerDiscipline(id: $0.id, name: $0.nome, icon: CoffeeIcon.menuBook, recordingsCount: $0.gravacoesCount)
+            disciplines = discs.enumerated().map { index, d in
+                AIChatPickerDiscipline(
+                    id: d.id,
+                    name: d.nome,
+                    icon: d.displayIcon(at: index),
+                    iconColor: d.displayColorHex(at: index),
+                    recordingsCount: d.gravacoesCount
+                )
             }
 
             // Handle initial source from router
@@ -625,8 +649,48 @@ struct AIChatMessageRow: View {
     }
 
     private var aiMessage: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CoffeeBubble(text: msg.text, isFromUser: false)
+        VStack(alignment: .leading, spacing: 0) {
+            // Turn separator
+            Divider()
+                .padding(.bottom, 16)
+
+            // Avatar row
+            HStack(spacing: 8) {
+                BaristaAvatar(size: 28)
+                Text("Barista")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+            }
+            .padding(.bottom, 8)
+
+            // Content — no bubble, no background, full-width
+            Group {
+                if msg.isStreaming {
+                    Text(msg.text)
+                        .font(.system(size: 15))
+                        .lineSpacing(4)
+                } else {
+                    Markdown(msg.text)
+                        .markdownTheme(.coffee)
+                }
+            }
+            .foregroundStyle(Color.coffeeTextPrimary)
+
+            // Copy button (only after streaming completes)
+            if !msg.isStreaming && !msg.text.isEmpty {
+                HStack {
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = msg.text
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.coffeeTextTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 8)
+            }
 
             if !msg.sources.isEmpty {
                 // Collapsible "Fontes citadas (N)" button
@@ -646,6 +710,7 @@ struct AIChatMessageRow: View {
                     .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
+                .padding(.top, 8)
 
                 if sourcesExpanded {
                     ForEach(msg.sources) { source in
@@ -666,7 +731,6 @@ struct AIChatMessageRow: View {
                 }
             }
         }
-        .frame(maxWidth: UIScreen.main.bounds.width * 0.85, alignment: .leading)
         .sheet(item: $previewMaterial) { material in
             MaterialPreviewSheet(material: material)
         }
@@ -1338,6 +1402,7 @@ struct AIChatContextPickerSheet: View {
                                 id: repo.id,
                                 name: repo.nome,
                                 icon: repo.icone,
+                                iconColor: "715038",
                                 recordingsCount: repo.gravacoesCount
                             )
                             selectedRecording = nil
@@ -1472,15 +1537,17 @@ struct AIChatDisciplineRow: View {
     let disc: AIChatPickerDiscipline
     let isSelected: Bool
 
+    private var displayColor: Color { Color(hex: disc.iconColor) }
+
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.coffeePrimary.opacity(0.1))
+                    .fill(displayColor.opacity(0.1))
                     .frame(width: 52, height: 52)
                 Image(systemName: disc.icon)
                     .font(.system(size: 20))
-                    .foregroundStyle(Color.coffeePrimary)
+                    .foregroundStyle(displayColor)
             }
 
             VStack(alignment: .leading, spacing: 3) {

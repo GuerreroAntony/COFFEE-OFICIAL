@@ -3,9 +3,9 @@ import AVFoundation
 import Speech
 
 // MARK: - WhisperKit Manager
-// On-device speech-to-text using Apple Speech framework (SFSpeechRecognizer)
-// Provides real-time Portuguese transcription while recording
-// When WhisperKit SPM is added, can be swapped to fully on-device (no network)
+// Real-time Portuguese speech-to-text using Apple SFSpeechRecognizer
+// Uses .voiceChat mode for AGC, noise suppression, and echo cancellation
+// Buffer size 4096 optimized for speech recognition accuracy
 
 @Observable
 final class WhisperKitManager {
@@ -22,6 +22,7 @@ final class WhisperKitManager {
     var state: TranscriptionState = .idle
     var transcription: String = ""
     var isModelLoaded = false
+    var audioLevel: Float = 0 // 0...1 normalized, updated from audio buffer
 
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -63,7 +64,7 @@ final class WhisperKitManager {
         transcription = ""
 
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .duckOthers])
+        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
@@ -79,8 +80,22 @@ final class WhisperKitManager {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) { [weak self] buffer, _ in
             recognitionRequest.append(buffer)
+
+            // Compute RMS audio level from buffer
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frameLength = Int(buffer.frameLength)
+            var sum: Float = 0
+            for i in 0..<frameLength {
+                sum += channelData[i] * channelData[i]
+            }
+            let rms = sqrtf(sum / Float(max(frameLength, 1)))
+            // Normalize RMS to 0...1 range (typical speech RMS ~0.01-0.15)
+            let normalized = min(1.0, rms * 8)
+            DispatchQueue.main.async {
+                self?.audioLevel = normalized
+            }
         }
 
         audioEngine.prepare()
@@ -132,7 +147,7 @@ final class WhisperKitManager {
         guard state == .transcribing else { return }
 
         // Small delay before restarting
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self, self.state == .transcribing else { return }
 
             do {
@@ -167,6 +182,7 @@ final class WhisperKitManager {
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionTask = nil
+        audioLevel = 0
         recognitionRequest = nil
         audioEngine = nil
     }
