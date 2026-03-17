@@ -4,8 +4,9 @@ import Speech
 
 // MARK: - WhisperKit Manager
 // Real-time Portuguese speech-to-text using Apple SFSpeechRecognizer
-// Uses .voiceChat mode for AGC, noise suppression, and echo cancellation
-// Buffer size 4096 optimized for speech recognition accuracy
+// Uses APPEND-ONLY transcription: once a word is recognized, it's never deleted.
+// Apple's recognizer auto-corrects/removes words in partial results — we prevent
+// that by locking segments once they stabilize. GPT handles cleanup later.
 
 @Observable
 final class WhisperKitManager {
@@ -29,12 +30,18 @@ final class WhisperKitManager {
     private var recognitionTask: SFSpeechRecognitionTask?
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
 
+    // MARK: - Append-only segment tracking
+    // Segments that have been stable across updates get "locked" and never removed.
+    // Only the tail (last 1-2 segments) can be revised by Apple's recognizer.
+    private var lockedText: String = ""           // confirmed text from previous sessions + locked segments
+    private var committedSegmentCount: Int = 0    // how many segments from current session are locked
+    private var previousSegmentTexts: [String] = [] // segment texts from last partial result (for stability comparison)
+
     // MARK: - Load Model / Request Permissions
 
     func loadModel() async {
         state = .loading
 
-        // Request speech recognition authorization
         let authorized = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status == .authorized)
@@ -52,16 +59,19 @@ final class WhisperKitManager {
     // MARK: - Start Real-time Transcription
 
     /// Starts listening to microphone and calls onUpdate with cumulative transcription text.
-    /// Uses Apple's SFSpeechRecognizer for real-time Portuguese speech-to-text.
-    /// Audio is NOT recorded by this class — use AudioRecorder in parallel for that.
-    func startRealtimeTranscription(onUpdate: @escaping (String) -> Void) throws {
+    /// Uses append-only mode: words are never deleted from transcription.
+    /// Pass `baseText` to preserve text from previous sessions (pause/resume, camera, restart).
+    func startRealtimeTranscription(baseText: String = "", onUpdate: @escaping (String) -> Void) throws {
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             state = .error("Reconhecimento de fala indisponivel")
             return
         }
 
         state = .transcribing
-        transcription = ""
+        lockedText = baseText
+        committedSegmentCount = 0
+        previousSegmentTexts = []
+        transcription = baseText
 
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
@@ -91,7 +101,6 @@ final class WhisperKitManager {
                 sum += channelData[i] * channelData[i]
             }
             let rms = sqrtf(sum / Float(max(frameLength, 1)))
-            // Normalize RMS to 0...1 range (typical speech RMS ~0.01-0.15)
             let normalized = min(1.0, rms * 8)
             DispatchQueue.main.async {
                 self?.audioLevel = normalized
@@ -105,25 +114,69 @@ final class WhisperKitManager {
             guard let self else { return }
 
             if let result {
-                let text = result.bestTranscription.formattedString
-                self.transcription = text
-                onUpdate(text)
+                let segments = result.bestTranscription.segments
+                let segmentTexts = segments.map { $0.substring }
+
+                // --- Append-only logic ---
+                // Find how many segments from the start match the previous update.
+                // Segments that haven't changed are "stable" and can be locked.
+                var matchCount = 0
+                for i in 0..<min(segmentTexts.count, self.previousSegmentTexts.count) {
+                    if segmentTexts[i] == self.previousSegmentTexts[i] {
+                        matchCount = i + 1
+                    } else {
+                        break
+                    }
+                }
+
+                // Lock segments that are stable AND not in the tail (last 1 segment can still be revised)
+                let lockUpTo = max(self.committedSegmentCount, min(matchCount, max(0, segmentTexts.count - 1)))
+
+                if lockUpTo > self.committedSegmentCount {
+                    let newLocked = segmentTexts[self.committedSegmentCount..<lockUpTo].joined(separator: " ")
+                    if !self.lockedText.isEmpty && !newLocked.isEmpty {
+                        self.lockedText += " " + newLocked
+                    } else if !newLocked.isEmpty {
+                        self.lockedText = newLocked
+                    }
+                    self.committedSegmentCount = lockUpTo
+                }
+
+                // Build full text: locked (permanent) + live tail (can still change)
+                let tailSegments = segmentTexts.count > self.committedSegmentCount
+                    ? Array(segmentTexts[self.committedSegmentCount...])
+                    : []
+                let liveText = tailSegments.joined(separator: " ")
+
+                let fullText: String
+                if !self.lockedText.isEmpty && !liveText.isEmpty {
+                    fullText = self.lockedText + " " + liveText
+                } else {
+                    fullText = self.lockedText + liveText
+                }
+
+                self.transcription = fullText
+                onUpdate(fullText)
+                self.previousSegmentTexts = segmentTexts
             }
 
             if let error {
-                // Speech recognition has a ~1 minute limit per task.
-                // When it times out, we restart automatically.
                 let nsError = error as NSError
                 if nsError.domain == "kAFAssistantErrorDomain" && nsError.code == 216 {
-                    // Recognition timed out — restart
+                    // Recognition timed out (~60s limit) — restart automatically
                     self.restartRecognition(onUpdate: onUpdate)
+                } else if nsError.domain == "kAFAssistantErrorDomain" && nsError.code == 209 {
+                    // Audio session was interrupted (e.g. camera opened) — will be resumed externally
+                    print("[WhisperKit] Audio interrupted (code 209), waiting for resume...")
+                    self.stopEngine()
                 } else {
-                    print("[WhisperKit] Recognition error: \(error.localizedDescription)")
+                    print("[WhisperKit] Recognition error: \(error.localizedDescription) (code: \(nsError.code))")
+                    // Try to restart on unknown errors too
+                    self.restartRecognition(onUpdate: onUpdate)
                 }
             }
 
             if result?.isFinal == true {
-                // Final result received — restart for continuous transcription
                 self.restartRecognition(onUpdate: onUpdate)
             }
         }
@@ -132,37 +185,46 @@ final class WhisperKitManager {
     // MARK: - Restart Recognition (for continuous transcription beyond 1-min limit)
 
     private func restartRecognition(onUpdate: @escaping (String) -> Void) {
-        let previousText = transcription
+        // Lock in ALL current text before restarting
+        let currentText = transcription
 
-        // Clean up current session
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
-        recognitionTask?.cancel()
-        recognitionTask = nil
-        recognitionRequest = nil
-        audioEngine = nil
+        stopEngine()
 
-        // Only restart if we're still supposed to be transcribing
         guard state == .transcribing else { return }
 
-        // Small delay before restarting
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self, self.state == .transcribing else { return }
 
             do {
-                try self.startRealtimeTranscription { [weak self] newText in
-                    guard let self else { return }
-                    // Append new text to previous transcription
-                    if !previousText.isEmpty && !newText.isEmpty {
-                        self.transcription = previousText + " " + newText
-                    } else {
-                        self.transcription = previousText + newText
-                    }
-                    onUpdate(self.transcription)
-                }
+                try self.startRealtimeTranscription(baseText: currentText, onUpdate: onUpdate)
             } catch {
                 print("[WhisperKit] Failed to restart recognition: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Resume After Interruption (camera, phone call, etc.)
+
+    /// Resumes transcription after an external interruption (e.g. camera opened).
+    /// Preserves all previously captured text. Call this when the interrupting
+    /// activity (camera, etc.) is dismissed.
+    func resumeAfterInterruption(onUpdate: @escaping (String) -> Void) {
+        guard state == .transcribing || state == .completed else { return }
+
+        let currentText = transcription
+        stopEngine()
+        state = .transcribing
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self else { return }
+
+            do {
+                try self.startRealtimeTranscription(baseText: currentText, onUpdate: onUpdate)
+                print("[WhisperKit] Resumed after interruption with \(currentText.split(separator: " ").count) words preserved")
+            } catch {
+                print("[WhisperKit] Failed to resume after interruption: \(error)")
+                // Keep the text even if we can't restart
+                self.transcription = currentText
             }
         }
     }
@@ -193,5 +255,8 @@ final class WhisperKitManager {
         _ = stopRealtimeTranscription()
         state = .idle
         transcription = ""
+        lockedText = ""
+        committedSegmentCount = 0
+        previousSegmentTexts = []
     }
 }

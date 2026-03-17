@@ -47,20 +47,15 @@ struct RecordingFlowView: View {
                         whisperKit.stopRealtimeTranscription()
                     },
                     onResume: {
-                        let previousText = transcription
                         withAnimation {
                             state = .recording
                             startTimer()
                         }
-                        // Restart transcription on resume, preserving previous text
+                        // Restart transcription on resume, preserving all accumulated text
                         do {
-                            try whisperKit.startRealtimeTranscription { text in
+                            try whisperKit.startRealtimeTranscription(baseText: transcription) { text in
                                 Task { @MainActor in
-                                    if !previousText.isEmpty && !text.isEmpty {
-                                        transcription = previousText + " " + text
-                                    } else {
-                                        transcription = previousText + text
-                                    }
+                                    transcription = text
                                 }
                             }
                         } catch {
@@ -111,6 +106,16 @@ struct RecordingFlowView: View {
                 capturedPhotos.append((data: imageData, timestamp: seconds))
             }
             .ignoresSafeArea()
+        }
+        .onChange(of: showCamera) { _, isShowing in
+            if !isShowing && state == .recording {
+                // Camera dismissed — resume transcription, preserving all text
+                whisperKit.resumeAfterInterruption { text in
+                    Task { @MainActor in
+                        transcription = text
+                    }
+                }
+            }
         }
     }
 
