@@ -20,22 +20,17 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "pt") -> str:
 
     Returns plain text transcription.
     """
-    import asyncio
     import io
 
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = "recording.m4a"
 
-    # Run synchronous OpenAI call in thread pool
-    # chunking_strategy="auto" normalizes loudness + uses VAD for chunk boundaries
-    # Pass via extra_body since it's a newer parameter not in all SDK versions
-    result = await asyncio.to_thread(
-        _openai.client.audio.transcriptions.create,
+    # AsyncOpenAI client — await directly (no to_thread)
+    result = await _openai.client.audio.transcriptions.create(
         model="gpt-4o-transcribe",
         file=audio_file,
         language=language,
         response_format="text",
-        extra_body={"chunking_strategy": "auto"},
     )
 
     text = result.strip() if isinstance(result, str) else str(result).strip()
