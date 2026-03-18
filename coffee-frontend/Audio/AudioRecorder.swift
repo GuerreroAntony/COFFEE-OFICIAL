@@ -170,15 +170,18 @@ final class AudioRecorder: NSObject {
 
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0)
-            // averagePower range: -160dB (silence) to 0dB (max).
-            // Distant lecture mic typically: -45dB (silence) to -10dB (loud speech).
-            // Map -45...-5 to 0...1 with exponential curve for visual punch.
-            let clamped = max(-45.0, min(-5.0, power))
-            let linear = (clamped + 45.0) / 40.0  // 0...1
-            // Exponential curve: makes small sounds more visible
-            let curved = pow(linear, 0.6)
-            // Smooth: blend with previous value to avoid jitter
-            let smoothed = self.audioLevel * 0.3 + Float(curved) * 0.7
+            // Exaggerated response: any sound should make the waveform jump.
+            // Distant lecture mic: -45dB (silence) to -10dB (loud).
+            // Map -40...-8 → 0...1, then boost aggressively.
+            let clamped = max(-40.0, min(-8.0, power))
+            let linear = (clamped + 40.0) / 32.0  // 0...1
+            // Aggressive exponential: pow(0.35) makes even whispers visible
+            let curved = pow(linear, 0.35)
+            // Boost: multiply by 1.4 and clamp — any real sound hits 0.5+
+            let boosted = min(1.0, curved * 1.4)
+            // Fast attack (0.85), slower decay (0.4) — snappy response
+            let blend: Float = Float(boosted) > self.audioLevel ? 0.85 : 0.4
+            let smoothed = self.audioLevel * (1.0 - blend) + Float(boosted) * blend
             self.audioLevel = smoothed
         }
     }
