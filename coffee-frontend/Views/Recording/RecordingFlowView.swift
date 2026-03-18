@@ -1,5 +1,4 @@
 import SwiftUI
-import Speech
 
 // MARK: - Recording State
 
@@ -14,14 +13,11 @@ struct RecordingFlowView: View {
 
     @State private var state: RecordingState = .idle
     @State private var seconds = 0
-    @State private var transcription = ""
     @State private var showStopSheet = false
     @State private var processing = false
     @State private var timer: Timer? = nil
-    @State private var showFullTranscription = false
     @State private var selectedDiscipline: Discipline? = nil
     @State private var selectedRepoIds: Set<String> = []
-    @State private var whisperKit = WhisperKitManager()
     @State private var audioRecorder = AudioRecorder()
     @State private var recordingStartTime: Date? = nil
     @State private var audioFileURL: URL? = nil
@@ -40,14 +36,11 @@ struct RecordingFlowView: View {
                 RecordingActiveView(
                     isRecording: state == .recording,
                     seconds: seconds,
-                    transcription: transcription,
                     photosCount: capturedPhotos.count,
-                    audioLevel: whisperKit.audioLevel,
+                    audioLevel: audioRecorder.audioLevel,
                     showStopSheet: $showStopSheet,
-                    showFullTranscription: $showFullTranscription,
                     onPause: {
                         withAnimation { state = .paused }
-                        whisperKit.stopRealtimeTranscription()
                         audioRecorder.pauseRecording()
                     },
                     onResume: {
@@ -56,16 +49,6 @@ struct RecordingFlowView: View {
                             startTimer()
                         }
                         audioRecorder.resumeRecording()
-                        // Restart transcription on resume, preserving all accumulated text
-                        do {
-                            try whisperKit.startRealtimeTranscription(baseText: transcription) { text in
-                                Task { @MainActor in
-                                    transcription = text
-                                }
-                            }
-                        } catch {
-                            print("[Recording] Resume transcription error: \(error)")
-                        }
                     },
                     onFinish: finishRecording,
                     onCameraCapture: { showCamera = true },
@@ -114,12 +97,7 @@ struct RecordingFlowView: View {
         }
         .onChange(of: showCamera) { _, isShowing in
             if !isShowing && state == .recording {
-                // Camera dismissed — resume transcription, preserving all text
-                whisperKit.resumeAfterInterruption { text in
-                    Task { @MainActor in
-                        transcription = text
-                    }
-                }
+                // Camera dismissed — AudioRecorder handles interruption automatically
             }
         }
     }
@@ -130,39 +108,20 @@ struct RecordingFlowView: View {
 
     private func startRecording() {
         Task {
-            // Request microphone permission
             let granted = await AudioRecorder.requestPermission()
             guard granted else {
                 permissionDenied = true
                 return
             }
 
-            // Load speech recognition model / request permission
-            await whisperKit.loadModel()
-
             state = .recording
             seconds = 0
-            transcription = ""
             capturedPhotos = []
             recordingStartTime = Date()
             audioFileURL = nil
             startTimer()
 
-            // Start audio file recording (for cloud transcription upload)
             audioRecorder.startRecording()
-
-            // Start real-time transcription (live preview during recording)
-            do {
-                try whisperKit.startRealtimeTranscription { text in
-                    Task { @MainActor in
-                        transcription = text
-                    }
-                }
-            } catch {
-                print("[Recording] Transcription error: \(error)")
-                // Continue recording even if transcription fails —
-                // audio file is still being captured for cloud transcription
-            }
         }
     }
 
@@ -177,16 +136,7 @@ struct RecordingFlowView: View {
         timer?.invalidate()
         timer = nil
 
-        // Stop audio file recording — save the file URL for upload
         audioFileURL = audioRecorder.stopRecording()
-
-        // Stop the speech engine — but keep our accumulated transcription.
-        let finalText = whisperKit.stopRealtimeTranscription()
-
-        // Only use whisperKit's text if we have nothing yet
-        if transcription.isEmpty && !finalText.isEmpty {
-            transcription = finalText
-        }
 
         state = .stopped
         processing = true
@@ -196,13 +146,11 @@ struct RecordingFlowView: View {
     private func resetToIdle() {
         timer?.invalidate()
         timer = nil
-        whisperKit.reset()
         audioRecorder.discardRecording()
         audioFileURL = nil
         recordingStartTime = nil
         state = .idle
         seconds = 0
-        transcription = ""
         selectedDiscipline = nil
         selectedRepoIds = []
         capturedPhotos = []
@@ -214,61 +162,40 @@ struct RecordingFlowView: View {
     private func saveRecording() {
         guard selectedDiscipline != nil || !selectedRepoIds.isEmpty else { return }
         guard !isSaving else { return }
+        guard let fileURL = audioFileURL else {
+            saveError = "Arquivo de áudio não encontrado"
+            return
+        }
         isSaving = true
+
+        // Determine destination
+        let disciplinaId: String
+        if let discipline = selectedDiscipline {
+            disciplinaId = discipline.id
+        } else if let repoId = selectedRepoIds.first {
+            // TODO: repos will use cloud pipeline too in the future
+            disciplinaId = repoId
+        } else {
+            isSaving = false
+            return
+        }
 
         Task {
             do {
-                var recording: Recording
+                print("[Recording] Uploading audio for cloud transcription")
 
-                if let discipline = selectedDiscipline, let fileURL = audioFileURL {
-                    // === DISCIPLINE: Cloud transcription pipeline ===
-                    // Upload audio file → backend transcribes via GPT-4o Transcribe
-                    print("[Recording] Uploading audio for cloud transcription (\(discipline.nome))")
+                let recording = try await RecordingService.uploadAudioRecording(
+                    audioFileURL: fileURL,
+                    disciplinaId: disciplinaId,
+                    durationSeconds: max(seconds, 1),
+                    startTime: recordingStartTime ?? Date(),
+                    endTime: Date()
+                )
 
-                    recording = try await RecordingService.uploadAudioRecording(
-                        audioFileURL: fileURL,
-                        disciplinaId: discipline.id,
-                        durationSeconds: max(seconds, 1),
-                        startTime: recordingStartTime ?? Date(),
-                        endTime: Date()
-                    )
+                // Delete local audio file after successful upload
+                audioRecorder.deleteRecordingFile()
 
-                    // Delete local audio file after successful upload
-                    audioRecorder.deleteRecordingFile()
-
-                } else {
-                    // === REPOSITORY: Text pipeline (existing flow) ===
-                    // Send transcription text directly
-                    let sourceType: String
-                    let sourceId: String
-                    if let discipline = selectedDiscipline {
-                        sourceType = "disciplina"
-                        sourceId = discipline.id
-                    } else if let repoId = selectedRepoIds.first {
-                        sourceType = "repositorio"
-                        sourceId = repoId
-                    } else {
-                        isSaving = false
-                        return
-                    }
-
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "yyyy-MM-dd"
-                    let dateStr = dateFormatter.string(from: Date())
-
-                    let wordCount = transcription.split(separator: " ").count
-                    print("[Recording] Saving text pipeline with \(wordCount) words")
-
-                    recording = try await RecordingService.createRecording(
-                        sourceType: sourceType,
-                        sourceId: sourceId,
-                        transcription: transcription,
-                        durationSeconds: max(seconds, 1),
-                        date: dateStr
-                    )
-                }
-
-                // Upload captured photos (both pipelines)
+                // Upload captured photos
                 for photo in capturedPhotos {
                     try? await RecordingService.uploadMedia(
                         recordingId: recording.id,
@@ -495,11 +422,9 @@ struct RecordingIdleView: View {
 struct RecordingActiveView: View {
     let isRecording: Bool
     let seconds: Int
-    let transcription: String
     let photosCount: Int
     var audioLevel: Float = 0
     @Binding var showStopSheet: Bool
-    @Binding var showFullTranscription: Bool
     let onPause: () -> Void
     let onResume: () -> Void
     let onFinish: () -> Void
@@ -512,7 +437,7 @@ struct RecordingActiveView: View {
             waveform
             Spacer()
             controls
-            transcriptionPreview
+            cloudTranscriptionBanner
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.coffeeRecordingBackground.ignoresSafeArea())
@@ -521,14 +446,6 @@ struct RecordingActiveView: View {
             Button("Cancelar", role: .cancel) { }
         } message: {
             Text("Duração: \(formatTime(seconds))")
-        }
-        .fullScreenCover(isPresented: $showFullTranscription) {
-            RecordingFullTranscriptionView(
-                seconds: seconds,
-                transcription: transcription,
-                showFullTranscription: $showFullTranscription,
-                formatTime: formatTime
-            )
         }
     }
 
@@ -623,110 +540,39 @@ struct RecordingActiveView: View {
         }
     }
 
-    private var transcriptionPreview: some View {
-        let displayText = transcription.isEmpty ? "Aguardando fala..." : transcription
-        let textOpacity: Double = transcription.isEmpty ? 0.35 : 0.75
-
-        return Button { showFullTranscription = true } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Transcrição")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    if isRecording {
-                        HStack(spacing: 4) {
-                            Circle().fill(Color.green).frame(width: 6, height: 6)
-                            Text("Transcrevendo")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.green.opacity(0.85))
-                        }
+    private var cloudTranscriptionBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "cloud.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.coffeePrimaryLight.opacity(0.7))
+                Text("Transcrição via IA")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                if isRecording {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.green).frame(width: 6, height: 6)
+                        Text("Captando")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.green.opacity(0.85))
                     }
                 }
-                Text(displayText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.coffeePrimaryLight.opacity(textOpacity))
-                    .lineLimit(3)
-                    .lineSpacing(4)
             }
-            .padding(16)
-            .background(Color.coffeePrimary.opacity(0.28))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.coffeePrimaryLight.opacity(0.15), lineWidth: 0.5)
-            )
+            Text("A transcrição será gerada automaticamente após a gravação com alta precisão.")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.coffeePrimaryLight.opacity(0.5))
+                .lineSpacing(4)
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .background(Color.coffeePrimary.opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.coffeePrimaryLight.opacity(0.15), lineWidth: 0.5)
+        )
         .padding(.horizontal, 24)
         .padding(.bottom, 32)
-    }
-}
-
-// MARK: - Full Transcription View
-
-struct RecordingFullTranscriptionView: View {
-    let seconds: Int
-    let transcription: String
-    @Binding var showFullTranscription: Bool
-    let formatTime: (Int) -> String
-
-    var body: some View {
-        let displayText = transcription.isEmpty ? "Aguardando fala..." : transcription
-        let textOpacity: Double = transcription.isEmpty ? 0.4 : 0.9
-        let wordCount = transcription.split(separator: " ").count
-
-        VStack(spacing: 0) {
-            HStack {
-                Button { showFullTranscription = false } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left").font(.system(size: 20))
-                        Text("Voltar").font(.system(size: 17))
-                    }
-                    .foregroundStyle(Color.coffeePrimaryLight)
-                }
-                Spacer()
-                HStack(spacing: 6) {
-                    Circle().fill(Color.red).frame(width: 8, height: 8)
-                    Text(formatTime(seconds))
-                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(Color.red.opacity(0.8))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 60)
-            .padding(.bottom, 12)
-
-            ScrollView {
-                Text(displayText)
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.coffeePrimaryLight.opacity(textOpacity))
-                    .lineSpacing(7)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-            }
-
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "text.alignleft")
-                        .foregroundStyle(Color.coffeePrimaryLight.opacity(0.5))
-                    Text("\(wordCount) palavras")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.coffeePrimaryLight.opacity(0.5))
-                }
-                Spacer()
-                Button("Minimizar") { showFullTranscription = false }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.coffeePrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-        }
-        .background(Color.coffeeRecordingBackground.ignoresSafeArea())
     }
 }
 
