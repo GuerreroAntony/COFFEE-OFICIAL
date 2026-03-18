@@ -271,7 +271,19 @@ async def _process_group(
                 transcript_id, upload["id"],
             )
 
-        # Generate mind map (non-critical — failures don't block delivery)
+        # === Mark as READY first — everything critical is done ===
+        await execute_query(
+            "UPDATE aula_transcripts SET status = 'ready' WHERE id = $1",
+            transcript_id,
+        )
+        logger.info(
+            "Group processed successfully: disc=%s date=%s uploads=%d cost=$%.4f",
+            disciplina_id, aula_date, len(upload_ids), cost_usd,
+        )
+
+        # === Non-critical: mind map, push, cleanup (failures don't change status) ===
+
+        # Mind map
         if best_upload["gravacao_id"] and word_count >= 10:
             try:
                 await generate_mindmap_for_gravacao(best_upload["gravacao_id"])
@@ -284,7 +296,6 @@ async def _process_group(
                         "UPDATE aula_transcripts SET mind_map = $1::jsonb WHERE id = $2",
                         mind_map_val, transcript_id,
                     )
-                    # Copy to all other students' gravacoes
                     for upload in all_uploads:
                         if upload["gravacao_id"] and upload["gravacao_id"] != best_upload["gravacao_id"]:
                             await execute_query(
@@ -292,15 +303,9 @@ async def _process_group(
                                 mind_map_val, upload["gravacao_id"],
                             )
             except Exception as e:
-                logger.warning("Mind map failed for group: %s", e)
+                logger.warning("Mind map failed (non-critical): %s", e)
 
-        # Mark transcript as ready
-        await execute_query(
-            "UPDATE aula_transcripts SET status = 'ready' WHERE id = $1",
-            transcript_id,
-        )
-
-        # === PHASE 4: Push notifications ===
+        # Push notifications
         for upload in all_uploads:
             try:
                 body = f'"{short_summary}" está pronta' if short_summary else "Sua gravação foi processada"
@@ -311,27 +316,25 @@ async def _process_group(
                     {"type": "recording_ready", "gravacao_id": str(upload["gravacao_id"] or "")},
                 )
             except Exception as e:
-                logger.warning("Push failed for user %s: %s", upload["user_id"], e)
+                logger.warning("Push failed (non-critical) for user %s: %s", upload["user_id"], e)
 
-        # === PHASE 5: Cleanup audio files ===
+        # Cleanup audio files
         for upload in all_uploads:
-            up_row = await fetch_one(
-                "SELECT storage_path FROM recording_uploads WHERE id = $1", upload["id"],
-            )
-            if up_row and up_row["storage_path"]:
-                await delete_from_storage(
-                    settings.SUPABASE_RECORDINGS_BUCKET,
-                    up_row["storage_path"],
+            try:
+                up_row = await fetch_one(
+                    "SELECT storage_path FROM recording_uploads WHERE id = $1", upload["id"],
                 )
-                await execute_query(
-                    "UPDATE recording_uploads SET storage_path = NULL WHERE id = $1",
-                    upload["id"],
-                )
-
-        logger.info(
-            "Group processed successfully: disc=%s date=%s uploads=%d cost=$%.4f",
-            disciplina_id, aula_date, len(upload_ids), cost_usd,
-        )
+                if up_row and up_row["storage_path"]:
+                    await delete_from_storage(
+                        settings.SUPABASE_RECORDINGS_BUCKET,
+                        up_row["storage_path"],
+                    )
+                    await execute_query(
+                        "UPDATE recording_uploads SET storage_path = NULL WHERE id = $1",
+                        upload["id"],
+                    )
+            except Exception as e:
+                logger.warning("Cleanup failed (non-critical): %s", e)
 
     except Exception as e:
         logger.error("Processing failed for transcript %s: %s", transcript_id, e, exc_info=True)
