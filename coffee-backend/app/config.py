@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     SUPABASE_STORAGE_BUCKET: str = "materiais"
     SUPABASE_MEDIA_BUCKET: str = "gravacao-media"
     SUPABASE_RECORDINGS_BUCKET: str = "recordings"
-    TRANSCRIPTION_WAIT_MINUTES: int = 2
+    TRANSCRIPTION_WAIT_MINUTES: int = 10
     ENVIRONMENT: str = "development"
     SECRET_KEY: str = ""
     # App limits

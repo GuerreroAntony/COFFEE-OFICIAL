@@ -30,3 +30,13 @@ DerivedData/
 
 # Railway / Docker
 *.log
+
+# Test audio files
+audio-teste.m4a
+*.m4a
+
+# Canvas test exports
+canvas-api-test*/
+
+# Claude
+.claude/

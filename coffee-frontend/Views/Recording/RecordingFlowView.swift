@@ -1,9 +1,10 @@
 import SwiftUI
+import UserNotifications
 
 // MARK: - Recording State
 
 enum RecordingState: Equatable {
-    case idle, recording, paused, stopped
+    case idle, recording, paused, stopped, uploaded
 }
 
 // MARK: - Recording Flow Container
@@ -14,13 +15,14 @@ struct RecordingFlowView: View {
     @State private var state: RecordingState = .idle
     @State private var seconds = 0
     @State private var showStopSheet = false
-    @State private var processing = false
     @State private var timer: Timer? = nil
     @State private var selectedDiscipline: Discipline? = nil
     @State private var selectedRepoIds: Set<String> = []
     @State private var audioRecorder = AudioRecorder()
     @State private var recordingStartTime: Date? = nil
     @State private var audioFileURL: URL? = nil
+    @State private var uploadedRecordingId: String? = nil
+    @State private var uploadedDisciplineName: String? = nil
     @State private var isSaving = false
     @State private var saveError: String? = nil
     @State private var permissionDenied = false
@@ -57,7 +59,6 @@ struct RecordingFlowView: View {
             case .stopped:
                 RecordingStoppedView(
                     seconds: seconds,
-                    processing: processing,
                     isSaving: isSaving,
                     selectedDiscipline: $selectedDiscipline,
                     selectedRepoIds: $selectedRepoIds,
@@ -65,10 +66,26 @@ struct RecordingFlowView: View {
                     onSave: saveRecording,
                     formatTime: formatTime
                 )
+            case .uploaded:
+                RecordingUploadedView(
+                    seconds: seconds,
+                    disciplineName: uploadedDisciplineName ?? "",
+                    recordingId: uploadedRecordingId ?? "",
+                    onRecordAnother: resetToIdle,
+                    onViewDiscipline: {
+                        if let disc = selectedDiscipline {
+                            resetToIdle()
+                            router.selectCourse(disc)
+                        } else {
+                            resetToIdle()
+                        }
+                    },
+                    formatTime: formatTime
+                )
             }
         }
         .onChange(of: state) { _, newValue in
-            let active = (newValue == .recording || newValue == .paused || newValue == .stopped)
+            let active = (newValue == .recording || newValue == .paused || newValue == .stopped || newValue == .uploaded)
             router.isRecordingActive = active
         }
         .alert("Permissao Necessaria", isPresented: $permissionDenied) {
@@ -137,10 +154,7 @@ struct RecordingFlowView: View {
         timer = nil
 
         audioFileURL = audioRecorder.stopRecording()
-
         state = .stopped
-        processing = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { processing = false }
     }
 
     private func resetToIdle() {
@@ -182,14 +196,19 @@ struct RecordingFlowView: View {
 
         Task {
             do {
-                print("[Recording] Uploading audio for cloud transcription")
+                // Calculate quality score before upload
+                let qualityScore = AudioQualityAnalyzer.calculateQualityScore(
+                    audioURL: fileURL,
+                    expectedDurationSeconds: 3000
+                )
 
                 let recording = try await RecordingService.uploadAudioRecording(
                     audioFileURL: fileURL,
                     disciplinaId: disciplinaId,
                     durationSeconds: max(seconds, 1),
                     startTime: recordingStartTime ?? Date(),
-                    endTime: Date()
+                    endTime: Date(),
+                    qualityScore: qualityScore
                 )
 
                 // Delete local audio file after successful upload
@@ -205,7 +224,11 @@ struct RecordingFlowView: View {
                     )
                 }
 
-                resetToIdle()
+                // Show uploaded confirmation screen
+                uploadedRecordingId = recording.id
+                uploadedDisciplineName = selectedDiscipline?.nome
+                isSaving = false
+                withAnimation { state = .uploaded }
             } catch {
                 saveError = "Erro ao salvar: \(error.localizedDescription)"
                 isSaving = false
@@ -580,7 +603,6 @@ struct RecordingActiveView: View {
 
 struct RecordingStoppedView: View {
     let seconds: Int
-    let processing: Bool
     let isSaving: Bool
     @Binding var selectedDiscipline: Discipline?
     @Binding var selectedRepoIds: Set<String>
@@ -615,26 +637,22 @@ struct RecordingStoppedView: View {
     }
 
     private var successHeader: some View {
-        let summaryIcon = processing ? "hourglass" : "checkmark"
-        let aiIcon = processing ? "hourglass" : CoffeeIcon.sparkles
-
-        return VStack(spacing: 12) {
+        VStack(spacing: 12) {
             ZStack {
-                Circle().fill(Color.green.opacity(0.1)).frame(width: 76, height: 76)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.green)
+                Circle().fill(Color.coffeePrimary.opacity(0.1)).frame(width: 76, height: 76)
+                Image(systemName: "waveform")
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.coffeePrimary)
             }
-            Text("Aula processada!")
+            Text("Gravação finalizada!")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
             Text("\(formatTime(seconds)) de aula gravados")
                 .font(.system(size: 15))
                 .foregroundStyle(Color.coffeeTextSecondary)
-            HStack(spacing: 8) {
-                statusPill(icon: summaryIcon, label: "Resumo", active: !processing)
-                statusPill(icon: aiIcon, label: "Notas com IA", active: !processing)
-            }
+            Text("Selecione a disciplina para enviar")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.7))
         }
         .padding(.top, 72)
         .padding(.bottom, 32)
@@ -788,19 +806,6 @@ struct RecordingStoppedView: View {
         )
     }
 
-    private func statusPill(icon: String, label: String, active: Bool) -> some View {
-        let fg: Color = active ? .green : Color.coffeeTextSecondary
-        let bg: Color = active ? Color.green.opacity(0.09) : Color.coffeeTextSecondary.opacity(0.06)
-        return HStack(spacing: 6) {
-            Image(systemName: icon).font(.system(size: 11))
-            Text(label).font(.system(size: 12, weight: .medium))
-        }
-        .foregroundStyle(fg)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(bg)
-        .clipShape(Capsule())
-    }
 }
 
 // MARK: - Row Sub-Views
@@ -893,6 +898,218 @@ struct StoppedRepoRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Uploaded Confirmation View
+
+struct RecordingUploadedView: View {
+    let seconds: Int
+    let disciplineName: String
+    let recordingId: String
+    let onRecordAnother: () -> Void
+    let onViewDiscipline: () -> Void
+    let formatTime: (Int) -> String
+
+    @State private var notifyEnabled = false
+    @State private var cloudPulse = false
+    @State private var processingStatus: RecordingStatus? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 24) {
+                    uploadHeader
+                    processingCard
+                    notifyButton
+                }
+                .padding(.bottom, 40)
+            }
+            bottomActions
+        }
+        .background(Color.coffeeBackground)
+        .task { await pollStatus() }
+    }
+
+    private var uploadHeader: some View {
+        VStack(spacing: 16) {
+            // Animated cloud icon
+            ZStack {
+                Circle()
+                    .fill(Color.coffeePrimary.opacity(cloudPulse ? 0.15 : 0.08))
+                    .frame(width: 100, height: 100)
+                    .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: cloudPulse)
+                Image(systemName: "icloud.and.arrow.up.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.coffeePrimary)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
+            .onAppear { cloudPulse = true }
+
+            Text("Gravação enviada!")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(Color.coffeeTextPrimary)
+
+            HStack(spacing: 6) {
+                Text(formatTime(seconds))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.coffeePrimary)
+                Text("•")
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                Text(disciplineName)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.top, 80)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var processingCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                if processingStatus == .ready {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Color.green)
+                } else {
+                    ProgressView()
+                        .tint(Color.coffeePrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(processingStatus == .ready ? "Tudo pronto!" : "Processando com IA...")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.coffeeTextPrimary)
+                    Text(processingStatus == .ready
+                         ? "Resumo e mapa mental disponíveis"
+                         : "Estimativa: ~3 minutos")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                }
+                Spacer()
+            }
+
+            // Progress steps
+            VStack(alignment: .leading, spacing: 10) {
+                progressStep(icon: "arrow.up.circle.fill", label: "Upload concluído", done: true)
+                progressStep(icon: "waveform", label: "Transcrevendo áudio", done: processingStatus == .ready)
+                progressStep(icon: "text.document.fill", label: "Gerando resumo e notas", done: processingStatus == .ready)
+            }
+        }
+        .padding(20)
+        .background(Color.coffeeCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.coffeePrimary.opacity(0.1), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
+    }
+
+    private func progressStep(icon: String, label: String, done: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16))
+                .foregroundStyle(done ? Color.green : Color.coffeeTextSecondary.opacity(0.3))
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundStyle(done ? Color.coffeeTextPrimary : Color.coffeeTextSecondary.opacity(0.6))
+        }
+    }
+
+    private var notifyButton: some View {
+        Group {
+            if !notifyEnabled && processingStatus != .ready {
+                Button {
+                    notifyEnabled = true
+                    requestNotificationPermission()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 14))
+                        Text("Me notifique quando pronto")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color.coffeePrimary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            } else if notifyEnabled && processingStatus != .ready {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.green)
+                    Text("Você será notificado")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.green)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+    }
+
+    private var bottomActions: some View {
+        VStack(spacing: 0) {
+            Divider()
+            VStack(spacing: 12) {
+                if processingStatus == .ready {
+                    CoffeeButton("Ver na disciplina", action: onViewDiscipline)
+                }
+
+                Button(action: onRecordAnother) {
+                    Text(processingStatus == .ready ? "Gravar outra aula" : "Gravar outra aula")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.coffeePrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.coffeeCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.coffeePrimary, lineWidth: 1.5)
+                        )
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+        .background(
+            Color.coffeeBackground.opacity(0.95)
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    // MARK: - Polling
+
+    private func pollStatus() async {
+        guard !recordingId.isEmpty else { return }
+        // Poll every 10s for up to 5 minutes
+        for _ in 0..<30 {
+            try? await Task.sleep(for: .seconds(10))
+            if let detail = try? await RecordingService.getRecordingDetail(id: recordingId) {
+                if detail.status == .ready {
+                    withAnimation { processingStatus = .ready }
+                    return
+                } else if detail.status == .error {
+                    return
+                }
+            }
+        }
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            if granted {
+                DispatchQueue.main.async {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+            }
+        }
     }
 }
 

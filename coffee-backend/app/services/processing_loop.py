@@ -19,6 +19,7 @@ from app.services.mindmap_service import generate_mindmap_for_gravacao
 from app.services.openai_service import OpenAIService
 from app.services.push_service import send_push_to_user
 from app.services.transcription_service import (
+    cross_validate,
     delete_from_storage,
     download_from_storage,
     transcribe_audio,
@@ -211,6 +212,39 @@ async def _process_group(
                WHERE id = $3""",
             transcription, cost_usd, transcript_id,
         )
+
+        # === PHASE 1.5: Cross-validate against secondary uploads ===
+        if len(upload_ids) > 1:
+            secondary_uploads = await fetch_all(
+                """SELECT id, storage_path, duration_seconds
+                   FROM recording_uploads
+                   WHERE id = ANY($1) AND id != $2
+                   ORDER BY quality_score DESC, duration_seconds DESC
+                   LIMIT 2""",
+                upload_ids, primary_id,
+            )
+            for sec_upload in secondary_uploads:
+                try:
+                    logger.info(
+                        "Cross-validating with secondary upload %s",
+                        sec_upload["id"],
+                    )
+                    sec_audio = await download_from_storage(
+                        settings.SUPABASE_RECORDINGS_BUCKET,
+                        sec_upload["storage_path"],
+                    )
+                    transcription = await cross_validate(transcription, sec_audio)
+                    del sec_audio
+                    # Update stored transcription with corrected version
+                    await execute_query(
+                        "UPDATE aula_transcripts SET transcription = $1 WHERE id = $2",
+                        transcription, transcript_id,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Cross-validation failed for upload %s (non-critical): %s",
+                        sec_upload["id"], e,
+                    )
 
         # === PHASE 2: Generate AI outputs ===
         disc_row = await fetch_one(
