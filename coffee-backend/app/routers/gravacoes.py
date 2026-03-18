@@ -149,12 +149,16 @@ async def upload_audio_recording(
         filename = "recording.m4a"
 
     # Prevent duplicate uploads: check if user already uploaded for this discipline in the last 5 min
-    existing = await fetch_one(
-        """SELECT id FROM recording_uploads
-           WHERE user_id = $1 AND disciplina_id = $2 AND status = 'uploaded'
-             AND created_at > NOW() - INTERVAL '5 minutes'""",
-        user_id, disciplina_id,
-    )
+    try:
+        existing = await fetch_one(
+            """SELECT id FROM recording_uploads
+               WHERE user_id = $1 AND disciplina_id = $2 AND status = 'uploaded'
+                 AND created_at > NOW() - INTERVAL '5 minutes'""",
+            user_id, disciplina_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=error_response("DB_ERROR", f"Erro ao verificar duplicatas: {e}"))
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -170,40 +174,52 @@ async def upload_audio_recording(
     )
     content_type = file.content_type or "audio/mp4"
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            upload_url,
-            content=content,
-            headers={
-                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-                "Content-Type": content_type,
-                "x-upsert": "true",
-            },
-        )
-    if resp.status_code not in (200, 201):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=error_response("UPLOAD_ERROR", f"Erro no upload do áudio: {resp.status_code}"),
-        )
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                upload_url,
+                content=content,
+                headers={
+                    "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+                    "Content-Type": content_type,
+                    "x-upsert": "true",
+                },
+            )
+        if resp.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=error_response("UPLOAD_ERROR", f"Storage upload falhou ({resp.status_code}): {resp.text[:200]}"),
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=error_response("STORAGE_ERROR", f"Erro no storage: {e}"))
 
     # Create gravacao (student-facing entity) with status=processing
-    grav_row = await fetch_one(
-        """INSERT INTO gravacoes (user_id, source_type, source_id, date, duration_seconds, status, upload_type)
-           VALUES ($1, 'disciplina', $2, $3, $4, 'processing', 'audio')
-           RETURNING id, source_type, source_id, date, duration_seconds, status, created_at""",
-        user_id, disciplina_id, gravacao_date, duration_seconds,
-    )
+    try:
+        grav_row = await fetch_one(
+            """INSERT INTO gravacoes (user_id, source_type, source_id, date, duration_seconds, status, upload_type)
+               VALUES ($1, 'disciplina', $2, $3, $4, 'processing', 'audio')
+               RETURNING id, source_type, source_id, date, duration_seconds, status, created_at""",
+            user_id, disciplina_id, gravacao_date, duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=error_response("DB_ERROR", f"Erro ao criar gravacao: {e}"))
+
     gravacao_id = grav_row["id"]
 
     # Create recording_uploads entry (for processing loop)
-    await execute_query(
-        """INSERT INTO recording_uploads
-           (user_id, disciplina_id, gravacao_id, storage_path, file_size_bytes,
-            duration_seconds, start_time, end_time, quality_score)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-        user_id, disciplina_id, gravacao_id, storage_path, file_size,
-        duration_seconds, start_dt, end_dt, quality_score,
-    )
+    try:
+        await execute_query(
+            """INSERT INTO recording_uploads
+               (user_id, disciplina_id, gravacao_id, storage_path, file_size_bytes,
+                duration_seconds, start_time, end_time, quality_score)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+            user_id, disciplina_id, gravacao_id, storage_path, file_size,
+            duration_seconds, start_dt, end_dt, quality_score,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=error_response("DB_ERROR", f"Erro ao criar recording_upload: {e}"))
 
     resp_data = GravacaoCreatedResponse(
         id=grav_row["id"],
