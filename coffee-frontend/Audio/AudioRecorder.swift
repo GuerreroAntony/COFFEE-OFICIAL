@@ -54,11 +54,10 @@ final class AudioRecorder: NSObject {
         let session = AVAudioSession.sharedInstance()
 
         do {
-            // .record category + .measurement mode = maximum mic sensitivity,
-            // no signal processing (AGC, noise reduction off).
-            // Ideal for capturing distant audio (professor in lecture hall).
-            // Audio is NOT played back — only recorded for cloud transcription.
-            try session.setCategory(.record, mode: .measurement)
+            // .playAndRecord required for AVAudioRecorder to capture audio.
+            // .default mode keeps AGC + noise reduction ON — helps clean audio
+            // before sending to GPT-4o Transcribe (server handles the rest).
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             state = .error("Erro ao configurar audio: \(error.localizedDescription)")
