@@ -69,6 +69,9 @@ enum APIEndpoints {
     /// POST/GET - Save recording / List recordings
     static let gravacoes = "/gravacoes"
 
+    /// POST - Upload audio for cloud transcription (multipart/form-data)
+    static let gravacaoUploadAudio = "/gravacoes/upload-audio"
+
     /// GET/PATCH/DELETE - Recording detail / Move / Delete
     static func gravacao(id: String) -> String { "/gravacoes/\(id)" }
 

@@ -22,6 +22,9 @@ struct RecordingFlowView: View {
     @State private var selectedDiscipline: Discipline? = nil
     @State private var selectedRepoIds: Set<String> = []
     @State private var whisperKit = WhisperKitManager()
+    @State private var audioRecorder = AudioRecorder()
+    @State private var recordingStartTime: Date? = nil
+    @State private var audioFileURL: URL? = nil
     @State private var isSaving = false
     @State private var saveError: String? = nil
     @State private var permissionDenied = false
@@ -45,12 +48,14 @@ struct RecordingFlowView: View {
                     onPause: {
                         withAnimation { state = .paused }
                         whisperKit.stopRealtimeTranscription()
+                        audioRecorder.pauseRecording()
                     },
                     onResume: {
                         withAnimation {
                             state = .recording
                             startTimer()
                         }
+                        audioRecorder.resumeRecording()
                         // Restart transcription on resume, preserving all accumulated text
                         do {
                             try whisperKit.startRealtimeTranscription(baseText: transcription) { text in
@@ -139,9 +144,14 @@ struct RecordingFlowView: View {
             seconds = 0
             transcription = ""
             capturedPhotos = []
+            recordingStartTime = Date()
+            audioFileURL = nil
             startTimer()
 
-            // Start real-time transcription
+            // Start audio file recording (for cloud transcription upload)
+            audioRecorder.startRecording()
+
+            // Start real-time transcription (live preview during recording)
             do {
                 try whisperKit.startRealtimeTranscription { text in
                     Task { @MainActor in
@@ -151,7 +161,7 @@ struct RecordingFlowView: View {
             } catch {
                 print("[Recording] Transcription error: \(error)")
                 // Continue recording even if transcription fails —
-                // user can still save the recording with empty transcription
+                // audio file is still being captured for cloud transcription
             }
         }
     }
@@ -167,14 +177,13 @@ struct RecordingFlowView: View {
         timer?.invalidate()
         timer = nil
 
+        // Stop audio file recording — save the file URL for upload
+        audioFileURL = audioRecorder.stopRecording()
+
         // Stop the speech engine — but keep our accumulated transcription.
-        // After pause/resume cycles, `transcription` (the @State) already holds
-        // the full concatenated text. whisperKit.transcription only has the
-        // last segment, so we must NOT overwrite.
         let finalText = whisperKit.stopRealtimeTranscription()
 
         // Only use whisperKit's text if we have nothing yet
-        // (e.g. user never paused, so our @State and whisperKit are in sync)
         if transcription.isEmpty && !finalText.isEmpty {
             transcription = finalText
         }
@@ -188,6 +197,9 @@ struct RecordingFlowView: View {
         timer?.invalidate()
         timer = nil
         whisperKit.reset()
+        audioRecorder.discardRecording()
+        audioFileURL = nil
+        recordingStartTime = nil
         state = .idle
         seconds = 0
         transcription = ""
@@ -204,46 +216,66 @@ struct RecordingFlowView: View {
         guard !isSaving else { return }
         isSaving = true
 
-        let sourceType: String
-        let sourceId: String
-        if let discipline = selectedDiscipline {
-            sourceType = "disciplina"
-            sourceId = discipline.id
-        } else if let repoId = selectedRepoIds.first {
-            sourceType = "repositorio"
-            sourceId = repoId
-        } else {
-            return
-        }
-
         Task {
             do {
-                // Backend expects date as "YYYY-MM-DD", not full ISO8601
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let dateStr = dateFormatter.string(from: Date())
+                var recording: Recording
 
-                let wordCount = transcription.split(separator: " ").count
-                print("[Recording] Saving with \(wordCount) words, \(transcription.count) chars")
+                if let discipline = selectedDiscipline, let fileURL = audioFileURL {
+                    // === DISCIPLINE: Cloud transcription pipeline ===
+                    // Upload audio file → backend transcribes via GPT-4o Transcribe
+                    print("[Recording] Uploading audio for cloud transcription (\(discipline.nome))")
 
-                let recording = try await RecordingService.createRecording(
-                    sourceType: sourceType,
-                    sourceId: sourceId,
-                    transcription: transcription,
-                    durationSeconds: max(seconds, 1),
-                    date: dateStr
-                )
+                    recording = try await RecordingService.uploadAudioRecording(
+                        audioFileURL: fileURL,
+                        disciplinaId: discipline.id,
+                        durationSeconds: max(seconds, 1),
+                        startTime: recordingStartTime ?? Date(),
+                        endTime: Date()
+                    )
 
-                // Upload captured photos
-                if !capturedPhotos.isEmpty {
-                    for photo in capturedPhotos {
-                        try? await RecordingService.uploadMedia(
-                            recordingId: recording.id,
-                            imageData: photo.data,
-                            label: "Foto da aula",
-                            timestampSeconds: photo.timestamp
-                        )
+                    // Delete local audio file after successful upload
+                    audioRecorder.deleteRecordingFile()
+
+                } else {
+                    // === REPOSITORY: Text pipeline (existing flow) ===
+                    // Send transcription text directly
+                    let sourceType: String
+                    let sourceId: String
+                    if let discipline = selectedDiscipline {
+                        sourceType = "disciplina"
+                        sourceId = discipline.id
+                    } else if let repoId = selectedRepoIds.first {
+                        sourceType = "repositorio"
+                        sourceId = repoId
+                    } else {
+                        isSaving = false
+                        return
                     }
+
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+                    let dateStr = dateFormatter.string(from: Date())
+
+                    let wordCount = transcription.split(separator: " ").count
+                    print("[Recording] Saving text pipeline with \(wordCount) words")
+
+                    recording = try await RecordingService.createRecording(
+                        sourceType: sourceType,
+                        sourceId: sourceId,
+                        transcription: transcription,
+                        durationSeconds: max(seconds, 1),
+                        date: dateStr
+                    )
+                }
+
+                // Upload captured photos (both pipelines)
+                for photo in capturedPhotos {
+                    try? await RecordingService.uploadMedia(
+                        recordingId: recording.id,
+                        imageData: photo.data,
+                        label: "Foto da aula",
+                        timestampSeconds: photo.timestamp
+                    )
                 }
 
                 resetToIdle()

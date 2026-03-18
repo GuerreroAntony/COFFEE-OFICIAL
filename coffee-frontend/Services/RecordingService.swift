@@ -73,6 +73,94 @@ enum RecordingService {
         )
     }
 
+    // MARK: - Upload Audio Recording (Cloud Transcription)
+
+    /// Upload audio file for cloud transcription via GPT-4o Transcribe.
+    /// Used for discipline recordings. Backend processes asynchronously.
+    static func uploadAudioRecording(
+        audioFileURL: URL,
+        disciplinaId: String,
+        durationSeconds: Int,
+        startTime: Date,
+        endTime: Date,
+        qualityScore: Double = 0.0
+    ) async throws -> Recording {
+        if APIClient.useMocks {
+            try await Task.sleep(for: .seconds(2))
+            return Recording(
+                id: UUID().uuidString,
+                sourceType: "disciplina",
+                sourceId: disciplinaId,
+                date: ISO8601DateFormatter().string(from: startTime),
+                dateLabel: "Hoje",
+                durationSeconds: durationSeconds,
+                durationLabel: "\(durationSeconds / 60)min",
+                status: .processing,
+                shortSummary: nil,
+                mediaCount: 0,
+                materialsCount: 0,
+                hasMindMap: false,
+                receivedFrom: nil,
+                createdAt: Date()
+            )
+        }
+
+        let audioData = try Data(contentsOf: audioFileURL)
+
+        let url = URL(string: "\(APIClient.baseURL)\(APIEndpoints.gravacaoUploadAudio)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        if let token = KeychainManager.accessToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        var body = Data()
+
+        // Audio file
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"recording.m4a\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/mp4\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // Form fields
+        let fields: [(String, String)] = [
+            ("disciplina_id", disciplinaId),
+            ("duration_seconds", "\(durationSeconds)"),
+            ("start_time", isoFormatter.string(from: startTime)),
+            ("end_time", isoFormatter.string(from: endTime)),
+            ("quality_score", "\(qualityScore)"),
+        ]
+
+        for (name, value) in fields {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        // Use longer timeout for audio upload (files can be 20+ MB)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 300
+        let session = URLSession(configuration: config)
+
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder.coffeeDecoder.decode(APIResponse<Recording>.self, from: data)
+        guard let recording = response.data else {
+            throw APIError.unknown(response.message ?? "Upload failed")
+        }
+        return recording
+    }
+
     // MARK: - Move Recording
 
     static func moveRecording(id: String, sourceType: String, sourceId: String) async throws -> Recording {

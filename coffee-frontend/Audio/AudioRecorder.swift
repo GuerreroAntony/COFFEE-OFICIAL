@@ -3,7 +3,7 @@ import AVFoundation
 
 // MARK: - Audio Recorder
 // AVFoundation audio recording for lecture capture
-// Records to m4a format (AAC) for WhisperKit compatibility
+// Records to m4a format (AAC 16kHz mono) optimized for cloud transcription
 
 @Observable
 final class AudioRecorder: NSObject {
@@ -16,9 +16,27 @@ final class AudioRecorder: NSObject {
     var currentTime: TimeInterval = 0
     var audioLevel: Float = 0 // 0...1 normalized
 
+    /// Public access to the recorded file URL for upload
+    var currentFileURL: URL? { fileURL }
+
     private var audioRecorder: AVAudioRecorder?
     private var timer: Timer?
     private var fileURL: URL?
+
+    override init() {
+        super.init()
+        // Listen for audio session interruptions (phone calls, alarms)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     // MARK: - Permissions
 
@@ -36,8 +54,12 @@ final class AudioRecorder: NSObject {
         let session = AVAudioSession.sharedInstance()
 
         do {
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-            try session.setActive(true)
+            // .record category + .measurement mode = maximum mic sensitivity,
+            // no signal processing (AGC, noise reduction off).
+            // Ideal for capturing distant audio (professor in lecture hall).
+            // Audio is NOT played back — only recorded for cloud transcription.
+            try session.setCategory(.record, mode: .measurement)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             state = .error("Erro ao configurar audio: \(error.localizedDescription)")
             return
@@ -49,9 +71,10 @@ final class AudioRecorder: NSObject {
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 16000.0,  // 16kHz for WhisperKit
-            AVNumberOfChannelsKey: 1,   // Mono
+            AVSampleRateKey: 16000.0,  // 16kHz — optimal for speech transcription
+            AVNumberOfChannelsKey: 1,   // Mono — reduces file size, speech is mono
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+            AVEncoderBitRateKey: 64000, // 64kbps — good quality, ~24MB per 50min
         ]
 
         do {
@@ -74,6 +97,10 @@ final class AudioRecorder: NSObject {
     }
 
     func resumeRecording() {
+        // Re-activate audio session (may have been deactivated by interruption)
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(true, options: .notifyOthersOnDeactivation)
+
         audioRecorder?.record()
         state = .recording
         startTimer()
@@ -102,6 +129,35 @@ final class AudioRecorder: NSObject {
         currentTime = 0
         audioLevel = 0
         fileURL = nil
+    }
+
+    // MARK: - Interruption Handling
+
+    @objc private func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+        else { return }
+
+        switch type {
+        case .began:
+            // Phone call, alarm, etc. — auto-pause
+            if case .recording = state {
+                pauseRecording()
+                print("[AudioRecorder] Interrupted — paused recording")
+            }
+        case .ended:
+            // Interruption ended — check if we should resume
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume), case .paused = state {
+                    resumeRecording()
+                    print("[AudioRecorder] Interruption ended — resumed recording")
+                }
+            }
+        @unknown default:
+            break
+        }
     }
 
     // MARK: - Timer & Metering

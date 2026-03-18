@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 libx11-xcb1 libxcb1 libxext6 libxrender1 \
     # Fonts (Debian-compatible names)
     libfontconfig1 libfreetype6 fonts-liberation fonts-noto-color-emoji \
+    # Audio processing (ffmpeg for pydub)
+    ffmpeg \
     # TLS + utils
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

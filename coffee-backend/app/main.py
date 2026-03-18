@@ -13,12 +13,24 @@ from app.routers import account, auth, chat, compartilhamentos, devices, discipl
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     try:
         await get_pool()
     except Exception as exc:
         import logging
         logging.getLogger("coffee").warning("DB pool not ready at startup: %s", exc)
+
+    # Start background processing loop for cloud transcription
+    from app.services.processing_loop import start_processing_loop
+    processing_task = asyncio.create_task(start_processing_loop())
+
     yield
+
+    processing_task.cancel()
+    try:
+        await processing_task
+    except asyncio.CancelledError:
+        pass
     await close_pool()
 
 

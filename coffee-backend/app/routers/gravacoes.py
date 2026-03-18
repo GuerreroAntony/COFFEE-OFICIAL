@@ -83,6 +83,142 @@ async def _validate_source_ownership(user_id: UUID, source_type: str, source_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado à fonte"))
 
 
+# ── POST /gravacoes/upload-audio ──────────────────────────────
+
+@router.post("/upload-audio")
+async def upload_audio_recording(
+    file: UploadFile = File(...),
+    disciplina_id: UUID = Form(...),
+    duration_seconds: int = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    quality_score: float = Form(0.0),
+    user_plan: tuple = Depends(get_current_user_with_plan),
+):
+    """Upload áudio de gravação para transcrição cloud via GPT-4o Transcribe."""
+    user_id, plano = user_plan
+
+    if plano == "expired":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para gravar aulas"),
+        )
+
+    await _validate_source_ownership(user_id, "disciplina", disciplina_id)
+
+    # Validate file type
+    allowed_types = {"audio/mp4", "audio/m4a", "audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac"}
+    content_type_raw = (file.content_type or "").lower()
+    if content_type_raw and content_type_raw not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_response("INVALID_FILE", f"Tipo de arquivo não suportado: {content_type_raw}. Envie áudio M4A, MP3 ou WAV."),
+        )
+
+    # Parse timestamps
+    from datetime import datetime as dt
+    try:
+        start_dt = dt.fromisoformat(start_time.replace("Z", "+00:00"))
+        end_dt = dt.fromisoformat(end_time.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        start_dt = dt.now(timezone.utc)
+        end_dt = dt.now(timezone.utc)
+
+    gravacao_date = start_dt.date()
+
+    # Read audio file with size limit (50MB max — allows 2h+ lectures)
+    MAX_AUDIO_SIZE = 50 * 1024 * 1024  # 50MB
+    content = await file.read()
+    file_size = len(content)
+    if file_size > MAX_AUDIO_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=error_response("FILE_TOO_LARGE", f"Arquivo muito grande ({file_size // (1024*1024)}MB). Máximo: 50MB."),
+        )
+    if file_size < 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_response("FILE_TOO_SMALL", "Arquivo de áudio muito pequeno ou vazio."),
+        )
+
+    # Sanitize filename — prevent path traversal
+    import os
+    raw_filename = file.filename or "recording.m4a"
+    filename = os.path.basename(raw_filename).replace("..", "").replace("/", "").replace("\\", "")
+    if not filename:
+        filename = "recording.m4a"
+
+    # Prevent duplicate uploads: check if user already uploaded for this discipline in the last 5 min
+    existing = await fetch_one(
+        """SELECT id FROM recording_uploads
+           WHERE user_id = $1 AND disciplina_id = $2 AND status = 'uploaded'
+             AND created_at > NOW() - INTERVAL '5 minutes'""",
+        user_id, disciplina_id,
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=error_response("DUPLICATE_UPLOAD", "Você já enviou uma gravação para esta disciplina nos últimos 5 minutos."),
+        )
+
+    # Upload to Supabase Storage bucket: recordings/
+    ts = int(datetime.now(timezone.utc).timestamp())
+    storage_path = f"{disciplina_id}/{user_id}/{ts}_{filename}"
+    upload_url = (
+        f"{settings.SUPABASE_URL}/storage/v1/object/"
+        f"{settings.SUPABASE_RECORDINGS_BUCKET}/{storage_path}"
+    )
+    content_type = file.content_type or "audio/mp4"
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            upload_url,
+            content=content,
+            headers={
+                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+                "Content-Type": content_type,
+                "x-upsert": "true",
+            },
+        )
+    if resp.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=error_response("UPLOAD_ERROR", f"Erro no upload do áudio: {resp.status_code}"),
+        )
+
+    # Create gravacao (student-facing entity) with status=processing
+    grav_row = await fetch_one(
+        """INSERT INTO gravacoes (user_id, source_type, source_id, date, duration_seconds, status, upload_type)
+           VALUES ($1, 'disciplina', $2, $3, $4, 'processing', 'audio')
+           RETURNING id, source_type, source_id, date, duration_seconds, status, created_at""",
+        user_id, disciplina_id, gravacao_date, duration_seconds,
+    )
+    gravacao_id = grav_row["id"]
+
+    # Create recording_uploads entry (for processing loop)
+    await execute_query(
+        """INSERT INTO recording_uploads
+           (user_id, disciplina_id, gravacao_id, storage_path, file_size_bytes,
+            duration_seconds, start_time, end_time, quality_score)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+        user_id, disciplina_id, gravacao_id, storage_path, file_size,
+        duration_seconds, start_dt, end_dt, quality_score,
+    )
+
+    resp_data = GravacaoCreatedResponse(
+        id=grav_row["id"],
+        source_type=grav_row["source_type"],
+        source_id=grav_row["source_id"],
+        date=grav_row["date"],
+        date_label=_format_date_label(grav_row["date"]),
+        duration_seconds=grav_row["duration_seconds"],
+        duration_label=_format_duration(grav_row["duration_seconds"]),
+        status=grav_row["status"],
+        created_at=grav_row["created_at"],
+    )
+    return success_response(resp_data.model_dump(mode="json"))
+
+
 # ── POST /gravacoes ──────────────────────────────────────────
 
 @router.post("")
