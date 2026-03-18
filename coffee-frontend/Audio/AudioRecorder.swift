@@ -163,7 +163,10 @@ final class AudioRecorder: NSObject {
     // MARK: - Timer & Metering
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+        timer?.invalidate()
+        // Use DisplayLink-style timer on main RunLoop to ensure it fires
+        // even when called from async Task context
+        let t = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in
             guard let self, let recorder = self.audioRecorder else { return }
 
             self.currentTime = recorder.currentTime
@@ -171,19 +174,18 @@ final class AudioRecorder: NSObject {
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0)
             // Exaggerated response: any sound should make the waveform jump.
-            // Distant lecture mic: -45dB (silence) to -10dB (loud).
-            // Map -40...-8 → 0...1, then boost aggressively.
+            // Map -40...-8 dB → 0...1, then boost aggressively.
             let clamped = max(-40.0, min(-8.0, power))
-            let linear = (clamped + 40.0) / 32.0  // 0...1
-            // Aggressive exponential: pow(0.35) makes even whispers visible
+            let linear = (clamped + 40.0) / 32.0
             let curved = pow(linear, 0.35)
-            // Boost: multiply by 1.4 and clamp — any real sound hits 0.5+
             let boosted = min(1.0, curved * 1.4)
-            // Fast attack (0.85), slower decay (0.4) — snappy response
+            // Fast attack (0.85), slower decay (0.4)
             let blend: Float = Float(boosted) > self.audioLevel ? 0.85 : 0.4
             let smoothed = self.audioLevel * (1.0 - blend) + Float(boosted) * blend
             self.audioLevel = smoothed
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     // MARK: - Cleanup

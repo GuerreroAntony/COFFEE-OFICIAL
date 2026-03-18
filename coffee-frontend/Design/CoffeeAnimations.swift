@@ -81,21 +81,25 @@ struct WaveformBar: View {
 
     /// Organic height: combines idle wave + exaggerated audio response
     private var targetHeight: CGFloat {
-        let minH: CGFloat = 3
+        let minH: CGFloat = 4
         let maxH: CGFloat = 56
         let pos = Double(index) / Double(max(barCount - 1, 1))
 
-        // Idle breathing wave — subtle, always moving
-        let wave1 = sin(time * 1.2 + pos * .pi * 2.5) * 0.08
-        let wave2 = sin(time * 0.7 + pos * .pi * 4.0 + 1.0) * 0.04
-        let idle = 0.06 + wave1 + wave2
+        // Idle breathing wave — visible even with zero audio
+        // Multiple sin layers at different speeds = organic feel
+        let wave1 = sin(time * 1.2 + pos * .pi * 2.5) * 0.12
+        let wave2 = sin(time * 0.8 + pos * .pi * 4.0 + 1.0) * 0.07
+        let wave3 = sin(time * 1.8 + pos * .pi * 1.3 + 2.5) * 0.04
+        // Center bars idle taller than edges
+        let centerBase = 0.15 + (1.0 - abs(pos - 0.5) * 1.0) * 0.08
+        let idle = centerBase + wave1 + wave2 + wave3
 
         // Audio response — EXAGGERATED. Center bars go full height.
-        let centerBias = 1.0 - abs(pos - 0.5) * 1.2
-        let audio = Double(audioLevel) * centerBias * 1.3
-        // Per-bar random-ish variation: makes it look alive
-        let barPhase = sin(time * 4.0 + Double(index) * 1.1) * 0.15
-        let audioFinal = audio + (audio > 0.08 ? barPhase * audio : 0)
+        let centerBias = 1.0 - abs(pos - 0.5) * 1.0
+        let audio = Double(audioLevel) * centerBias * 1.5
+        // Per-bar variation: makes it look alive, not uniform
+        let barPhase = sin(time * 4.0 + Double(index) * 1.1) * 0.18
+        let audioFinal = audio + (audio > 0.05 ? barPhase * audio : 0)
 
         let level = max(0, min(1, idle + audioFinal))
         return minH + CGFloat(level) * (maxH - minH)
