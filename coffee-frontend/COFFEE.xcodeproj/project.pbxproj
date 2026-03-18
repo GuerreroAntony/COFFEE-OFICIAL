@@ -47,6 +47,7 @@
 		82DA3AFD395E88BF3BA405DF /* CameraPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E57371F20A523D905B84D7B /* CameraPickerView.swift */; };
 		8400BC5C4D020E68CB515C15 /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66894462AA85CCD81A9A0438 /* SubscriptionService.swift */; };
 		854CB87E9BF0258AE0EE152C /* IconPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3301338DA4775F332D257989 /* IconPickerSheet.swift */; };
+		8642DE52D4A446DB411A78EA /* project.yml.bak in Resources */ = {isa = PBXBuildFile; fileRef = 71325BDDE7641D5176554297 /* project.yml.bak */; };
 		88309D00C48E51158029BF10 /* CoffeeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3453F4CC53470E0E45BE842 /* CoffeeButton.swift */; };
 		8AE42A5AEC96B1F703CE8258 /* BackgroundUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65122C875C905DBD510D594 /* BackgroundUploadService.swift */; };
 		9126D8FE00A9DA845AFD6EBE /* OnboardingScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAC4101EEA33F878F953963 /* OnboardingScreenView.swift */; };
@@ -131,7 +132,6 @@
 		2280C84C68931A27E9268D75 /* CoffeeTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeTypography.swift; sourceTree = "<group>"; };
 		2489ADDCD06B519DE34D665E /* Notification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notification.swift; sourceTree = "<group>"; };
 		24E96DF62154295968A79973 /* NavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRouter.swift; sourceTree = "<group>"; };
-		26725003E58783825314FFF9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		27872A786C9F43B8064F626F /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		2D6AF6FCFE8A86B9AB8609C9 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		2E57371F20A523D905B84D7B /* CameraPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerView.swift; sourceTree = "<group>"; };
@@ -154,13 +154,13 @@
 		6EA7601ADADC74BD315D6306 /* PremiumLockedTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumLockedTabView.swift; sourceTree = "<group>"; };
 		7078854ECF578AF1DACF936A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70845CD5492AD0279EDAA0C7 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
+		71325BDDE7641D5176554297 /* project.yml.bak */ = {isa = PBXFileReference; path = project.yml.bak; sourceTree = "<group>"; };
 		7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableRow.swift; sourceTree = "<group>"; };
 		802C2D4AF830DD57B24FD8F1 /* CoffeeMarkdownTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeMarkdownTheme.swift; sourceTree = "<group>"; };
 		849F845FCDB1FAA6207A1998 /* CoffeeAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeAnimations.swift; sourceTree = "<group>"; };
 		8509840C5792CB56F17E8AF5 /* CoffeeCellGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeCellGroup.swift; sourceTree = "<group>"; };
 		877DE999DD3198DC4A6D7540 /* CoffeeTabBarComponent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeTabBarComponent.swift; sourceTree = "<group>"; };
 		87EFD33640027C4F23302278 /* circular-medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "circular-medium.ttf"; sourceTree = "<group>"; };
-		8FA0D7E3766648E58E66A72D /* CoffeeWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoffeeWidgets.entitlements; sourceTree = "<group>"; };
 		8FBE80AEA1F5E3F34D7FF151 /* AIChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatScreenView.swift; sourceTree = "<group>"; };
 		90E8D19118FA4F87FB549FA2 /* CourseDetailScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseDetailScreenView.swift; sourceTree = "<group>"; };
 		913DBAE286E80F596FB4C195 /* APIEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEndpoints.swift; sourceTree = "<group>"; };
@@ -168,7 +168,6 @@
 		9A3D00DF78B1B2930062CF76 /* circular-book.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "circular-book.ttf"; sourceTree = "<group>"; };
 		A3F76B83E08B70F64DE4E41A /* SubscriptionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPlan.swift; sourceTree = "<group>"; };
 		A5247846C793FF600148D445 /* DisciplineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplineService.swift; sourceTree = "<group>"; };
-		B10A723153D574B6E70B2585 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B16BCD02E0922B60B03C836D /* COFFEEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = COFFEEApp.swift; sourceTree = "<group>"; };
 		B1C9A0D38E081704E65C258F /* Discipline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discipline.swift; sourceTree = "<group>"; };
 		C1EFB99ACC09682F594D7AB4 /* circular-bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "circular-bold.ttf"; sourceTree = "<group>"; };
@@ -228,9 +227,7 @@
 		083B46DAE48423992F4C4057 /* CoffeeWidgets */ = {
 			isa = PBXGroup;
 			children = (
-				8FA0D7E3766648E58E66A72D /* CoffeeWidgets.entitlements */,
 				6D0A06643745D8F12EFDF4DE /* CoffeeWidgetsBundle.swift */,
-				B10A723153D574B6E70B2585 /* Info.plist */,
 				05108D19117738EF8801A4FA /* RecordingLiveActivity.swift */,
 			);
 			path = CoffeeWidgets;
@@ -320,7 +317,7 @@
 				7078854ECF578AF1DACF936A /* Assets.xcassets */,
 				B16BCD02E0922B60B03C836D /* COFFEEApp.swift */,
 				D6040210DC0895C4C92BB63C /* ContentView.swift */,
-				26725003E58783825314FFF9 /* Info.plist */,
+				71325BDDE7641D5176554297 /* project.yml.bak */,
 				E13E9B9849739BD211A1809E /* Audio */,
 				05A60FA485E28E41312944B3 /* Components */,
 				73DACCE15A9A3C16E2C57D0A /* Design */,
@@ -575,6 +572,7 @@
 				731B7A44BA7CB172A7999FF6 /* circular-bold.ttf in Resources */,
 				602D0E14D40693ADAA18750D /* circular-book.ttf in Resources */,
 				B1788BC160C503B9FFB0EAAB /* circular-medium.ttf in Resources */,
+				8642DE52D4A446DB411A78EA /* project.yml.bak in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -682,9 +680,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee.CoffeeWidgets;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
@@ -698,11 +697,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_FILE = "build/Debug-iphoneos/COFFEE.app/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -775,9 +776,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee.CoffeeWidgets;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
@@ -791,11 +793,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_FILE = "build/Debug-iphoneos/COFFEE.app/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
