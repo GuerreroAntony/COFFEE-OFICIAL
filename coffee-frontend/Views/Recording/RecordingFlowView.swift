@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import ActivityKit
 
 // MARK: - Recording State
 
@@ -44,6 +45,7 @@ struct RecordingFlowView: View {
                     onPause: {
                         withAnimation { state = .paused }
                         audioRecorder.pauseRecording()
+                        LiveActivityService.update(elapsedSeconds: seconds, status: "paused")
                     },
                     onResume: {
                         withAnimation {
@@ -51,6 +53,7 @@ struct RecordingFlowView: View {
                             startTimer()
                         }
                         audioRecorder.resumeRecording()
+                        LiveActivityService.update(elapsedSeconds: seconds, status: "recording")
                     },
                     onFinish: finishRecording,
                     onCameraCapture: { showCamera = true },
@@ -117,6 +120,18 @@ struct RecordingFlowView: View {
                 // Camera dismissed — AudioRecorder handles interruption automatically
             }
         }
+        // Sync UI state with AudioRecorder interruptions (phone calls, alarms)
+        .onChange(of: audioRecorder.interruptionEvent) { _, _ in
+            if case .paused = audioRecorder.state, state == .recording {
+                withAnimation { state = .paused }
+                timer?.invalidate()
+                LiveActivityService.update(elapsedSeconds: seconds, status: "paused")
+            } else if case .recording = audioRecorder.state, state == .paused {
+                withAnimation { state = .recording }
+                startTimer()
+                LiveActivityService.update(elapsedSeconds: seconds, status: "recording")
+            }
+        }
     }
 
     private func formatTime(_ s: Int) -> String {
@@ -139,13 +154,22 @@ struct RecordingFlowView: View {
             startTimer()
 
             audioRecorder.startRecording()
+
+            // Start Live Activity (discipline name TBD — updated on save)
+            LiveActivityService.startRecording(disciplineName: "Gravando aula...")
         }
     }
 
     private func startTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            if state == .recording { seconds += 1 }
+            if state == .recording {
+                seconds += 1
+                // Update Live Activity timer every 5 seconds (avoid excessive updates)
+                if seconds % 5 == 0 {
+                    LiveActivityService.update(elapsedSeconds: seconds, status: "recording")
+                }
+            }
         }
     }
 
@@ -154,6 +178,7 @@ struct RecordingFlowView: View {
         timer = nil
 
         audioFileURL = audioRecorder.stopRecording()
+        LiveActivityService.update(elapsedSeconds: seconds, status: "uploading")
         state = .stopped
     }
 
@@ -163,6 +188,7 @@ struct RecordingFlowView: View {
         audioRecorder.discardRecording()
         audioFileURL = nil
         recordingStartTime = nil
+        LiveActivityService.end()
         state = .idle
         seconds = 0
         selectedDiscipline = nil

@@ -52,6 +52,7 @@
 		AEB68CF85EF048A102421743 /* Discipline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C9A0D38E081704E65C258F /* Discipline.swift */; };
 		AF0D55BF760D9914D53F257C /* DeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348CCE1A291B7252344893D0 /* DeviceService.swift */; };
 		9A784F3CC3A14C6E9DF3C0CF /* BackgroundUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 894B3E480C474D248C3FD62B /* BackgroundUploadService.swift */; };
+		AC13BC6CCCB34C96AB8E948C /* LiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A528D13677489D9727195E /* LiveActivityService.swift */; };
 		B0CA6078E8A4C51D47E43817 /* COFFEEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16BCD02E0922B60B03C836D /* COFFEEApp.swift */; };
 		B1788BC160C503B9FFB0EAAB /* circular-medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 87EFD33640027C4F23302278 /* circular-medium.ttf */; };
 		BDF94719E6D3E2EE9492C958 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6AF6FCFE8A86B9AB8609C9 /* SplashView.swift */; };
@@ -75,6 +76,7 @@
 		ECC550731A00D5BF30C03910 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70845CD5492AD0279EDAA0C7 /* AIService.swift */; };
 		F2DCF0E16323686F74F06576 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C249879F9187C14246CE77 /* AudioRecorder.swift */; };
 		96F251989C4A4F5AB2D7658E /* AudioQualityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4533ECB5EF463096E9D3D5 /* AudioQualityAnalyzer.swift */; };
+		BE2E68D34EF2498E932DB2E0 /* RecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A07326227E734C62A7E17A76 /* RecordingActivity.swift */; };
 		F364F0774F71733FE3D2079B /* SignupScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475AA9329BAD98FE3EEF1476 /* SignupScreenView.swift */; };
 		FE251EB4E7A1DDF402E2FE97 /* CourseDetailScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E8D19118FA4F87FB549FA2 /* CourseDetailScreenView.swift */; };
 		FFDACCBE4E2F57637C708161 /* CoffeeSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FD241016D676769CE7EB83 /* CoffeeSegmentedControl.swift */; };
@@ -85,6 +87,7 @@
 /* Begin PBXFileReference section */
 		04C249879F9187C14246CE77 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		0C4533ECB5EF463096E9D3D5 /* AudioQualityAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioQualityAnalyzer.swift; sourceTree = "<group>"; };
+		A07326227E734C62A7E17A76 /* RecordingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingActivity.swift; sourceTree = "<group>"; };
 		063A1DE3374FCA33E01AB18B /* CoffeeProgressDots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeProgressDots.swift; sourceTree = "<group>"; };
 		08FFFD7E1D8075DA84C1D9E9 /* SharedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedItem.swift; sourceTree = "<group>"; };
 		0C168E757F3276AE19266677 /* CoffeeNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeNavBar.swift; sourceTree = "<group>"; };
@@ -104,6 +107,7 @@
 		2FA7B95AB42C62458ABA0DB0 /* CoffeeIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeIcons.swift; sourceTree = "<group>"; };
 		348CCE1A291B7252344893D0 /* DeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceService.swift; sourceTree = "<group>"; };
 		894B3E480C474D248C3FD62B /* BackgroundUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundUploadService.swift; sourceTree = "<group>"; };
+		64A528D13677489D9727195E /* LiveActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityService.swift; sourceTree = "<group>"; };
 		403788ECE16DF34291AAE7FD /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
 		412D4185C49E4ED8A8F7D96F /* PDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportService.swift; sourceTree = "<group>"; };
 		43AB8F2FF2EFE29E1C6DC89B /* LoginScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginScreenView.swift; sourceTree = "<group>"; };
@@ -360,6 +364,7 @@
 				DE2206869A659CCD5106F77F /* AuthService.swift */,
 				348CCE1A291B7252344893D0 /* DeviceService.swift */,
 				894B3E480C474D248C3FD62B /* BackgroundUploadService.swift */,
+				64A528D13677489D9727195E /* LiveActivityService.swift */,
 				A5247846C793FF600148D445 /* DisciplineService.swift */,
 				1A7C75C7BB362EEE0B2A9721 /* MaterialService.swift */,
 				C2554F0591E90ABB110B740D /* MockDataProvider.swift */,
@@ -407,6 +412,7 @@
 			children = (
 				04C249879F9187C14246CE77 /* AudioRecorder.swift */,
 				0C4533ECB5EF463096E9D3D5 /* AudioQualityAnalyzer.swift */,
+				A07326227E734C62A7E17A76 /* RecordingActivity.swift */,
 				0FA622574706B3A970D4D130 /* WhisperKitManager.swift */,
 			);
 			path = Audio;
@@ -510,6 +516,7 @@
 				2B2D86BA9D5B47AD61E971A5 /* AccountService.swift in Sources */,
 				F2DCF0E16323686F74F06576 /* AudioRecorder.swift in Sources */,
 				96F251989C4A4F5AB2D7658E /* AudioQualityAnalyzer.swift in Sources */,
+				BE2E68D34EF2498E932DB2E0 /* RecordingActivity.swift in Sources */,
 				3146A769B99023AD8A2379B8 /* AuthService.swift in Sources */,
 				B0CA6078E8A4C51D47E43817 /* COFFEEApp.swift in Sources */,
 				29896D6A9D45A7D44FEC1DD8 /* CanvasWebViewController.swift in Sources */,
@@ -533,6 +540,7 @@
 				D1E2F3A4B5C6D7E8F9A0B1C2 /* MindMapCanvasView.swift in Sources */,
 				AF0D55BF760D9914D53F257C /* DeviceService.swift in Sources */,
 				9A784F3CC3A14C6E9DF3C0CF /* BackgroundUploadService.swift in Sources */,
+				AC13BC6CCCB34C96AB8E948C /* LiveActivityService.swift in Sources */,
 				EA77550B5F704E06CB98934B /* DisciplinasScreenView.swift in Sources */,
 				AEB68CF85EF048A102421743 /* Discipline.swift in Sources */,
 				EA577B767D8CF4E05789A428 /* DisciplineService.swift in Sources */,

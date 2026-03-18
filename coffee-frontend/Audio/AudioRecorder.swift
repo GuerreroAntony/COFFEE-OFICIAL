@@ -16,6 +16,9 @@ final class AudioRecorder: NSObject {
     var currentTime: TimeInterval = 0
     var audioLevel: Float = 0 // 0...1 normalized
 
+    /// Increments when an interruption auto-pauses/resumes. Observe this to sync UI.
+    var interruptionEvent: Int = 0
+
     /// Public access to the recorded file URL for upload
     var currentFileURL: URL? { fileURL }
 
@@ -148,7 +151,7 @@ final class AudioRecorder: NSObject {
             // Phone call, alarm, etc. — auto-pause
             if case .recording = state {
                 pauseRecording()
-                print("[AudioRecorder] Interrupted — paused recording")
+                interruptionEvent += 1
             }
         case .ended:
             // Interruption ended — check if we should resume
@@ -156,7 +159,7 @@ final class AudioRecorder: NSObject {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 if options.contains(.shouldResume), case .paused = state {
                     resumeRecording()
-                    print("[AudioRecorder] Interruption ended — resumed recording")
+                    interruptionEvent += 1
                 }
             }
         @unknown default:
