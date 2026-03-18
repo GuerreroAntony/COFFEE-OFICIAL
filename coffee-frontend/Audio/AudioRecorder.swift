@@ -163,16 +163,23 @@ final class AudioRecorder: NSObject {
     // MARK: - Timer & Metering
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
             guard let self, let recorder = self.audioRecorder else { return }
 
             self.currentTime = recorder.currentTime
 
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0)
-            // Normalize: -160dB...0dB → 0...1
-            let normalized = max(0, min(1, (power + 50) / 50))
-            self.audioLevel = normalized
+            // averagePower range: -160dB (silence) to 0dB (max).
+            // Distant lecture mic typically: -45dB (silence) to -10dB (loud speech).
+            // Map -45...-5 to 0...1 with exponential curve for visual punch.
+            let clamped = max(-45.0, min(-5.0, power))
+            let linear = (clamped + 45.0) / 40.0  // 0...1
+            // Exponential curve: makes small sounds more visible
+            let curved = pow(linear, 0.6)
+            // Smooth: blend with previous value to avoid jitter
+            let smoothed = self.audioLevel * 0.3 + Float(curved) * 0.7
+            self.audioLevel = smoothed
         }
     }
 
