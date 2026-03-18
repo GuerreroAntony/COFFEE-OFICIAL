@@ -69,32 +69,60 @@ struct RippleEffect: View {
 }
 
 // MARK: - Waveform Animation (Recording active — responsive to audio)
+// Organic, always-moving waveform with gradient bars.
+// Idle: gentle breathing wave. Active: bars respond to mic level.
 
 struct WaveformBar: View {
     let index: Int
     let barCount: Int
     let color: Color
     let audioLevel: Float
+    let time: Double
 
-    /// Each bar gets a slightly different response based on position
-    private var barLevel: CGFloat {
-        let base = CGFloat(audioLevel)
-        // Create wave-like variation across bars using sin
-        let phase = sin(Double(index) * 0.5 + Double(audioLevel) * 10) * 0.3
-        return max(0, min(1, base + CGFloat(phase)))
+    /// Organic height: combines idle wave + audio response
+    private var targetHeight: CGFloat {
+        let minH: CGFloat = 4
+        let maxH: CGFloat = 48
+        let pos = Double(index) / Double(max(barCount - 1, 1))
+
+        // Idle breathing wave — always moving (multiple sin layers for organic feel)
+        let wave1 = sin(time * 1.2 + pos * .pi * 2.5) * 0.15
+        let wave2 = sin(time * 0.7 + pos * .pi * 4.0 + 1.0) * 0.08
+        let wave3 = sin(time * 2.0 + pos * .pi * 1.5 + 2.5) * 0.05
+        let idle = 0.12 + wave1 + wave2 + wave3
+
+        // Audio response — stronger in center, weaker at edges (natural shape)
+        let centerBias = 1.0 - abs(pos - 0.5) * 1.4 // 0.3 at edges, 1.0 at center
+        let audio = Double(audioLevel) * centerBias
+        // Add per-bar variation so bars don't all move identically
+        let barPhase = sin(time * 3.0 + Double(index) * 0.8) * 0.12
+        let audioWithVariation = audio + (audio > 0.05 ? barPhase * audio : 0)
+
+        let level = max(0, min(1, idle + audioWithVariation))
+        return minH + CGFloat(level) * (maxH - minH)
     }
 
-    private var targetHeight: CGFloat {
-        let minH: CGFloat = 3
-        let maxH: CGFloat = 32
-        return minH + barLevel * (maxH - minH)
+    /// Bar opacity: brighter in center, subtle at edges
+    private var barOpacity: Double {
+        let pos = Double(index) / Double(max(barCount - 1, 1))
+        let center = 1.0 - abs(pos - 0.5) * 0.6
+        let audioBoost = Double(audioLevel) * 0.3
+        return min(1.0, center + audioBoost)
     }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 2)
-            .fill(color)
+        RoundedRectangle(cornerRadius: 2.5)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        color.opacity(barOpacity),
+                        color.opacity(barOpacity * 0.4),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .frame(width: 3, height: targetHeight)
-            .animation(.easeOut(duration: 0.08), value: audioLevel)
     }
 }
 
@@ -109,13 +137,23 @@ struct WaveformView: View {
         self.audioLevel = audioLevel
     }
 
+    // TimelineView drives continuous animation
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<barCount, id: \.self) { index in
-                WaveformBar(index: index, barCount: barCount, color: color, audioLevel: audioLevel)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 2.5) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    WaveformBar(
+                        index: index,
+                        barCount: barCount,
+                        color: color,
+                        audioLevel: audioLevel,
+                        time: time
+                    )
+                }
             }
         }
-        .frame(height: 32)
+        .frame(height: 48)
     }
 }
 

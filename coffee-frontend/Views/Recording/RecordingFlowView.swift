@@ -471,11 +471,11 @@ struct RecordingActiveView: View {
     }
 
     private var waveform: some View {
-        WaveformView(barCount: 40, color: Color.coffeePrimaryLight, audioLevel: isRecording ? audioLevel : 0)
-            .opacity(isRecording ? 1.0 : 0.3)
-            .frame(height: 90)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 20)
+        WaveformView(barCount: 48, color: Color.coffeePrimaryLight, audioLevel: isRecording ? audioLevel : 0)
+            .opacity(isRecording ? 1.0 : 0.4)
+            .frame(height: 64)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
     }
 
     private var controls: some View {
