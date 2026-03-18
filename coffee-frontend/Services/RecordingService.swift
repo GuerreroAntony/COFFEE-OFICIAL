@@ -106,6 +106,7 @@ enum RecordingService {
         }
 
         let audioData = try Data(contentsOf: audioFileURL)
+        print("[RecordingService] Audio file: \(audioFileURL.lastPathComponent), size: \(audioData.count) bytes (\(audioData.count / 1024) KB)")
 
         let url = URL(string: "\(APIClient.baseURL)\(APIEndpoints.gravacaoUploadAudio)")!
         var request = URLRequest(url: url)

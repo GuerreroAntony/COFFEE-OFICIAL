@@ -70,21 +70,28 @@ final class AudioRecorder: NSObject {
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 16000.0,  // 16kHz — optimal for speech transcription
-            AVNumberOfChannelsKey: 1,   // Mono — reduces file size, speech is mono
+            AVSampleRateKey: 16000.0,
+            AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-            AVEncoderBitRateKey: 64000, // 64kbps — good quality, ~24MB per 50min
         ]
 
         do {
             audioRecorder = try AVAudioRecorder(url: fileURL!, settings: settings)
             audioRecorder?.delegate = self
             audioRecorder?.isMeteringEnabled = true
-            audioRecorder?.record()
+            audioRecorder?.prepareToRecord()
+            let started = audioRecorder?.record() ?? false
+            print("[AudioRecorder] record() returned: \(started), isRecording: \(audioRecorder?.isRecording ?? false)")
+
+            if !started {
+                state = .error("Não foi possível iniciar a gravação")
+                return
+            }
 
             state = .recording
             startTimer()
         } catch {
+            print("[AudioRecorder] ERROR: \(error)")
             state = .error("Erro ao iniciar gravação: \(error.localizedDescription)")
         }
     }
@@ -106,9 +113,17 @@ final class AudioRecorder: NSObject {
     }
 
     func stopRecording() -> URL? {
+        print("[AudioRecorder] stopRecording — isRecording: \(audioRecorder?.isRecording ?? false)")
+        print("[AudioRecorder] currentTime before stop: \(audioRecorder?.currentTime ?? 0)")
         audioRecorder?.stop()
         timer?.invalidate()
         state = .stopped
+
+        // Check file size after stop
+        if let url = fileURL {
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+            print("[AudioRecorder] File size after stop: \(size) bytes (\(size / 1024) KB)")
+        }
 
         let session = AVAudioSession.sharedInstance()
         try? session.setActive(false)
