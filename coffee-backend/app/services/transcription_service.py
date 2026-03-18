@@ -52,17 +52,26 @@ async def download_from_storage(bucket: str, path: str) -> bytes:
 
 
 async def delete_from_storage(bucket: str, path: str) -> bool:
-    """Delete a file from Supabase Storage. Returns True on success."""
-    url = f"{settings.SUPABASE_URL}/storage/v1/object/{bucket}/{path}"
+    """Delete a file from Supabase Storage. Returns True on success.
+
+    Uses the batch delete endpoint: DELETE /storage/v1/object/{bucket}
+    with JSON body {"prefixes": ["path"]}.
+    """
+    url = f"{settings.SUPABASE_URL}/storage/v1/object/{bucket}"
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.delete(
+        resp = await client.request(
+            "DELETE",
             url,
-            headers={"Authorization": f"Bearer {settings.SUPABASE_KEY}"},
+            headers={
+                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+                "Content-Type": "application/json",
+            },
+            content=__import__("json").dumps({"prefixes": [path]}),
         )
     if resp.status_code in (200, 204):
         logger.info("Deleted %s/%s from storage", bucket, path)
         return True
-    logger.warning("Failed to delete %s/%s: %d", bucket, path, resp.status_code)
+    logger.warning("Failed to delete %s/%s: %d %s", bucket, path, resp.status_code, resp.text[:100])
     return False
 
 
