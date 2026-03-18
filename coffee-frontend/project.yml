@@ -20,6 +20,11 @@ schemes:
     archive:
       config: Release
 
+packages:
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    majorVersion: 2.4.0
+
 targets:
   COFFEE:
     type: application
@@ -30,6 +35,8 @@ targets:
           - project.yml
           - "*.xcodeproj/**"
           - Preview Content
+          - CoffeeWidgets
+          - build
     resources:
       - path: Assets.xcassets
       - path: Fonts
@@ -45,11 +52,37 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real."
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: CoffeeWidgets
+      - package: MarkdownUI
     info:
       path: Info.plist
       properties:
+        NSSupportsLiveActivities: true
+        NSMicrophoneUsageDescription: "O Coffee precisa do microfone para gravar suas aulas."
+        UIBackgroundModes:
+          - audio
         UIAppFonts:
           - circular-bold.ttf
           - circular-black.ttf
           - circular-medium.ttf
           - circular-book.ttf
+
+  CoffeeWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CoffeeWidgets
+      - path: Audio/RecordingActivity.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.leonardodigiglio.coffee.CoffeeWidgets
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_FILE: CoffeeWidgets/Info.plist
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+    entitlements:
+      path: CoffeeWidgets/CoffeeWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.leonardodigiglio.coffee
