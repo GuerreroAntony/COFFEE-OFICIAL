@@ -682,10 +682,9 @@ struct RecordingStoppedView: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
 
-            Text("\(formatTime(seconds)) gravados · suas notas ficam prontas em ~3 min")
+            Text("\(formatTime(seconds)) gravados")
                 .font(.system(size: 14))
                 .foregroundStyle(Color.coffeeTextSecondary)
-                .multilineTextAlignment(.center)
 
             // Notify button
             if !notifyEnabled {
