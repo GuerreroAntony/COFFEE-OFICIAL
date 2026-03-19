@@ -673,8 +673,9 @@ struct RecordingStoppedView: View {
                     .fill(Color.coffeePrimary.opacity(coffeePulse ? 0.15 : 0.07))
                     .frame(width: 90, height: 90)
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: coffeePulse)
-                Text("☕")
-                    .font(.system(size: 44))
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.coffeePrimary)
             }
             .onAppear { coffeePulse = true }
 
@@ -1007,7 +1008,9 @@ struct RecordingUploadedView: View {
                     .fill(Color.coffeePrimary.opacity(cloudPulse ? 0.15 : 0.08))
                     .frame(width: 100, height: 100)
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: cloudPulse)
-                Text(processingStatus == .ready ? "✅" : "☕")
+                Image(systemName: processingStatus == .ready ? "checkmark.circle.fill" : "cup.and.saucer.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(processingStatus == .ready ? Color.green : Color.coffeePrimary)
                     .font(.system(size: 48))
             }
             .onAppear { cloudPulse = true }
@@ -1040,7 +1043,9 @@ struct RecordingUploadedView: View {
                         .font(.system(size: 24))
                         .foregroundStyle(Color.green)
                 } else {
-                    Text("☕")
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.coffeePrimary)
                         .font(.system(size: 24))
                 }
 
