@@ -667,17 +667,10 @@ struct RecordingStoppedView: View {
 
     private var successHeader: some View {
         VStack(spacing: 16) {
-            // Animated coffee
-            ZStack {
-                Circle()
-                    .fill(Color.coffeePrimary.opacity(coffeePulse ? 0.15 : 0.07))
-                    .frame(width: 90, height: 90)
-                    .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: coffeePulse)
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.coffeePrimary)
-            }
-            .onAppear { coffeePulse = true }
+            // Loading spinner
+            ProgressView()
+                .controlSize(.large)
+                .tint(Color.coffeePrimary)
 
             Text("Passando o café...")
                 .font(.system(size: 22, weight: .bold))
