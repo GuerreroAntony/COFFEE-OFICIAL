@@ -69,63 +69,48 @@ struct RippleEffect: View {
 }
 
 // MARK: - Waveform Animation (Recording active — responsive to audio)
-// Organic, always-moving waveform with gradient bars.
-// Idle: gentle breathing wave. Active: bars respond to mic level.
+// Static bar positions — bars only grow/shrink vertically with audio level.
+// No lateral wave movement. Each bar has a fixed random-looking height pattern.
 
 struct WaveformBar: View {
     let index: Int
     let barCount: Int
     let color: Color
     let audioLevel: Float
-    let time: Double
 
-    /// Organic height: combines idle wave + exaggerated audio response
-    private var targetHeight: CGFloat {
-        let minH: CGFloat = 4
-        let maxH: CGFloat = 56
-        let pos = Double(index) / Double(max(barCount - 1, 1))
-
-        // Idle breathing wave — visible even with zero audio
-        // Multiple sin layers at different speeds = organic feel
-        let wave1 = sin(time * 1.2 + pos * .pi * 2.5) * 0.12
-        let wave2 = sin(time * 0.8 + pos * .pi * 4.0 + 1.0) * 0.07
-        let wave3 = sin(time * 1.8 + pos * .pi * 1.3 + 2.5) * 0.04
-        // Center bars idle taller than edges
-        let centerBase = 0.15 + (1.0 - abs(pos - 0.5) * 1.0) * 0.08
-        let idle = centerBase + wave1 + wave2 + wave3
-
-        // Audio response — EXAGGERATED. Center bars go full height.
-        let centerBias = 1.0 - abs(pos - 0.5) * 1.0
-        let audio = Double(audioLevel) * centerBias * 1.5
-        // Per-bar variation: makes it look alive, not uniform
-        let barPhase = sin(time * 4.0 + Double(index) * 1.1) * 0.18
-        let audioFinal = audio + (audio > 0.05 ? barPhase * audio : 0)
-
-        let level = max(0, min(1, idle + audioFinal))
-        return minH + CGFloat(level) * (maxH - minH)
+    // Fixed per-bar pattern (seeded by index, no time dependency = no lateral movement)
+    private var fixedPattern: Double {
+        // Deterministic "random" height per bar using golden ratio hash
+        let golden = 0.618033988749895
+        let hash = (Double(index) * golden).truncatingRemainder(dividingBy: 1.0)
+        return hash
     }
 
-    /// Bar opacity: brighter in center, subtle at edges
-    private var barOpacity: Double {
+    private var targetHeight: CGFloat {
+        let minH: CGFloat = 4
+        let maxH: CGFloat = 48
         let pos = Double(index) / Double(max(barCount - 1, 1))
-        let center = 1.0 - abs(pos - 0.5) * 0.6
-        let audioBoost = Double(audioLevel) * 0.3
-        return min(1.0, center + audioBoost)
+
+        // Base shape: center bars taller, edges shorter (like reference image)
+        let centerCurve = 1.0 - pow(abs(pos - 0.5) * 2.0, 1.5)
+        let base = 0.08 + centerCurve * 0.12
+
+        // Per-bar fixed variation (gives irregular look without movement)
+        let variation = fixedPattern * 0.15
+
+        // Audio response: scales all bars proportionally
+        let audioScale = Double(audioLevel) * centerCurve * 0.7
+        let barVariation = fixedPattern * Double(audioLevel) * 0.3
+
+        let level = max(0, min(1, base + variation + audioScale + barVariation))
+        return minH + CGFloat(level) * (maxH - minH)
     }
 
     var body: some View {
         RoundedRectangle(cornerRadius: 2.5)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        color.opacity(barOpacity),
-                        color.opacity(barOpacity * 0.4),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: 3, height: targetHeight)
+            .fill(color)
+            .frame(width: 3.5, height: targetHeight)
+            .animation(.easeOut(duration: 0.15), value: audioLevel)
     }
 }
 
@@ -140,20 +125,15 @@ struct WaveformView: View {
         self.audioLevel = audioLevel
     }
 
-    // TimelineView drives continuous animation
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            let time = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2.5) {
-                ForEach(0..<barCount, id: \.self) { index in
-                    WaveformBar(
-                        index: index,
-                        barCount: barCount,
-                        color: color,
-                        audioLevel: audioLevel,
-                        time: time
-                    )
-                }
+        HStack(spacing: 2.5) {
+            ForEach(0..<barCount, id: \.self) { index in
+                WaveformBar(
+                    index: index,
+                    barCount: barCount,
+                    color: color,
+                    audioLevel: audioLevel
+                )
             }
         }
         .frame(height: 48)
