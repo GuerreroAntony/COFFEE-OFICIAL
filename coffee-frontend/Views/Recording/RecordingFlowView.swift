@@ -662,26 +662,69 @@ struct RecordingStoppedView: View {
         }
     }
 
+    @State private var coffeePulse = false
+    @State private var notifyEnabled = false
+
     private var successHeader: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
+            // Animated coffee
             ZStack {
-                Circle().fill(Color.coffeePrimary.opacity(0.1)).frame(width: 76, height: 76)
-                Image(systemName: "waveform")
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.coffeePrimary)
+                Circle()
+                    .fill(Color.coffeePrimary.opacity(coffeePulse ? 0.15 : 0.07))
+                    .frame(width: 90, height: 90)
+                    .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: coffeePulse)
+                Text("☕")
+                    .font(.system(size: 44))
             }
-            Text("Gravação finalizada!")
+            .onAppear { coffeePulse = true }
+
+            Text("Passando o café...")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
-            Text("\(formatTime(seconds)) de aula gravados")
-                .font(.system(size: 15))
+
+            Text("\(formatTime(seconds)) gravados · suas notas ficam prontas em ~3 min")
+                .font(.system(size: 14))
                 .foregroundStyle(Color.coffeeTextSecondary)
-            Text("Selecione a disciplina para enviar")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.7))
+                .multilineTextAlignment(.center)
+
+            // Notify button
+            if !notifyEnabled {
+                Button {
+                    notifyEnabled = true
+                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                        if granted {
+                            DispatchQueue.main.async {
+                                UIApplication.shared.registerForRemoteNotifications()
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 13))
+                        Text("Me notifique quando pronto")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.coffeePrimary.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.green)
+                    Text("Você será notificado")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.green)
+                }
+            }
         }
-        .padding(.top, 72)
-        .padding(.bottom, 32)
+        .padding(.top, 56)
+        .padding(.bottom, 24)
+        .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
         .background(Color.coffeeCardBackground)
     }
@@ -959,20 +1002,18 @@ struct RecordingUploadedView: View {
 
     private var uploadHeader: some View {
         VStack(spacing: 16) {
-            // Animated cloud icon
+            // Animated coffee cup
             ZStack {
                 Circle()
                     .fill(Color.coffeePrimary.opacity(cloudPulse ? 0.15 : 0.08))
                     .frame(width: 100, height: 100)
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: cloudPulse)
-                Image(systemName: "icloud.and.arrow.up.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.coffeePrimary)
-                    .symbolEffect(.pulse, options: .repeating)
+                Text(processingStatus == .ready ? "✅" : "☕")
+                    .font(.system(size: 48))
             }
             .onAppear { cloudPulse = true }
 
-            Text("Gravação enviada!")
+            Text(processingStatus == .ready ? "Café pronto!" : "Passando o café...")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
 
@@ -1000,17 +1041,17 @@ struct RecordingUploadedView: View {
                         .font(.system(size: 24))
                         .foregroundStyle(Color.green)
                 } else {
-                    ProgressView()
-                        .tint(Color.coffeePrimary)
+                    Text("☕")
+                        .font(.system(size: 24))
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(processingStatus == .ready ? "Tudo pronto!" : "Processando com IA...")
+                    Text(processingStatus == .ready ? "Café pronto!" : "Passando o café...")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.coffeeTextPrimary)
                     Text(processingStatus == .ready
                          ? "Resumo e mapa mental disponíveis"
-                         : "Estimativa: ~3 minutos")
+                         : "Suas notas ficam prontas em ~3 min")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.coffeeTextSecondary)
                 }
@@ -1019,9 +1060,9 @@ struct RecordingUploadedView: View {
 
             // Progress steps
             VStack(alignment: .leading, spacing: 10) {
-                progressStep(icon: "arrow.up.circle.fill", label: "Upload concluído", done: true)
-                progressStep(icon: "waveform", label: "Transcrevendo áudio", done: processingStatus == .ready)
-                progressStep(icon: "text.document.fill", label: "Gerando resumo e notas", done: processingStatus == .ready)
+                progressStep(icon: "arrow.up.circle.fill", label: "Áudio enviado", done: true)
+                progressStep(icon: "waveform", label: "Transcrevendo a aula", done: processingStatus == .ready)
+                progressStep(icon: "cup.and.saucer.fill", label: "Preparando resumo e notas", done: processingStatus == .ready)
             }
         }
         .padding(20)
