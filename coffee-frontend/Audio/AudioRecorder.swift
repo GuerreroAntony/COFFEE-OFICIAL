@@ -180,15 +180,14 @@ final class AudioRecorder: NSObject {
 
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0)
-            // Exaggerated response: any sound should make the waveform jump.
-            // Map -40...-8 dB → 0...1, then boost aggressively.
-            let clamped = max(-40.0, min(-8.0, power))
-            let linear = (clamped + 40.0) / 32.0
-            let curved = pow(linear, 0.35)
-            let boosted = min(1.0, curved * 1.4)
-            // Fast attack (0.85), slower decay (0.4)
-            let blend: Float = Float(boosted) > self.audioLevel ? 0.85 : 0.4
-            let smoothed = self.audioLevel * (1.0 - blend) + Float(boosted) * blend
+            // Natural response: reacts to voice without being jumpy.
+            // Map -50...-5 dB → 0...1 with gentle curve.
+            let clamped = max(-50.0, min(-5.0, power))
+            let linear = (clamped + 50.0) / 45.0
+            let curved = pow(linear, 0.6)
+            // Smooth attack/decay for fluid movement
+            let blend: Float = Float(curved) > self.audioLevel ? 0.5 : 0.25
+            let smoothed = self.audioLevel * (1.0 - blend) + Float(curved) * blend
             self.audioLevel = smoothed
         }
         RunLoop.main.add(t, forMode: .common)

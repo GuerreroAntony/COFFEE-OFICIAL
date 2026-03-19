@@ -122,7 +122,7 @@
 		0DCA6539F9B1881893EA2241 /* AccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountService.swift; sourceTree = "<group>"; };
 		0E7F53DE7F1435296D7EB312 /* RecordingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFlowView.swift; sourceTree = "<group>"; };
 		0FA622574706B3A970D4D130 /* WhisperKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitManager.swift; sourceTree = "<group>"; };
-		140B030B8683392182E9ED27 /* CoffeeWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CoffeeWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		140B030B8683392182E9ED27 /* CoffeeWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CoffeeWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1451BA160B4ABE12798039A8 /* PremiumGateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumGateSheet.swift; sourceTree = "<group>"; };
 		177AA33643B56C0580611574 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		1A7C75C7BB362EEE0B2A9721 /* MaterialService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialService.swift; sourceTree = "<group>"; };
@@ -154,7 +154,7 @@
 		6EA7601ADADC74BD315D6306 /* PremiumLockedTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumLockedTabView.swift; sourceTree = "<group>"; };
 		7078854ECF578AF1DACF936A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70845CD5492AD0279EDAA0C7 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
-		71325BDDE7641D5176554297 /* project.yml.bak */ = {isa = PBXFileReference; path = project.yml.bak; sourceTree = "<group>"; };
+		71325BDDE7641D5176554297 /* project.yml.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = project.yml.bak; sourceTree = "<group>"; };
 		7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableRow.swift; sourceTree = "<group>"; };
 		802C2D4AF830DD57B24FD8F1 /* CoffeeMarkdownTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeMarkdownTheme.swift; sourceTree = "<group>"; };
 		849F845FCDB1FAA6207A1998 /* CoffeeAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeAnimations.swift; sourceTree = "<group>"; };
@@ -182,7 +182,7 @@
 		D4D15952BF8C6F45C45F6A94 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		D50B07FE7043AD8C0588F90F /* CoffeeBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeBubble.swift; sourceTree = "<group>"; };
 		D6040210DC0895C4C92BB63C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		DA50D09D38C1CF7C86AF9008 /* COFFEE.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = COFFEE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA50D09D38C1CF7C86AF9008 /* COFFEE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = COFFEE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA7B81B1C0F4E7D0F42BDDC3 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
 		DE2206869A659CCD5106F77F /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		E1B2BB73E15F56A56C394FEC /* ProfileScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileScreenView.swift; sourceTree = "<group>"; };
@@ -318,15 +318,6 @@
 				B16BCD02E0922B60B03C836D /* COFFEEApp.swift */,
 				D6040210DC0895C4C92BB63C /* ContentView.swift */,
 				71325BDDE7641D5176554297 /* project.yml.bak */,
-				E13E9B9849739BD211A1809E /* Audio */,
-				05A60FA485E28E41312944B3 /* Components */,
-				73DACCE15A9A3C16E2C57D0A /* Design */,
-				1CF5D2F02A9A62B72C31689D /* Fonts */,
-				6B90BA66DB0ADEBC6CFF3106 /* Models */,
-				A35067862E3BD01AA0FB5F93 /* Services */,
-				9F8CFBE1EB5A492EAF8032C6 /* Utilities */,
-				6A91EDAC29CDE3BE4FBA10A3 /* ViewModels */,
-				7E515059942A99742D50FC4E /* Views */,
 			);
 			name = "coffee-frontend";
 			path = .;
@@ -536,8 +527,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 85157B3C1AB56A5F06EB3EC4 /* Build configuration list for PBXProject "COFFEE" */;
 			developmentRegion = en;
@@ -681,8 +670,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KLC26SHF5C;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee.CoffeeWidgets;
 				SDKROOT = iphoneos;
@@ -696,6 +690,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = KLC26SHF5C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
@@ -777,8 +772,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KLC26SHF5C;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee.CoffeeWidgets;
 				SDKROOT = iphoneos;
@@ -792,6 +792,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = KLC26SHF5C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
