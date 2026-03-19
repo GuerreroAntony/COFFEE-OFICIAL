@@ -672,7 +672,7 @@ struct RecordingStoppedView: View {
                 .controlSize(.large)
                 .tint(Color.coffeePrimary)
 
-            Text("Passando o café...")
+            Text("Processando...")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
 
@@ -1008,7 +1008,7 @@ struct RecordingUploadedView: View {
             }
             .onAppear { cloudPulse = true }
 
-            Text(processingStatus == .ready ? "Café pronto!" : "Passando o café...")
+            Text(processingStatus == .ready ? "Café pronto!" : "Processando...")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.coffeeTextPrimary)
 
@@ -1043,7 +1043,7 @@ struct RecordingUploadedView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(processingStatus == .ready ? "Café pronto!" : "Passando o café...")
+                    Text(processingStatus == .ready ? "Café pronto!" : "Processando...")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.coffeeTextPrimary)
                     Text(processingStatus == .ready
