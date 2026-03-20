@@ -153,12 +153,14 @@ final class SubscriptionService {
 
     /// Opens system subscription management
     func manageSubscription() async {
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            do {
-                try await Purchases.shared.showManageSubscriptions(in: windowScene)
-            } catch {
-                print("❌ Erro ao abrir gerenciamento de assinatura: \(error)")
+        do {
+            if let url = try await Purchases.shared.customerInfo().managementURL {
+                await MainActor.run {
+                    UIApplication.shared.open(url)
+                }
             }
+        } catch {
+            print("❌ Erro ao abrir gerenciamento de assinatura: \(error)")
         }
     }
 

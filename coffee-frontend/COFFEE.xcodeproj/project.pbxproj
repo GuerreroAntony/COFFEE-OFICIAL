@@ -43,11 +43,11 @@
 		725659050C89732D81F284DB /* CoffeeIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA7B95AB42C62458ABA0DB0 /* CoffeeIcons.swift */; };
 		731B7A44BA7CB172A7999FF6 /* circular-bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C1EFB99ACC09682F594D7AB4 /* circular-bold.ttf */; };
 		76C90C0E3F67DDCD0711CB83 /* PDFExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412D4185C49E4ED8A8F7D96F /* PDFExportService.swift */; };
+		800844052F6DFE0800EDC8E5 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 800844042F6DFE0800EDC8E5 /* RevenueCat */; };
 		8093EEA9732BA19B80529AC5 /* SubscriptionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F76B83E08B70F64DE4E41A /* SubscriptionPlan.swift */; };
 		82DA3AFD395E88BF3BA405DF /* CameraPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E57371F20A523D905B84D7B /* CameraPickerView.swift */; };
 		8400BC5C4D020E68CB515C15 /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66894462AA85CCD81A9A0438 /* SubscriptionService.swift */; };
 		854CB87E9BF0258AE0EE152C /* IconPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3301338DA4775F332D257989 /* IconPickerSheet.swift */; };
-		8642DE52D4A446DB411A78EA /* project.yml.bak in Resources */ = {isa = PBXBuildFile; fileRef = 71325BDDE7641D5176554297 /* project.yml.bak */; };
 		88309D00C48E51158029BF10 /* CoffeeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3453F4CC53470E0E45BE842 /* CoffeeButton.swift */; };
 		8AE42A5AEC96B1F703CE8258 /* BackgroundUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65122C875C905DBD510D594 /* BackgroundUploadService.swift */; };
 		9126D8FE00A9DA845AFD6EBE /* OnboardingScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAC4101EEA33F878F953963 /* OnboardingScreenView.swift */; };
@@ -154,7 +154,6 @@
 		6EA7601ADADC74BD315D6306 /* PremiumLockedTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumLockedTabView.swift; sourceTree = "<group>"; };
 		7078854ECF578AF1DACF936A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70845CD5492AD0279EDAA0C7 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
-		71325BDDE7641D5176554297 /* project.yml.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = project.yml.bak; sourceTree = "<group>"; };
 		7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableRow.swift; sourceTree = "<group>"; };
 		802C2D4AF830DD57B24FD8F1 /* CoffeeMarkdownTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeMarkdownTheme.swift; sourceTree = "<group>"; };
 		849F845FCDB1FAA6207A1998 /* CoffeeAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeAnimations.swift; sourceTree = "<group>"; };
@@ -200,6 +199,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				800844052F6DFE0800EDC8E5 /* RevenueCat in Frameworks */,
 				F2AC02C014CC0C27C01CAD43 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -317,7 +317,6 @@
 				7078854ECF578AF1DACF936A /* Assets.xcassets */,
 				B16BCD02E0922B60B03C836D /* COFFEEApp.swift */,
 				D6040210DC0895C4C92BB63C /* ContentView.swift */,
-				71325BDDE7641D5176554297 /* project.yml.bak */,
 			);
 			name = "coffee-frontend";
 			path = .;
@@ -514,6 +513,7 @@
 			name = COFFEE;
 			packageProductDependencies = (
 				8518CC97F1EC363D04BB7F77 /* MarkdownUI */,
+				800844042F6DFE0800EDC8E5 /* RevenueCat */,
 			);
 			productName = COFFEE;
 			productReference = DA50D09D38C1CF7C86AF9008 /* COFFEE.app */;
@@ -539,6 +539,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				51124ED59F34D5B9CF04D288 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				800844032F6DFE0800EDC8E5 /* XCRemoteSwiftPackageReference "purchases-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 23DB784D25F53FD6F1DDF64C /* Products */;
@@ -561,7 +562,6 @@
 				731B7A44BA7CB172A7999FF6 /* circular-bold.ttf in Resources */,
 				602D0E14D40693ADAA18750D /* circular-book.ttf in Resources */,
 				B1788BC160C503B9FFB0EAAB /* circular-medium.ttf in Resources */,
-				8642DE52D4A446DB411A78EA /* project.yml.bak in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -670,7 +670,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -690,7 +690,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
@@ -772,7 +772,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -792,7 +792,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = coffee;
@@ -917,9 +917,22 @@
 				minimumVersion = 2.4.0;
 			};
 		};
+		800844032F6DFE0800EDC8E5 /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.66.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		800844042F6DFE0800EDC8E5 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 800844032F6DFE0800EDC8E5 /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
+		};
 		8518CC97F1EC363D04BB7F77 /* MarkdownUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 51124ED59F34D5B9CF04D288 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
