@@ -1,7 +1,15 @@
 import SwiftUI
+import UserNotifications
+
+// MARK: - Calendar View Mode
+
+enum CalendarViewMode: String {
+    case week
+    case month
+}
 
 // MARK: - Calendario Screen View
-// Full-screen calendar with week strip + event list for selected day
+// Full-screen calendar with week/month views + event list for selected day
 // Presented as .fullScreenCover from DisciplinasScreenView
 
 struct CalendarioScreenView: View {
@@ -16,6 +24,7 @@ struct CalendarioScreenView: View {
     @State private var showAddEvent = false
     @State private var disciplines: [Discipline] = []
     @State private var lastSyncMessage: String? = nil
+    @State private var viewMode: CalendarViewMode = .week
 
     private let calendar = Calendar.current
 
@@ -53,14 +62,24 @@ struct CalendarioScreenView: View {
             // Nav bar
             navBar
 
-            // Week strip
-            CalendarWeekStripView(
-                selectedDate: $selectedDate,
-                events: events,
-                onDateSelected: { date in
-                    selectedDate = date
-                }
-            )
+            // Calendar view (week strip or month grid)
+            if viewMode == .week {
+                CalendarWeekStripView(
+                    selectedDate: $selectedDate,
+                    events: events,
+                    onDateSelected: { date in
+                        selectedDate = date
+                    }
+                )
+            } else {
+                CalendarMonthGridView(
+                    selectedDate: $selectedDate,
+                    events: events,
+                    onDateSelected: { date in
+                        selectedDate = date
+                    }
+                )
+            }
 
             Divider()
 
@@ -204,24 +223,56 @@ struct CalendarioScreenView: View {
     // MARK: - Nav Bar
 
     private var navBar: some View {
-        ZStack {
-            Text("Calendário ESPM")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.coffeeTextPrimary)
+        VStack(spacing: 0) {
+            // Row 1: Back + Title + Sync
+            ZStack {
+                Text("Calendário ESPM")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
 
-            HStack {
-                // Back button
-                Button {
-                    dismiss()
-                } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 22, weight: .medium))
-                        Text("Voltar")
-                            .font(.system(size: 17))
+                HStack {
+                    // Back button
+                    Button {
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 22, weight: .medium))
+                            Text("Voltar")
+                                .font(.system(size: 17))
+                        }
+                        .foregroundStyle(Color.coffeePrimary)
                     }
-                    .foregroundStyle(Color.coffeePrimary)
+
+                    Spacer()
+
+                    // Sync button
+                    Button {
+                        Task { await syncCanvas() }
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(isSyncing ? Color.coffeeTextSecondary : Color.coffeePrimary)
+                            .rotationEffect(.degrees(syncRotation))
+                            .frame(width: 32, height: 32)
+                            .background(Color.coffeeInputBackground)
+                            .clipShape(Circle())
+                    }
+                    .disabled(isSyncing)
                 }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+
+            // Row 2: Segmented control + Hoje
+            HStack(spacing: 12) {
+                // Segmented: Semana | Mês
+                HStack(spacing: 0) {
+                    viewModeSegment("Semana", mode: .week)
+                    viewModeSegment("Mês", mode: .month)
+                }
+                .background(Color.coffeeInputBackground)
+                .clipShape(Capsule())
 
                 Spacer()
 
@@ -233,7 +284,7 @@ struct CalendarioScreenView: View {
                         }
                     } label: {
                         Text("Hoje")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Color.coffeePrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -241,25 +292,31 @@ struct CalendarioScreenView: View {
                             .clipShape(Capsule())
                     }
                 }
-
-                // Sync button
-                Button {
-                    Task { await syncCanvas() }
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(isSyncing ? Color.coffeeTextSecondary : Color.coffeePrimary)
-                        .rotationEffect(.degrees(syncRotation))
-                        .frame(width: 32, height: 32)
-                        .background(Color.coffeeInputBackground)
-                        .clipShape(Circle())
-                }
-                .disabled(isSyncing)
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 56)
         .background(Color.coffeeCardBackground)
+    }
+
+    // MARK: - Segmented Control Helper
+
+    private func viewModeSegment(_ label: String, mode: CalendarViewMode) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                viewMode = mode
+            }
+        } label: {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(viewMode == mode ? .white : Color.coffeeTextSecondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 7)
+                .background(
+                    viewMode == mode ? Color.coffeePrimary : Color.clear
+                )
+                .clipShape(Capsule())
+        }
     }
 
     // MARK: - Actions
@@ -267,12 +324,18 @@ struct CalendarioScreenView: View {
     private func loadData() async {
         isLoading = true
 
+        // Request notification permission
+        requestNotificationPermission()
+
         // Load disciplines for add event sheet
         disciplines = (try? await DisciplineService.getDisciplines()) ?? []
 
         // Load events
         await fetchEvents()
         isLoading = false
+
+        // Schedule local notifications for upcoming events
+        scheduleLocalNotifications()
     }
 
     private func fetchEvents() async {
@@ -285,6 +348,93 @@ struct CalendarioScreenView: View {
             events = try await CalendarService.getEvents(start: start, end: end)
         } catch {
             print("[Calendario] Error loading events: \(error)")
+        }
+    }
+
+    // MARK: - Local Notifications
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error {
+                print("[Calendario] Notification permission error: \(error)")
+            }
+        }
+    }
+
+    private func scheduleLocalNotifications() {
+        let center = UNUserNotificationCenter.current()
+
+        // Remove old calendar notifications before re-scheduling
+        center.removePendingNotificationRequests(withIdentifiers:
+            events.map { "cal_1h_\($0.id)" } + events.map { "cal_1d_\($0.id)" }
+        )
+
+        let now = Date()
+        let futureEvents = events.filter { $0.startAt > now && !$0.completed }
+
+        for event in futureEvents.prefix(60) { // iOS limit: ~64 pending notifications
+            let typeLabels: [String: String] = [
+                "assignment": "Atividade",
+                "quiz": "Quiz",
+                "exam": "Prova",
+                "deadline": "Prazo",
+                "event": "Evento",
+                "reminder": "Lembrete"
+            ]
+            let typeLabel = typeLabels[event.eventType] ?? "Evento"
+            let timeStr = event.startAt.formatted(date: .omitted, time: .shortened)
+            let discName = event.displayName
+
+            // 1h before
+            let oneHourBefore = event.startAt.addingTimeInterval(-3600)
+            if oneHourBefore > now {
+                let content = UNMutableNotificationContent()
+                content.title = "Em 1 hora: \(event.title)"
+                content.body = "\(typeLabel) às \(timeStr)"
+                if !discName.isEmpty {
+                    content.body += " · \(discName)"
+                }
+                content.sound = .default
+
+                let trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: oneHourBefore.timeIntervalSince(now),
+                    repeats: false
+                )
+                let request = UNNotificationRequest(
+                    identifier: "cal_1h_\(event.id)",
+                    content: content,
+                    trigger: trigger
+                )
+                center.add(request)
+            }
+
+            // 24h before
+            let oneDayBefore = event.startAt.addingTimeInterval(-86400)
+            if oneDayBefore > now {
+                let content = UNMutableNotificationContent()
+                content.title = "Amanhã: \(event.title)"
+                content.body = "\(typeLabel) às \(timeStr)"
+                if !discName.isEmpty {
+                    content.body += " · \(discName)"
+                }
+                content.sound = .default
+
+                let trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: oneDayBefore.timeIntervalSince(now),
+                    repeats: false
+                )
+                let request = UNNotificationRequest(
+                    identifier: "cal_1d_\(event.id)",
+                    content: content,
+                    trigger: trigger
+                )
+                center.add(request)
+            }
+        }
+
+        let scheduled = futureEvents.prefix(60).count
+        if scheduled > 0 {
+            print("[Calendario] Scheduled local notifications for \(scheduled) events")
         }
     }
 
@@ -302,6 +452,7 @@ struct CalendarioScreenView: View {
                 // Wait a moment then refresh
                 try? await Task.sleep(for: .seconds(2))
                 await fetchEvents()
+                scheduleLocalNotifications()
                 lastSyncMessage = "Sincronizado com Canvas"
             }
         } catch {
@@ -343,6 +494,9 @@ struct CalendarioScreenView: View {
 
             // Select the day of the new event
             selectedDate = newEvent.startAt
+
+            // Re-schedule notifications with new event included
+            scheduleLocalNotifications()
         } catch {
             print("[Calendario] Error creating event: \(error)")
         }
