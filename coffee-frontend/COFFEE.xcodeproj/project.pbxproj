@@ -87,6 +87,12 @@
 		FA4D1BEE4CAD604388C191BD /* AudioQualityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20055C04BC6972B0E7688870 /* AudioQualityAnalyzer.swift */; };
 		FE251EB4E7A1DDF402E2FE97 /* CourseDetailScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E8D19118FA4F87FB549FA2 /* CourseDetailScreenView.swift */; };
 		FFDACCBE4E2F57637C708161 /* CoffeeSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FD241016D676769CE7EB83 /* CoffeeSegmentedControl.swift */; };
+		CA1E0D07A3B4C5D6E7F80907 /* CalendarEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D01A3B4C5D6E7F80901 /* CalendarEvent.swift */; };
+		CA1E0D08A3B4C5D6E7F80908 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D02A3B4C5D6E7F80902 /* CalendarService.swift */; };
+		CA1E0D09A3B4C5D6E7F80909 /* CalendarioScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D03A3B4C5D6E7F80903 /* CalendarioScreenView.swift */; };
+		CA1E0D10A3B4C5D6E7F80910 /* CalendarWeekStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D04A3B4C5D6E7F80904 /* CalendarWeekStripView.swift */; };
+		CA1E0D11A3B4C5D6E7F80911 /* CalendarEventRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D05A3B4C5D6E7F80905 /* CalendarEventRow.swift */; };
+		CA1E0D12A3B4C5D6E7F80912 /* AddEventSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E0D06A3B4C5D6E7F80906 /* AddEventSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -193,6 +199,12 @@
 		F431172DB992B0ABBF989122 /* APIResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponse.swift; sourceTree = "<group>"; };
 		F65122C875C905DBD510D594 /* BackgroundUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundUploadService.swift; sourceTree = "<group>"; };
 		FB1DFE4586517E058BF8DB69 /* ShareRecordingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareRecordingSheet.swift; sourceTree = "<group>"; };
+		CA1E0D01A3B4C5D6E7F80901 /* CalendarEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEvent.swift; sourceTree = "<group>"; };
+		CA1E0D02A3B4C5D6E7F80902 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		CA1E0D03A3B4C5D6E7F80903 /* CalendarioScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarioScreenView.swift; sourceTree = "<group>"; };
+		CA1E0D04A3B4C5D6E7F80904 /* CalendarWeekStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWeekStripView.swift; sourceTree = "<group>"; };
+		CA1E0D05A3B4C5D6E7F80905 /* CalendarEventRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventRow.swift; sourceTree = "<group>"; };
+		CA1E0D06A3B4C5D6E7F80906 /* AddEventSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEventSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -334,6 +346,7 @@
 			isa = PBXGroup;
 			children = (
 				F431172DB992B0ABBF989122 /* APIResponse.swift */,
+				CA1E0D01A3B4C5D6E7F80901 /* CalendarEvent.swift */,
 				6208075CF50638667068D411 /* ChatMessage.swift */,
 				B1C9A0D38E081704E65C258F /* Discipline.swift */,
 				2489ADDCD06B519DE34D665E /* Notification.swift */,
@@ -363,6 +376,7 @@
 			children = (
 				2045FAE1C114F65333F09E08 /* AI */,
 				A50867CB47B9137DBF28E761 /* Auth */,
+				CA1E0D13A3B4C5D6E7F80913 /* Calendar */,
 				93C4EEC696AAA2F4D2107791 /* Course */,
 				E9A3783E9575EF59526D2258 /* Home */,
 				4D045FA1D89F42C30E66B771 /* LinkESPM */,
@@ -406,6 +420,7 @@
 				913DBAE286E80F596FB4C195 /* APIEndpoints.swift */,
 				DE2206869A659CCD5106F77F /* AuthService.swift */,
 				F65122C875C905DBD510D594 /* BackgroundUploadService.swift */,
+				CA1E0D02A3B4C5D6E7F80902 /* CalendarService.swift */,
 				348CCE1A291B7252344893D0 /* DeviceService.swift */,
 				A5247846C793FF600148D445 /* DisciplineService.swift */,
 				1C7991BBEE016FEE6BF91000 /* LiveActivityService.swift */,
@@ -475,6 +490,17 @@
 				61927BED01F1F0F43EF70490 /* SettingsScreenView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		CA1E0D13A3B4C5D6E7F80913 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				CA1E0D06A3B4C5D6E7F80906 /* AddEventSheet.swift */,
+				CA1E0D05A3B4C5D6E7F80905 /* CalendarEventRow.swift */,
+				CA1E0D04A3B4C5D6E7F80904 /* CalendarWeekStripView.swift */,
+				CA1E0D03A3B4C5D6E7F80903 /* CalendarioScreenView.swift */,
+			);
+			path = Calendar;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -588,11 +614,17 @@
 				14BE117B4774E2D0249A109C /* APIEndpoints.swift in Sources */,
 				A1EAB5FF34C78C4D889D058D /* APIResponse.swift in Sources */,
 				2B2D86BA9D5B47AD61E971A5 /* AccountService.swift in Sources */,
+				CA1E0D12A3B4C5D6E7F80912 /* AddEventSheet.swift in Sources */,
 				FA4D1BEE4CAD604388C191BD /* AudioQualityAnalyzer.swift in Sources */,
 				F2DCF0E16323686F74F06576 /* AudioRecorder.swift in Sources */,
 				3146A769B99023AD8A2379B8 /* AuthService.swift in Sources */,
 				8AE42A5AEC96B1F703CE8258 /* BackgroundUploadService.swift in Sources */,
 				B0CA6078E8A4C51D47E43817 /* COFFEEApp.swift in Sources */,
+				CA1E0D07A3B4C5D6E7F80907 /* CalendarEvent.swift in Sources */,
+				CA1E0D11A3B4C5D6E7F80911 /* CalendarEventRow.swift in Sources */,
+				CA1E0D08A3B4C5D6E7F80908 /* CalendarService.swift in Sources */,
+				CA1E0D10A3B4C5D6E7F80910 /* CalendarWeekStripView.swift in Sources */,
+				CA1E0D09A3B4C5D6E7F80909 /* CalendarioScreenView.swift in Sources */,
 				82DA3AFD395E88BF3BA405DF /* CameraPickerView.swift in Sources */,
 				29896D6A9D45A7D44FEC1DD8 /* CanvasWebViewController.swift in Sources */,
 				DD8140D376B345AE4061A4A9 /* ChatMessage.swift in Sources */,

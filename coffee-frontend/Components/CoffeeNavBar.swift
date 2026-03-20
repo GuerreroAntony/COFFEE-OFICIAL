@@ -70,6 +70,8 @@ struct CoffeeLargeTitleHeader: View {
     let subtitle: String
     var planStatus: UserPlan? = nil
     var trialEnd: Date? = nil
+    var onCalendarTap: (() -> Void)? = nil
+    var upcomingCount: Int = 0
     var onMenuTap: (() -> Void)? = nil
 
     /// Extract just the name from "Olá, Leonardo"
@@ -91,14 +93,42 @@ struct CoffeeLargeTitleHeader: View {
 
                 Spacer()
 
-                if let onMenuTap {
-                    Button(action: onMenuTap) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.coffeePrimaryLight)
-                            .frame(width: 38, height: 38)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
+                HStack(spacing: 10) {
+                    // Calendar icon (Black/Trial only)
+                    if let onCalendarTap {
+                        Button(action: onCalendarTap) {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(Color.coffeePrimaryLight)
+                                    .frame(width: 38, height: 38)
+                                    .background(Color.white.opacity(0.12))
+                                    .clipShape(Circle())
+
+                                // Badge with upcoming count
+                                if upcomingCount > 0 {
+                                    Text("\(min(upcomingCount, 99))")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(minWidth: 16, minHeight: 16)
+                                        .background(.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 4, y: -4)
+                                }
+                            }
+                        }
+                    }
+
+                    // Hamburger menu
+                    if let onMenuTap {
+                        Button(action: onMenuTap) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(Color.coffeePrimaryLight)
+                                .frame(width: 38, height: 38)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Circle())
+                        }
                     }
                 }
             }

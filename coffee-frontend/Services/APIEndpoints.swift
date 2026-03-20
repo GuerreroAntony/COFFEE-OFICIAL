@@ -167,7 +167,21 @@ enum APIEndpoints {
     /// PATCH - Mark notification as read
     static func notificacaoRead(id: String) -> String { "/notificacoes/\(id)/read" }
 
-    // MARK: - 13. Settings & Account (4 endpoints)
+    // MARK: - 13. Calendário (6 endpoints)
+
+    /// GET/POST - List events / Create event
+    static let calendarioEvents = "/calendario/events"
+
+    /// PATCH/DELETE - Update / Delete event
+    static func calendarioEvent(id: String) -> String { "/calendario/events/\(id)" }
+
+    /// POST - Sync Canvas planner items
+    static let calendarioSync = "/calendario/sync"
+
+    /// GET - Upcoming events (overdue, today, tomorrow, this_week)
+    static let calendarioUpcoming = "/calendario/upcoming"
+
+    // MARK: - 14. Settings & Account (4 endpoints)
 
     /// GET - Get settings
     static let settings = "/settings"

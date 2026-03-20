@@ -19,8 +19,16 @@ struct DisciplinasScreenView: View {
     @State private var editingDiscipline: Discipline? = nil
     @State private var editingDisciplineIndex: Int = 0
     @State private var showMenu = false
+    @State private var showCalendar = false
+    @State private var upcomingCount: Int = 0
 
     // Default styles now live on Discipline.defaultStyles
+
+    /// Calendar is only available for Black or active Trial users
+    private var calendarAvailable: Bool {
+        guard let plano = router.currentUser?.plano else { return false }
+        return plano == .black || plano == .trial
+    }
 
     private var newCount: Int { sharedItems.filter(\.isNew).count }
     private var tabs: [String] { ["Disciplinas", "Outros", "Recebidos\(newCount > 0 ? " (\(newCount))" : "")"] }
@@ -64,6 +72,8 @@ struct DisciplinasScreenView: View {
                     subtitle: dynamicSubtitle,
                     planStatus: router.currentUser?.plano,
                     trialEnd: router.currentUser?.trialEnd,
+                    onCalendarTap: calendarAvailable ? { showCalendar = true } : nil,
+                    upcomingCount: upcomingCount,
                     onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } }
                 )
 
@@ -174,6 +184,9 @@ struct DisciplinasScreenView: View {
                     removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
                 ))
             }
+        }
+        .fullScreenCover(isPresented: $showCalendar) {
+            CalendarioScreenView()
         }
         .task { await loadData() }
         .onChange(of: router.selectedRepository) { _, newValue in
@@ -662,6 +675,15 @@ struct DisciplinasScreenView: View {
         router.cachedSharedItems = sharedItems
         router.lastHomeDataFetch = Date()
         isLoading = false
+
+        // Load upcoming calendar count (Black/Trial only)
+        if calendarAvailable {
+            Task {
+                if let upcoming = try? await CalendarService.getUpcoming() {
+                    upcomingCount = upcoming.totalUpcoming
+                }
+            }
+        }
     }
 
     private func handleCreateRepo() {
