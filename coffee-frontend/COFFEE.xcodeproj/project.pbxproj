@@ -95,6 +95,8 @@
 		FA4D1BEE4CAD604388C191BD /* AudioQualityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20055C04BC6972B0E7688870 /* AudioQualityAnalyzer.swift */; };
 		FE251EB4E7A1DDF402E2FE97 /* CourseDetailScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E8D19118FA4F87FB549FA2 /* CourseDetailScreenView.swift */; };
 		FFDACCBE4E2F57637C708161 /* CoffeeSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FD241016D676769CE7EB83 /* CoffeeSegmentedControl.swift */; };
+		CB1E0D21B4C5D6E7F80A0002 /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1E0D20B4C5D6E7F80A0001 /* CacheManager.swift */; };
+		CB1E0D23B4C5D6E7F80A0004 /* SkeletonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1E0D22B4C5D6E7F80A0003 /* SkeletonViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -209,6 +211,8 @@
 		F431172DB992B0ABBF989122 /* APIResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponse.swift; sourceTree = "<group>"; };
 		F65122C875C905DBD510D594 /* BackgroundUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundUploadService.swift; sourceTree = "<group>"; };
 		FB1DFE4586517E058BF8DB69 /* ShareRecordingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareRecordingSheet.swift; sourceTree = "<group>"; };
+		CB1E0D20B4C5D6E7F80A0001 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
+		CB1E0D22B4C5D6E7F80A0003 /* SkeletonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -235,6 +239,7 @@
 				877DE999DD3198DC4A6D7540 /* CoffeeTabBarComponent.swift */,
 				5E1C99FC048D70DF6DD5BE78 /* CoffeeTextField.swift */,
 				3301338DA4775F332D257989 /* IconPickerSheet.swift */,
+				CB1E0D22B4C5D6E7F80A0003 /* SkeletonViews.swift */,
 				7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */,
 			);
 			path = Components;
@@ -425,6 +430,7 @@
 				913DBAE286E80F596FB4C195 /* APIEndpoints.swift */,
 				DE2206869A659CCD5106F77F /* AuthService.swift */,
 				F65122C875C905DBD510D594 /* BackgroundUploadService.swift */,
+				CB1E0D20B4C5D6E7F80A0001 /* CacheManager.swift */,
 				CA1E0D02A3B4C5D6E7F80902 /* CalendarService.swift */,
 				348CCE1A291B7252344893D0 /* DeviceService.swift */,
 				A5247846C793FF600148D445 /* DisciplineService.swift */,
@@ -625,6 +631,7 @@
 				F2DCF0E16323686F74F06576 /* AudioRecorder.swift in Sources */,
 				3146A769B99023AD8A2379B8 /* AuthService.swift in Sources */,
 				8AE42A5AEC96B1F703CE8258 /* BackgroundUploadService.swift in Sources */,
+				CB1E0D21B4C5D6E7F80A0002 /* CacheManager.swift in Sources */,
 				B0CA6078E8A4C51D47E43817 /* COFFEEApp.swift in Sources */,
 				CA1E0D07A3B4C5D6E7F80907 /* CalendarEvent.swift in Sources */,
 				CA1E0D11A3B4C5D6E7F80911 /* CalendarEventRow.swift in Sources */,
@@ -685,6 +692,7 @@
 				3728296392F3F9BCF5DBEAEA /* ShareRecordingSheet.swift in Sources */,
 				BEF83F8D2C6A189A165B6812 /* SharedItem.swift in Sources */,
 				F364F0774F71733FE3D2079B /* SignupScreenView.swift in Sources */,
+				CB1E0D23B4C5D6E7F80A0004 /* SkeletonViews.swift in Sources */,
 				BDF94719E6D3E2EE9492C958 /* SplashView.swift in Sources */,
 				8093EEA9732BA19B80529AC5 /* SubscriptionPlan.swift in Sources */,
 				8400BC5C4D020E68CB515C15 /* SubscriptionService.swift in Sources */,

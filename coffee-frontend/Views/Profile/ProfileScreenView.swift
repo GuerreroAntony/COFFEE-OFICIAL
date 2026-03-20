@@ -57,9 +57,8 @@ struct ProfileScreenView: View {
                         .padding(.horizontal, 20)
 
                     if isLoading {
-                        ProgressView()
-                            .tint(Color.coffeePrimary)
-                            .padding(.vertical, 20)
+                        ProfileSkeleton()
+                            .padding(.vertical, 8)
                     } else if let usage = profile?.usage {
                         CoffeeCellGroup {
                             CoffeeCell(
@@ -276,20 +275,27 @@ struct ProfileScreenView: View {
     // MARK: - Load Profile
 
     private func loadProfile() async {
-        isLoading = true
-        do {
-            profile = try await ProfileService.getProfile()
-        } catch {
-            print("[ProfileScreen] Error loading profile: \(error)")
+        let cache = CacheManager.shared
+
+        // Show cached profile instantly
+        if let cached: UserProfile = cache.get("profile") {
+            profile = cached
+            isLoading = false
+        } else {
+            isLoading = true
         }
-        // Fetch ESPM status for token expiration
-        if router.currentUser?.espmConnected == true {
-            do {
-                espmStatus = try await DisciplineService.getESPMStatus()
-            } catch {
-                print("[ProfileScreen] Error loading ESPM status: \(error)")
-            }
+
+        // Fetch profile + ESPM status in PARALLEL
+        let needsEspm = router.currentUser?.espmConnected == true
+        async let profileTask = try? ProfileService.getProfile()
+        async let espmTask = needsEspm ? try? DisciplineService.getESPMStatus() : nil
+
+        if let fresh = await profileTask {
+            profile = fresh
+            cache.set("profile", data: fresh, ttl: CacheManager.detailTTL)
         }
+        espmStatus = await espmTask
+
         isLoading = false
     }
 

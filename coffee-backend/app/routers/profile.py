@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from math import floor
 from uuid import UUID
@@ -70,26 +71,28 @@ async def _build_profile(user_id: UUID) -> dict:
     from app.plan_limits import get_plan_limits
     limits = get_plan_limits(user["plano"])
 
-    espresso_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
-    )
-    lungo_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'lungo'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
-    )
-    cold_brew_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'cold_brew'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
+    espresso_row, lungo_row, cold_brew_row = await asyncio.gather(
+        fetch_one(
+            """SELECT COUNT(*) AS cnt FROM mensagens m
+               JOIN chats c ON m.chat_id = c.id
+               WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
+                 AND m.created_at >= $2""",
+            user_id, cycle_start,
+        ),
+        fetch_one(
+            """SELECT COUNT(*) AS cnt FROM mensagens m
+               JOIN chats c ON m.chat_id = c.id
+               WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'lungo'
+                 AND m.created_at >= $2""",
+            user_id, cycle_start,
+        ),
+        fetch_one(
+            """SELECT COUNT(*) AS cnt FROM mensagens m
+               JOIN chats c ON m.chat_id = c.id
+               WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'cold_brew'
+                 AND m.created_at >= $2""",
+            user_id, cycle_start,
+        ),
     )
 
     espresso_used = espresso_row["cnt"] if espresso_row else 0

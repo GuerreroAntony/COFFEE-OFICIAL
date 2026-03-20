@@ -94,11 +94,34 @@ struct CourseDetailScreenView: View {
     }
 
     private func loadInitialData() async {
+        let cache = CacheManager.shared
+        let recKey = "recordings_\(discipline.id)"
+        let matKey = "materials_\(discipline.id)"
+
+        // Show cached data instantly
+        if let cachedRec: [Recording] = cache.get(recKey) {
+            recordings = cachedRec
+            isLoadingRecordings = false
+        }
+        if let cachedMat: [Material] = cache.get(matKey) {
+            materials = cachedMat
+            isLoadingMaterials = false
+        }
+
+        // Fetch fresh data in parallel
         async let r = try? RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id)
         async let m = try? MaterialService.getMaterials(disciplinaId: discipline.id)
-        recordings = await r ?? []
+
+        if let freshRec = await r {
+            withAnimation(.easeInOut(duration: 0.2)) { recordings = freshRec }
+            cache.set(recKey, data: freshRec)
+        }
         isLoadingRecordings = false
-        materials = await m ?? []
+
+        if let freshMat = await m {
+            withAnimation(.easeInOut(duration: 0.2)) { materials = freshMat }
+            cache.set(matKey, data: freshMat)
+        }
         isLoadingMaterials = false
 
         if materials.isEmpty && discipline.canvasCourseId != nil && !hasAutoSynced {
@@ -241,18 +264,13 @@ struct CourseDetailScreenView: View {
     @ViewBuilder
     private func aulasTab(scrollHeight: CGFloat) -> some View {
         if isLoadingRecordings {
-            VStack {
-                Spacer()
-                ProgressView()
-                    .tint(Color.coffeePrimary)
-                Text("Carregando aulas...")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .padding(.top, 8)
-                Spacer()
+            VStack(alignment: .leading, spacing: 16) {
+                CoffeeSectionHeader(title: "Carregando aulas...")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                RecordingCardSkeleton(count: 3)
+                    .padding(.horizontal, 16)
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: scrollHeight)
         } else if recordings.isEmpty {
             VStack(spacing: 12) {
                 Spacer()
@@ -297,18 +315,13 @@ struct CourseDetailScreenView: View {
     @ViewBuilder
     private func conteudoTab(scrollHeight: CGFloat) -> some View {
         if isLoadingMaterials {
-            VStack {
-                Spacer()
-                ProgressView()
-                    .tint(Color.coffeePrimary)
-                Text("Carregando materiais...")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .padding(.top, 8)
-                Spacer()
+            VStack(alignment: .leading, spacing: 16) {
+                CoffeeSectionHeader(title: "Carregando materiais...")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                RecordingCardSkeleton(count: 3)
+                    .padding(.horizontal, 16)
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: scrollHeight)
         } else if materials.isEmpty {
             VStack(spacing: 16) {
                 Spacer()
