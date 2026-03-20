@@ -1,10 +1,14 @@
 import SwiftUI
+import RevenueCat
 
 @main
 struct COFFEEApp: App {
     init() {
         // Fix: ScrollView delays first tap on buttons — disable it globally
         UIScrollView.appearance().delaysContentTouches = false
+        
+        // Configure RevenueCat SDK
+        configureRevenueCat()
 
         // DEBUG: Print registered Circular font names
         #if DEBUG
@@ -15,6 +19,18 @@ struct COFFEEApp: App {
             }
         }
         #endif
+    }
+    
+    private func configureRevenueCat() {
+        #if DEBUG
+        Purchases.logLevel = .debug
+        let apiKey = "appl_XXXXXXXXXXXXXXX" // TODO: Substituir com chave real do RevenueCat Dashboard
+        #else
+        let apiKey = "appl_XXXXXXXXXXXXXXX" // TODO: Substituir com chave real do RevenueCat Dashboard
+        #endif
+        
+        Purchases.configure(withAPIKey: apiKey)
+        print("✅ RevenueCat configurado com sucesso")
     }
 
     var body: some Scene {

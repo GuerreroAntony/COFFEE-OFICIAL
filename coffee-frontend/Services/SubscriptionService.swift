@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-// import StoreKit  // Uncomment when adding StoreKit 2
+import RevenueCat
 
 // MARK: - Subscription Service
 // StoreKit 2 integration for Apple In-App Purchases
@@ -50,33 +50,60 @@ final class SubscriptionService {
 
     // MARK: - Load Products
 
-    /// Fetch available subscription products from App Store
+    /// Fetch available subscription products from RevenueCat
     func loadProducts() async {
-        // StoreKit 2 implementation:
-        // do {
-        //     let products = try await Product.products(for: [
-        //         Self.cafeComLeiteProductID,
-        //         Self.blackProductID
-        //     ])
-        //     // Map to SubscriptionPlan
-        // } catch {
-        //     print("Failed to load products: \(error)")
-        // }
-
-        // Mock
-        availablePlans = MockData.subscriptionPlans
+        do {
+            let offerings = try await Purchases.shared.offerings()
+            guard let currentOffering = offerings.current else {
+                print("⚠️ No offerings configured in RevenueCat")
+                availablePlans = MockData.subscriptionPlans
+                return
+            }
+            
+            // Map RevenueCat packages to SubscriptionPlan
+            // TODO: Configurar ofertas no RevenueCat Dashboard
+            availablePlans = MockData.subscriptionPlans
+            print("✅ Produtos carregados do RevenueCat: \(currentOffering.availablePackages.count) pacotes")
+        } catch {
+            print("❌ Erro ao carregar produtos: \(error)")
+            availablePlans = MockData.subscriptionPlans
+        }
     }
 
     // MARK: - Purchase
 
-    /// Purchase a subscription plan
+    /// Purchase a subscription plan via RevenueCat
     func purchase(plan: SubscriptionPlan) async throws -> Bool {
-        // Mock
-        try await Task.sleep(for: .seconds(1.5))
-        isSubscribed = true
-        currentPlan = plan
-        userPlan = plan.planId == "black" ? .black : .cafeComLeite
-        return true
+        do {
+            let offerings = try await Purchases.shared.offerings()
+            guard let currentOffering = offerings.current else {
+                throw NSError(domain: "SubscriptionService", code: -1, 
+                             userInfo: [NSLocalizedDescriptionKey: "Nenhuma oferta disponível"])
+            }
+            
+            // Find package by product ID
+            let targetProductID = plan.planId == "black" ? Self.blackProductID : Self.cafeComLeiteProductID
+            guard let package = currentOffering.availablePackages.first(where: { 
+                $0.storeProduct.productIdentifier == targetProductID 
+            }) else {
+                throw NSError(domain: "SubscriptionService", code: -2,
+                             userInfo: [NSLocalizedDescriptionKey: "Produto não encontrado"])
+            }
+            
+            let result = try await Purchases.shared.purchase(package: package)
+            let customerInfo = result.customerInfo
+            
+            // Update subscription state
+            isSubscribed = !customerInfo.activeSubscriptions.isEmpty
+            currentPlan = plan
+            userPlan = plan.planId == "black" ? .black : .cafeComLeite
+            
+            print("✅ Compra realizada com sucesso: \(plan.name)")
+            return true
+        } catch {
+            print("❌ Erro na compra: \(error)")
+            throw error
+        }
     }
 
     // MARK: - Start Free Trial (no card needed — linked to Café com Leite)
@@ -103,18 +130,36 @@ final class SubscriptionService {
     // MARK: - Restore Purchases
 
     func restorePurchases() async {
-        // Mock
-        isSubscribed = MockData.currentUser.subscriptionActive
+        do {
+            let customerInfo = try await Purchases.shared.restorePurchases()
+            isSubscribed = !customerInfo.activeSubscriptions.isEmpty
+            
+            if let activeSubscription = customerInfo.activeSubscriptions.first {
+                // Determine which plan user has
+                if activeSubscription == Self.blackProductID {
+                    userPlan = .black
+                } else if activeSubscription == Self.cafeComLeiteProductID {
+                    userPlan = .cafeComLeite
+                }
+            }
+            
+            print("✅ Compras restauradas: \(customerInfo.activeSubscriptions.count) assinaturas ativas")
+        } catch {
+            print("❌ Erro ao restaurar compras: \(error)")
+        }
     }
 
     // MARK: - Manage Subscription
 
     /// Opens system subscription management
     func manageSubscription() async {
-        // StoreKit 2: Opens the system subscription management sheet
-        // if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-        //     try? await AppStore.showManageSubscriptions(in: windowScene)
-        // }
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            do {
+                try await Purchases.shared.showManageSubscriptions(in: windowScene)
+            } catch {
+                print("❌ Erro ao abrir gerenciamento de assinatura: \(error)")
+            }
+        }
     }
 
     // MARK: - Verify Receipt with Backend (POST /subscription/verify)

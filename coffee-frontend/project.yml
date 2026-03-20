@@ -24,6 +24,9 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: "5.0.0"
 
 targets:
   COFFEE:
@@ -57,6 +60,8 @@ targets:
     dependencies:
       - target: CoffeeWidgets
       - package: MarkdownUI
+      - package: RevenueCat
+        product: RevenueCat
 
   CoffeeWidgets:
     type: app-extension
