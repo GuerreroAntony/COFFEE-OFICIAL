@@ -18,6 +18,7 @@ struct DisciplinasScreenView: View {
     @State private var repoToDelete: Repository? = nil
     @State private var editingDiscipline: Discipline? = nil
     @State private var editingDisciplineIndex: Int = 0
+    @State private var showMenu = false
 
     // Default styles now live on Discipline.defaultStyles
 
@@ -63,8 +64,7 @@ struct DisciplinasScreenView: View {
                     subtitle: dynamicSubtitle,
                     planStatus: router.currentUser?.plano,
                     trialEnd: router.currentUser?.trialEnd,
-                    onGiftTap: { router.showPromoCodes = true },
-                    onSettingsTap: { router.showSettings = true }
+                    onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } }
                 )
 
                 ScrollView {
@@ -98,6 +98,81 @@ struct DisciplinasScreenView: View {
                         topTrailingRadius: 24
                     )
                 )
+            }
+
+            // Floating menu overlay
+            if showMenu {
+                // Backdrop
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                            showMenu = false
+                        }
+                    }
+
+                // Floating card
+                VStack(alignment: .leading, spacing: 0) {
+                    // User header
+                    HStack(spacing: 12) {
+                        // Avatar
+                        ZStack {
+                            Circle()
+                                .fill(Color.coffeePrimary.opacity(0.15))
+                                .frame(width: 40, height: 40)
+                            Text(userInitials)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.coffeePrimary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(router.currentUser?.nome ?? "Aluno")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Color.coffeeTextPrimary)
+                            Text(router.currentUser?.email ?? "")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+
+                    Divider().padding(.horizontal, 12)
+
+                    // Menu items
+                    floatingMenuRow(icon: "person.fill", title: "Perfil") {
+                        dismissMenuThen { router.showProfile = true }
+                    }
+                    floatingMenuRow(icon: "gift.fill", title: "Presente") {
+                        dismissMenuThen { router.showPromoCodes = true }
+                    }
+                    floatingMenuRow(icon: "gearshape.fill", title: "Configurações") {
+                        dismissMenuThen { router.showSettings = true }
+                    }
+
+                    Divider().padding(.horizontal, 12)
+
+                    // Logout
+                    floatingMenuRow(icon: "rectangle.portrait.and.arrow.right", title: "Sair", isDestructive: true) {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) { showMenu = false }
+                        router.logout()
+                    }
+                }
+                .background(.ultraThinMaterial)
+                .background(Color.coffeeCardBackground.opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 8)
+                .frame(width: 260)
+                .padding(.trailing, 16)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 56)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+                    removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
+                ))
             }
         }
         .task { await loadData() }
@@ -143,6 +218,45 @@ struct DisciplinasScreenView: View {
             )
             .presentationDetents([.medium, .large])
         }
+    }
+
+    // MARK: - Menu Helpers
+
+    private var userInitials: String {
+        let name = router.currentUser?.nome ?? "A"
+        return name.split(separator: " ").prefix(2).map { String($0.prefix(1)) }.joined().uppercased()
+    }
+
+    private func dismissMenuThen(_ action: @escaping () -> Void) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) { showMenu = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { action() }
+    }
+
+    private func floatingMenuRow(icon: String, title: String, isDestructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                    .foregroundStyle(isDestructive ? Color.red : Color.coffeeTextSecondary)
+                    .frame(width: 24)
+
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isDestructive ? Color.red : Color.coffeeTextPrimary)
+
+                Spacer()
+
+                if !isDestructive {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.coffeeTextSecondary.opacity(0.3))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Disciplinas Tab

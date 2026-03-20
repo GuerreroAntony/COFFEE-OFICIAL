@@ -11,6 +11,7 @@ import SwiftUI
 final class SubscriptionService {
 
     // Product identifiers matching App Store Connect
+    static let cafeCurtoProductID = "com.coffee.cafe_curto.monthly"
     static let cafeComLeiteProductID = "com.coffee.cafe_com_leite.monthly"
     static let blackProductID = "com.coffee.black.monthly"
 
@@ -28,7 +29,12 @@ final class SubscriptionService {
     /// Convenience: true when user has active paid subscription or valid trial
     var isPremium: Bool { isSubscribed }
 
-    /// The Café com Leite plan (first plan)
+    /// The Café Curto plan (entry)
+    var cafeCurtoPlan: SubscriptionPlan? {
+        availablePlans.first { $0.planId == "cafe_curto" }
+    }
+
+    /// The Café com Leite plan (mid-tier)
     var cafeComLeitePlan: SubscriptionPlan? {
         availablePlans.first { $0.planId == "cafe_com_leite" }
     }
@@ -75,15 +81,20 @@ final class SubscriptionService {
         try await Task.sleep(for: .seconds(1.5))
         isSubscribed = true
         currentPlan = plan
-        userPlan = plan.planId == "black" ? .black : .cafeComLeite
+        switch plan.planId {
+        case "cafe_curto": userPlan = .cafeCurto
+        case "cafe_com_leite": userPlan = .cafeComLeite
+        case "black": userPlan = .black
+        default: userPlan = .cafeComLeite
+        }
         return true
     }
 
-    // MARK: - Start Free Trial (no card needed — linked to Café com Leite)
+    // MARK: - Start Free Trial (7 dias grátis do plano Black)
 
-    /// Activate 7-day free trial with Café com Leite limits
+    /// Activate 7-day free trial with Black limits
     func startFreeTrial() async {
-        // Mock: instantly activate with trial limits (= Café com Leite)
+        // Mock: instantly activate with trial limits (= Black)
         try? await Task.sleep(for: .seconds(0.8))
         isSubscribed = true
         hasUsedTrial = true

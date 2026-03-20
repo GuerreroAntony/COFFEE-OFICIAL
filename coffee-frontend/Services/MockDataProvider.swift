@@ -376,45 +376,41 @@ enum MockData {
         )
     }
 
-    // MARK: - Subscription Plans (Two-tier: Café com Leite + Black)
+    // MARK: - Subscription Plans (Three-tier: Café Curto + Café com Leite + Black)
 
     static let subscriptionPlans: [SubscriptionPlan] = [
         SubscriptionPlan(
-            id: "cafe_com_leite_promo",
-            planId: "cafe_com_leite",
-            name: "Café com Leite",
+            id: "cafe_curto",
+            planId: "cafe_curto",
+            name: "Café Curto",
             price: 29.90,
-            originalPrice: 59.90,
-            isPromo: true,
-            features: [
-                .init(text: "Gravações ilimitadas", detail: nil, included: true),
-                .init(text: "Transcrição com WhisperKit", detail: nil, included: true),
-                .init(text: "Resumos e mapas mentais", detail: nil, included: true),
-                .init(text: "Espresso", detail: "75/mês", included: true),
-                .init(text: "Lungo", detail: "30/mês", included: true),
-                .init(text: "Cold Brew", detail: "15/mês", included: true),
-                .init(text: "Sync Canvas ESPM", detail: nil, included: true),
-                .init(text: "2 códigos de convite", detail: nil, included: true),
-            ],
+            originalPrice: nil,
+            isPromo: false,
+            features: [],
             isHighlighted: false,
-            badge: "Lançamento"
+            badge: nil
         ),
         SubscriptionPlan(
-            id: "black_promo",
+            id: "cafe_com_leite",
+            planId: "cafe_com_leite",
+            name: "Café com Leite",
+            price: 49.90,
+            originalPrice: nil,
+            isPromo: false,
+            features: [],
+            isHighlighted: false,
+            badge: nil
+        ),
+        SubscriptionPlan(
+            id: "black",
             planId: "black",
             name: "Black",
-            price: 49.90,
-            originalPrice: 99.90,
-            isPromo: true,
-            features: [
-                .init(text: "Tudo do Café com Leite", detail: nil, included: true),
-                .init(text: "Espresso", detail: "Ilimitado", included: true),
-                .init(text: "Lungo", detail: "100/mês", included: true),
-                .init(text: "Cold Brew", detail: "25/mês", included: true),
-                .init(text: "3 códigos de convite", detail: nil, included: true),
-            ],
+            price: 69.90,
+            originalPrice: nil,
+            isPromo: false,
+            features: [],
             isHighlighted: true,
-            badge: "Lançamento"
+            badge: nil
         ),
     ]
 

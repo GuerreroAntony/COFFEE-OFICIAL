@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - Premium Offer Screen (Two-Plan Paywall)
-// Two plan cards: Café com Leite + Black
-// Trial as surprise CTA ("7 dias grátis") linked to Café com Leite
-// Persuasive but not cheap — intentional, assertive copy
+// MARK: - Premium Offer Screen (Three-Plan Paywall)
+// Three plan cards: Curto (brown) + c/ Leite (beige) + Black (black)
+// Comparison table below with green checkmarks and red X icons
+// Promo code section + "Testar 7 dias grátis" CTA (Black trial only)
 
 struct PremiumOfferScreenView: View {
     @Environment(\.router) private var router
@@ -14,35 +14,39 @@ struct PremiumOfferScreenView: View {
     @State private var isPurchasing = false
     @State private var promoCode = ""
     @State private var codeStatus: CodeStatus? = nil
-    @State private var trialDays = 7
     @State private var showPromo = false
 
     enum CodeStatus { case valid, invalid }
 
+    // Plan colors
+    private let curtoColor = Color(hex: "6F4E37")      // Brown
+    private let leiteColor = Color(hex: "C4A882")       // Beige
+    private let blackColor = Color(hex: "1A1008")       // Near-black
+
     var body: some View {
         VStack(spacing: 0) {
-            // Hero gradient area
             heroSection
 
-            // Content + CTA
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 20) {
-                        // Plan cards
+                    VStack(spacing: 24) {
+                        // 3 plan cards
                         planCardsSection
                             .padding(.top, 24)
 
-                        // Selected plan features
-                        selectedPlanFeatures
-                            .padding(.horizontal, 20)
+                        // Comparison table
+                        comparisonTable
+                            .padding(.horizontal, 16)
 
                         // Promo code
                         promoCodeSection
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 16)
+
+                        Spacer().frame(height: 8)
                     }
                 }
 
-                // Bottom CTA area
+                // Bottom CTA
                 bottomCTA
             }
             .background(Color.coffeeBackground)
@@ -88,7 +92,7 @@ struct PremiumOfferScreenView: View {
                 .foregroundStyle(.white)
                 .padding(.bottom, 4)
 
-            Text("Dois planos, um propósito: suas notas perfeitas")
+            Text("Teste grátis por 7 dias com todas as funcionalidades")
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -106,225 +110,245 @@ struct PremiumOfferScreenView: View {
         )
     }
 
-    // MARK: - Plan Cards Section
+    // MARK: - Plan Cards Section (3 horizontal cards)
 
     private var planCardsSection: some View {
-        HStack(spacing: 12) {
-            if let cafe = subscription.cafeComLeitePlan {
-                planCard(cafe)
-            }
-            if let black = subscription.blackPlan {
-                planCard(black)
-            }
+        HStack(spacing: 10) {
+            planCard(
+                planId: "cafe_curto",
+                name: "Curto",
+                price: "29,90",
+                originalPrice: "50,00",
+                color: curtoColor
+            )
+
+            planCard(
+                planId: "cafe_com_leite",
+                name: "c/ Leite",
+                price: "49,90",
+                originalPrice: "75,00",
+                color: leiteColor
+            )
+
+            planCard(
+                planId: "black",
+                name: "Black",
+                price: "69,90",
+                originalPrice: "100,00",
+                color: blackColor,
+                badge: "Completo"
+            )
         }
         .padding(.horizontal, 16)
     }
 
-    // MARK: - Single Plan Card
-
-    private func planCard(_ plan: SubscriptionPlan) -> some View {
-        let isSelected = selectedPlanId == plan.planId
-        let isBlack = plan.planId == "black"
+    private func planCard(planId: String, name: String, price: String, originalPrice: String, color: Color, badge: String? = nil) -> some View {
+        let isSelected = selectedPlanId == planId
 
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedPlanId = plan.planId
+                selectedPlanId = planId
             }
         } label: {
             VStack(spacing: 0) {
-                // Badge ribbon
-                if plan.isHighlighted {
-                    HStack(spacing: 4) {
+                // Badge
+                if let badge {
+                    HStack(spacing: 3) {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 9))
-                        Text("Mais Popular")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 7))
+                        Text(badge)
+                            .font(.system(size: 8, weight: .bold))
                             .textCase(.uppercase)
                     }
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.white)
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                } else {
+                    Spacer().frame(height: 22)
+                }
+
+                // Name at top
+                Text(name)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .frame(maxWidth: .infinity)
-                    .background(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
-                } else if let badge = plan.badge {
-                    Text(badge)
-                        .font(.system(size: 10, weight: .bold))
-                        .textCase(.uppercase)
-                        .foregroundStyle(Color.coffeePrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.coffeePrimary.opacity(0.1))
+                    .padding(.top, 8)
+
+                Spacer()
+
+                // Price center
+                VStack(spacing: 2) {
+                    // Original price (strikethrough)
+                    Text("R$\(originalPrice)")
+                        .font(.system(size: 11))
+                        .strikethrough()
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    Text("R$\(price)")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+
+                    Text("/mês")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.7))
                 }
 
-                VStack(spacing: 10) {
-                    // Plan icon
-                    ZStack {
-                        Circle()
-                            .fill(isBlack
-                                ? Color(hex: "1A1008").opacity(0.1)
-                                : Color.coffeePrimary.opacity(0.1)
-                            )
-                            .frame(width: 44, height: 44)
+                Spacer()
 
-                        Image(systemName: isBlack ? "flame.fill" : "cup.and.saucer.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
-                    }
-
-                    // Plan name
-                    Text(plan.name)
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Color.coffeeTextPrimary)
-
-                    // Pricing
-                    VStack(spacing: 2) {
-                        if let original = plan.originalPrice {
-                            Text("R$\(String(format: "%.2f", original))")
-                                .font(.system(size: 12))
-                                .strikethrough()
-                                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
-                        }
-
-                        HStack(spacing: 0) {
-                            Text("R$\(String(format: "%.2f", plan.price))")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundStyle(isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
-                            Text("/mês")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.coffeeTextSecondary)
-                        }
-                    }
-
-                    // Key differentiator
-                    Text(isBlack ? "Espresso ilimitado" : "Todas as funções")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(isBlack ? Color(hex: "1A1008").opacity(0.7) : Color.coffeePrimary.opacity(0.7))
-                }
-                .padding(.vertical, 16)
-                .padding(.horizontal, 12)
+                // Promo label
+                Text("Lançamento")
+                    .font(.system(size: 8, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.bottom, 10)
             }
             .frame(maxWidth: .infinity)
-            .background(Color.coffeeCardBackground)
+            .frame(height: 150)
+            .background(color)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        isSelected
-                            ? (isBlack ? Color(hex: "1A1008") : Color.coffeePrimary)
-                            : Color.coffeeSeparator,
-                        lineWidth: isSelected ? 2.5 : 1
-                    )
+                    .stroke(isSelected ? Color.white : .clear, lineWidth: 3)
             )
             .shadow(
-                color: isSelected ? (isBlack ? Color(hex: "1A1008").opacity(0.15) : Color.coffeePrimary.opacity(0.15)) : .clear,
-                radius: 8, y: 4
+                color: isSelected ? color.opacity(0.4) : .clear,
+                radius: 10, y: 4
             )
+            .scaleEffect(isSelected ? 1.03 : 1.0)
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Selected Plan Features
+    // MARK: - Comparison Table
 
-    private var selectedPlanFeatures: some View {
-        let plan = subscription.availablePlans.first { $0.planId == selectedPlanId }
-            ?? subscription.availablePlans[0]
+    private var comparisonTable: some View {
+        VStack(spacing: 0) {
+            // Header row
+            HStack(spacing: 0) {
+                Text("Funcionalidade")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 16)
 
-        return VStack(spacing: 0) {
-            HStack {
-                Text("O que você recebe")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.coffeeTextPrimary)
-                Spacer()
+                Text("Curto")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(curtoColor)
+                    .frame(width: 52)
+
+                Text("Leite")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(leiteColor)
+                    .frame(width: 52)
+
+                Text("Black")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(blackColor)
+                    .frame(width: 52)
+                    .padding(.trailing, 8)
             }
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color.coffeeTextSecondary.opacity(0.04))
 
-            VStack(spacing: 0) {
-                ForEach(Array(plan.features.enumerated()), id: \.offset) { index, feature in
-                    HStack(spacing: 12) {
-                        Image(systemName: feature.included ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(feature.included ? .green : Color.coffeeTextSecondary.opacity(0.3))
+            Divider()
 
-                        Text(feature.text)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.coffeeTextPrimary)
-
-                        Spacer()
-
-                        if let detail = feature.detail {
-                            Text(detail)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(
-                                    detail == "Ilimitado"
-                                        ? Color(hex: "1A1008")
-                                        : Color.coffeeTextSecondary
-                                )
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    detail == "Ilimitado"
-                                        ? Color(hex: "1A1008").opacity(0.08)
-                                        : Color.coffeeTextSecondary.opacity(0.08)
-                                )
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-
-                    if index < plan.features.count - 1 {
-                        Divider().padding(.leading, 44)
-                    }
-                }
-            }
-            .background(Color.coffeeCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            // Feature rows
+            featureRow("Gravar aulas", curto: .limit("20h"), leite: .limit("40h"), black: .unlimited)
+            Divider().padding(.leading, 16)
+            featureRow("Resumo com IA", curto: .check, leite: .check, black: .check)
+            Divider().padding(.leading, 16)
+            featureRow("Slides automáticos", curto: .check, leite: .check, black: .check)
+            Divider().padding(.leading, 16)
+            featureRow("Barista IA", curto: .no, leite: .check, black: .checkWith10X)
+            Divider().padding(.leading, 16)
+            featureRow("Compartilhar", curto: .no, leite: .no, black: .check)
+            Divider().padding(.leading, 16)
+            featureRow("Calendário ESPM", curto: .no, leite: .no, black: .check)
+            Divider().padding(.leading, 16)
+            featureRow("Mapa mental", curto: .no, leite: .no, black: .check)
         }
+        .background(Color.coffeeCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.coffeeSeparator, lineWidth: 0.5)
+        )
     }
 
-    // MARK: - Bottom CTA
+    enum FeatureValue {
+        case check
+        case no
+        case limit(String)
+        case unlimited
+        case checkWith10X
+    }
 
-    private var bottomCTA: some View {
-        let isBlack = selectedPlanId == "black"
-        let plan = subscription.availablePlans.first { $0.planId == selectedPlanId }
-            ?? subscription.availablePlans[0]
+    private func featureRow(_ label: String, curto: FeatureValue, leite: FeatureValue, black: FeatureValue) -> some View {
+        HStack(spacing: 0) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.coffeeTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 16)
 
-        return VStack(spacing: 12) {
-            // Main CTA — subscribe to selected plan
-            CoffeeButton(
-                "Assinar \(plan.name)",
-                icon: isBlack ? "flame.fill" : "cup.and.saucer.fill",
-                isLoading: isPurchasing
-            ) {
-                handlePurchase(plan)
-            }
+            featureIcon(curto)
+                .frame(width: 52)
+            featureIcon(leite)
+                .frame(width: 52)
+            featureIcon(black)
+                .frame(width: 52)
+                .padding(.trailing, 8)
+        }
+        .padding(.vertical, 11)
+    }
 
-            // Trial CTA — surprise "7 dias grátis" linked to Café com Leite
-            if !subscription.hasUsedTrial {
-                Button {
-                    handleStartTrial()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 13))
-                        Text("Ou experimente \(trialDays) dias grátis")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.coffeePrimary)
-                }
-                .buttonStyle(.plain)
-                .disabled(isStartingTrial)
-                .opacity(isStartingTrial ? 0.5 : 1)
+    @ViewBuilder
+    private func featureIcon(_ value: FeatureValue) -> some View {
+        switch value {
+        case .check:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(.green)
 
-                Text("Sem cartão. Limites do Café com Leite.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.coffeeTextTertiary)
+        case .no:
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(.red.opacity(0.5))
+
+        case .limit(let text):
+            Text(text)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.coffeePrimary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.coffeePrimary.opacity(0.1))
+                .clipShape(Capsule())
+
+        case .unlimited:
+            Image(systemName: "infinity")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.green)
+
+        case .checkWith10X:
+            // Green check with "10X" badge at top-right like a notification
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.green)
+
+                Text("10X")
+                    .font(.system(size: 7, weight: .black))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Color.coffeePrimary)
+                    .clipShape(Capsule())
+                    .offset(x: 8, y: -6)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 48)
-        .padding(.top, 16)
     }
 
     // MARK: - Promo Code Section
@@ -335,12 +359,14 @@ struct PremiumOfferScreenView: View {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("Código aplicado! Trial de \(trialDays) dias.")
+                Text("Código aplicado!")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.green)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, 12)
+            .background(Color.green.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .transition(.opacity)
 
         } else if showPromo {
@@ -354,30 +380,30 @@ struct PremiumOfferScreenView: View {
                         withAnimation { showPromo = false }
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Color.coffeeTextSecondary)
                     }
                 }
 
                 HStack(spacing: 10) {
                     TextField("Digite o código", text: $promoCode)
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
                         .textInputAutocapitalization(.characters)
                         .tint(Color.coffeePrimary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.coffeeCardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .background(Color.coffeeInputBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                     Button("Aplicar") {
                         handleApplyCode()
                     }
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
                     .background(Color.coffeePrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .opacity(promoCode.trimmingCharacters(in: .whitespaces).isEmpty ? 0.35 : 1)
                 }
 
@@ -385,16 +411,15 @@ struct PremiumOfferScreenView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.circle.fill")
                             .font(.system(size: 13))
-                            .foregroundStyle(.red)
                         Text("Código inválido. Tente novamente.")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.red)
+                            .font(.system(size: 13, weight: .medium))
                     }
+                    .foregroundStyle(.red)
                 }
             }
-            .padding(20)
-            .background(Color.coffeeTextSecondary.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(16)
+            .background(Color.coffeeTextSecondary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
         } else {
@@ -403,33 +428,131 @@ struct PremiumOfferScreenView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "ticket.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.coffeePrimary)
-                    Text("Tem um código? Ganhe +7 dias")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.coffeePrimary)
+                        .font(.system(size: 14))
+                    Text("Tem um código promocional?")
+                        .font(.system(size: 14, weight: .semibold))
                 }
+                .foregroundStyle(Color.coffeePrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.coffeeTextSecondary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color.coffeePrimary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Bottom CTA
 
-    private func handlePurchase(_ plan: SubscriptionPlan) {
-        isPurchasing = true
-        Task {
-            let _ = try? await subscription.purchase(plan: plan)
-            isPurchasing = false
-            if let user = router.currentUser {
-                router.login(user: user)
+    private var bottomCTA: some View {
+        let isBlackSelected = selectedPlanId == "black"
+
+        return VStack(spacing: 12) {
+            if isBlackSelected {
+                // Black selected — show trial CTA
+                Button {
+                    handleStartTrial()
+                } label: {
+                    HStack(spacing: 10) {
+                        if isStartingTrial {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 16))
+                        }
+                        Text("Testar 7 dias grátis")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.coffeePrimary, Color(hex: "5A3E2B")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isStartingTrial)
+
+                Text("Acesso completo ao plano Black. Sem cartão.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+            } else {
+                // Curto or Leite selected — show subscribe CTA
+                let planName = selectedPlanId == "cafe_curto" ? "Curto" : "c/ Leite"
+                let planPrice = selectedPlanId == "cafe_curto" ? "R$29,90" : "R$49,90"
+
+                Button {
+                    handlePurchase()
+                } label: {
+                    HStack(spacing: 10) {
+                        if isPurchasing {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "cup.and.saucer.fill")
+                                .font(.system(size: 16))
+                        }
+                        Text("Assinar \(planName) · \(planPrice)/mês")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.coffeePrimary, Color(hex: "5A3E2B")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
+                }
+                .buttonStyle(.plain)
+                .disabled(isPurchasing)
+
+                // Hint to try Black
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedPlanId = "black"
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 12))
+                        Text("Ou teste o Black grátis por 7 dias")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                }
+                .buttonStyle(.plain)
             }
+
+            // Restore purchases
+            Button("Restaurar compras") {
+                Task {
+                    await subscription.restorePurchases()
+                    if subscription.isPremium {
+                        if let user = router.currentUser {
+                            router.login(user: user)
+                        }
+                    }
+                }
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(Color.coffeeTextSecondary)
         }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 48)
+        .padding(.top, 16)
     }
+
+    // MARK: - Actions
 
     private func handleStartTrial() {
         isStartingTrial = true
@@ -442,20 +565,27 @@ struct PremiumOfferScreenView: View {
         }
     }
 
+    private func handlePurchase() {
+        guard let plan = subscription.availablePlans.first(where: { $0.planId == selectedPlanId }) else { return }
+        isPurchasing = true
+        Task {
+            let _ = try? await subscription.purchase(plan: plan)
+            isPurchasing = false
+            if let user = router.currentUser {
+                router.login(user: user)
+            }
+        }
+    }
+
     private func handleApplyCode() {
         let code = promoCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty else { return }
 
         let validCodes = ["COFFEE2026", "ESPM", "BARISTA", "AMIGO"]
         if validCodes.contains(code) {
-            withAnimation {
-                codeStatus = .valid
-                trialDays = 14
-            }
+            withAnimation { codeStatus = .valid }
         } else {
-            withAnimation {
-                codeStatus = .invalid
-            }
+            withAnimation { codeStatus = .invalid }
         }
     }
 }

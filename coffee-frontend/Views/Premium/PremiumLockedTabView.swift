@@ -61,16 +61,12 @@ struct PremiumLockedTabView: View {
 
                 Spacer()
 
-                // Price info — show both plans
+                // Price info
                 VStack(spacing: 4) {
                     HStack(spacing: 8) {
                         Text("A partir de")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.coffeeTextSecondary)
-                        Text("R$59,90")
-                            .font(.system(size: 14, weight: .medium))
-                            .strikethrough()
-                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.6))
                         Text("R$29,90/mês")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Color.coffeeTextPrimary)
@@ -79,15 +75,15 @@ struct PremiumLockedTabView: View {
 
                 // CTA — opens PremiumGateSheet
                 CoffeeButton(
-                    subscription.hasUsedTrial ? "Ver planos" : "Começar 7 dias grátis",
-                    icon: "cup.and.saucer.fill"
+                    subscription.hasUsedTrial ? "Ver planos" : "Testar 7 dias grátis",
+                    icon: "gift.fill"
                 ) {
                     showPremiumGate = true
                 }
                 .padding(.horizontal, 24)
 
                 if !subscription.hasUsedTrial {
-                    Text("Sem cartão de crédito necessário")
+                    Text("Acesso completo ao plano Black. Sem cartão.")
                         .font(.system(size: 12))
                         .foregroundStyle(Color.coffeeTextSecondary)
                 }

@@ -668,9 +668,8 @@
 		14C14234F5A26B58B2904D7F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -690,10 +689,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_CFBundleDisplayName = Coffee;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -704,6 +703,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
@@ -770,9 +770,8 @@
 		8E1B8BDA475DCB069BD9DAC1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = CoffeeWidgets/CoffeeWidgets.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -792,10 +791,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KLC26SHF5C;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YG6BR522TD;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = CoffeeWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = coffee;
+				INFOPLIST_KEY_CFBundleDisplayName = Coffee;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O COFFEE precisa acessar o microfone para gravar suas aulas.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "O COFFEE usa reconhecimento de fala para transcrever suas aulas em tempo real.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -806,6 +805,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leonardodigiglio.coffee;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
