@@ -14,11 +14,14 @@ from app.routers import account, auth, calendario, chat, compartilhamentos, devi
 
 
 def _version_tuple(v: str) -> tuple[int, ...]:
-    """Parse '1.2.3' → (1, 2, 3) for comparison."""
+    """Parse '1.2.3' → (1, 2, 3) for comparison. Pads to 3 segments."""
     try:
-        return tuple(int(x) for x in v.strip().split("."))
+        parts = [int(x) for x in v.strip().split(".")]
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts)
     except (ValueError, AttributeError):
-        return (0,)
+        return (0, 0, 0)
 
 
 class VersionCheckMiddleware(BaseHTTPMiddleware):
