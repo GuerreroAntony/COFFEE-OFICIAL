@@ -393,11 +393,28 @@ async def espm_disconnect(user_id: UUID = Depends(get_current_user)):
 
 # ── Helper: upsert disciplinas ────────────────────────────────────────────────
 
+def _current_semester() -> str:
+    """Return current semester string matching Canvas format, e.g. '2026/1'."""
+    from datetime import datetime
+    now = datetime.now()
+    sem = 1 if now.month <= 6 else 2
+    return f"{now.year}/{sem}"
+
+
 async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
     """
     Faz upsert das disciplinas extraídas do Canvas e vincula ao aluno.
     Usa (nome, semestre) como chave de dedup.
+    Filtra apenas disciplinas do semestre atual.
     """
+    if not disciplines:
+        return 0
+
+    # Filtrar apenas disciplinas do semestre atual
+    current = _current_semester()
+    disciplines = [d for d in disciplines if d.get("semestre") == current]
+    logger.info("semester_filter", current=current, after_filter=len(disciplines))
+
     if not disciplines:
         return 0
 

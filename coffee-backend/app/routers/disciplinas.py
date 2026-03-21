@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,9 +14,17 @@ from app.schemas.disciplinas import (
 router = APIRouter(prefix="/api/v1/disciplinas", tags=["disciplinas"])
 
 
+def _current_semester() -> str:
+    """Return current semester string matching Canvas format, e.g. '2026/1'."""
+    now = datetime.now()
+    sem = 1 if now.month <= 6 else 2
+    return f"{now.year}/{sem}"
+
+
 @router.get("")
 async def list_disciplinas(user_id: UUID = Depends(get_current_user)):
-    """Lista disciplinas do aluno com contagens e ai_active."""
+    """Lista disciplinas do aluno — apenas semestre atual."""
+    current = _current_semester()
     rows = await fetch_all(
         """
         SELECT d.id, d.nome, d.turma, d.semestre, d.sala, d.canvas_course_id,
@@ -28,11 +37,12 @@ async def list_disciplinas(user_id: UUID = Depends(get_current_user)):
         JOIN user_disciplinas ud ON d.id = ud.disciplina_id
         LEFT JOIN gravacoes g ON g.source_type = 'disciplina' AND g.source_id = d.id AND g.user_id = $1
         LEFT JOIN materiais m ON m.disciplina_id = d.id
-        WHERE ud.user_id = $1
+        WHERE ud.user_id = $1 AND d.semestre = $2
         GROUP BY d.id, ud.icon, ud.icon_color
         ORDER BY d.nome
         """,
         user_id,
+        current,
     )
     disciplinas = [DisciplinaResponse(**dict(r)).model_dump(mode="json") for r in rows]
     return success_response(disciplinas)

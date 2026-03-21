@@ -150,14 +150,7 @@ struct LinkESPMScreenView: View {
                     handleAcceptTerms()
                 }
 
-                if isOnboarding {
-                    Button("Pular esta etapa") {
-                        router.goToPremiumOffer()
-                    }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .padding(.vertical, 8)
-                } else {
+                if !isOnboarding {
                     Button("Cancelar") {
                         dismiss()
                     }
