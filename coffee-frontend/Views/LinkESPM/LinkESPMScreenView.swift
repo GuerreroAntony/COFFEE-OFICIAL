@@ -96,7 +96,7 @@ struct LinkESPMScreenView: View {
                             body: "As transcrições, resumos e materiais gerados pertencem ao usuário. Você pode exportar ou deletar a qualquer momento.")
                         Divider()
                         termSection(icon: CoffeeIcon.lock, title: "Privacidade e LGPD",
-                            body: "Seguimos a Lei Geral de Proteção de Dados (LGPD). Seus dados podem ser excluídos a qualquer momento em Perfil > Excluir conta, ou via suportecoffeeapp@gmail.com.")
+                            body: "Seguimos a Lei Geral de Proteção de Dados (LGPD). Seus dados podem ser excluídos a qualquer momento em Perfil > Excluir conta, ou via suporte@mdwbravo.com.br.")
                     }
                     .background(Color.coffeeCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

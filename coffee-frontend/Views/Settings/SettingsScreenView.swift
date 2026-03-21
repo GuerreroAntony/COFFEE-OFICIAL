@@ -64,7 +64,7 @@ struct SettingsScreenView: View {
                             CoffeeCell(
                                 icon: "envelope.fill",
                                 title: "Fale Conosco",
-                                subtitle: "suportecoffeeapp@gmail.com",
+                                subtitle: "suporte@mdwbravo.com.br",
                                 trailing: .chevron
                             )
                         }
@@ -118,7 +118,7 @@ struct SettingsScreenView: View {
                     ("Coleta de Dados", "Coletamos apenas os dados necessários para o funcionamento do app: nome, email, matrícula ESPM e gravações de áudio."),
                     ("Uso dos Dados", "Seus dados são usados exclusivamente para gerar transcrições, resumos e respostas do Barista IA."),
                     ("Armazenamento", "Áudio é processado localmente no dispositivo e nunca sai do seu iPhone. Transcrições e resumos são armazenados de forma segura. Credenciais ESPM não são armazenadas — utilizamos apenas tokens temporários."),
-                    ("LGPD", "Você tem direito a acessar, corrigir e excluir seus dados. Envie solicitações para suportecoffeeapp@gmail.com."),
+                    ("LGPD", "Você tem direito a acessar, corrigir e excluir seus dados. Envie solicitações para suporte@mdwbravo.com.br."),
                     ("Terceiros", "Usamos serviços de IA para processamento. Os dados são anonimizados antes do envio e não são usados para treinamento."),
                 ])
             }
@@ -224,7 +224,7 @@ struct ContactView: View {
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(Color.coffeeTextPrimary)
 
-                            Text("suportecoffeeapp@gmail.com")
+                            Text("suporte@mdwbravo.com.br")
                                 .font(.system(size: 15))
                                 .foregroundStyle(Color.coffeePrimary)
                         }
