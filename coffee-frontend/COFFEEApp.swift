@@ -24,10 +24,8 @@ struct COFFEEApp: App {
     private func configureRevenueCat() {
         #if DEBUG
         Purchases.logLevel = .debug
-        let apiKey = "appl_XXXXXXXXXXXXXXX" // TODO: Substituir com chave real do RevenueCat Dashboard
-        #else
-        let apiKey = "appl_XXXXXXXXXXXXXXX" // TODO: Substituir com chave real do RevenueCat Dashboard
         #endif
+        let apiKey = "appl_TCtLvTklrAajtSzmakUlbOxYcAh"
         
         Purchases.configure(withAPIKey: apiKey)
         print("✅ RevenueCat configurado com sucesso")
