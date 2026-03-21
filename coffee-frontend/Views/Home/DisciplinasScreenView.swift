@@ -156,8 +156,8 @@ struct DisciplinasScreenView: View {
                     floatingMenuRow(icon: "person.fill", title: "Perfil") {
                         dismissMenuThen { router.showProfile = true }
                     }
-                    floatingMenuRow(icon: "gift.fill", title: "Presente") {
-                        dismissMenuThen { router.showPromoCodes = true }
+                    floatingMenuRow(icon: "square.and.arrow.up", title: "Compartilhar App") {
+                        dismissMenuThen { shareApp() }
                     }
                     floatingMenuRow(icon: "gearshape.fill", title: "Configurações") {
                         dismissMenuThen { router.showSettings = true }
@@ -238,6 +238,30 @@ struct DisciplinasScreenView: View {
     private var userInitials: String {
         let name = router.currentUser?.nome ?? "A"
         return name.split(separator: " ").prefix(2).map { String($0.prefix(1)) }.joined().uppercased()
+    }
+
+    private func shareApp() {
+        let appURL = "https://apps.apple.com/app/id6760921596"
+        let message = "Conheça o Coffee AI — seu assistente acadêmico com IA! Grave aulas, receba transcrições, resumos e flashcards automaticamente. Teste grátis por 7 dias!\n\n\(appURL)"
+        let activityVC = UIActivityViewController(
+            activityItems: [message],
+            applicationActivities: nil
+        )
+
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              var topVC = window.rootViewController else { return }
+
+        while let presented = topVC.presentedViewController {
+            topVC = presented
+        }
+
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topVC.view
+            popover.sourceRect = CGRect(x: topVC.view.bounds.midX, y: topVC.view.bounds.midY, width: 0, height: 0)
+        }
+
+        topVC.present(activityVC, animated: true)
     }
 
     private func dismissMenuThen(_ action: @escaping () -> Void) {
