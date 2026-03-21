@@ -7,6 +7,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var router = NavigationRouter()
     @State private var subscriptionService = SubscriptionService()
+    @State private var showForceUpdate = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -48,11 +49,23 @@ struct ContentView: View {
                 CoffeeTabBarFinal()
                     .transition(.move(edge: .bottom))
             }
+
+            // Force Update overlay — blocks EVERYTHING
+            if showForceUpdate {
+                ForceUpdateView()
+                    .transition(.opacity)
+                    .zIndex(999)
+            }
         }
         .environment(\.router, router)
         .environment(\.subscriptionService, subscriptionService)
         .task {
             await checkAuthState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .forceUpdateRequired)) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showForceUpdate = true
+            }
         }
     }
 

@@ -35,6 +35,7 @@ _PROCESSING_SEMAPHORE = asyncio.Semaphore(2)
 async def start_processing_loop() -> None:
     """Entry point — called from main.py lifespan. Runs forever."""
     logger.info("Processing loop started (wait=%d min)", settings.TRANSCRIPTION_WAIT_MINUTES)
+    calendar_check_counter = 0
     while True:
         try:
             await _process_pending_uploads()
@@ -43,6 +44,19 @@ async def start_processing_loop() -> None:
             return
         except Exception as e:
             logger.error("Processing loop error: %s", e, exc_info=True)
+
+        # Check calendar notifications every ~5 minutes (every 5 iterations of 60s loop)
+        calendar_check_counter += 1
+        if calendar_check_counter >= 5:
+            calendar_check_counter = 0
+            try:
+                from app.services.calendar_notification_service import (
+                    check_and_send_calendar_notifications,
+                )
+                await check_and_send_calendar_notifications()
+            except Exception as e:
+                logger.error("Calendar notification check error: %s", e, exc_info=True)
+
         await asyncio.sleep(60)
 
 

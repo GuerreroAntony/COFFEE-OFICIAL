@@ -70,8 +70,9 @@ struct CoffeeLargeTitleHeader: View {
     let subtitle: String
     var planStatus: UserPlan? = nil
     var trialEnd: Date? = nil
-    var onGiftTap: (() -> Void)? = nil
-    var onSettingsTap: (() -> Void)? = nil
+    var onCalendarTap: (() -> Void)? = nil
+    var upcomingCount: Int = 0
+    var onMenuTap: (() -> Void)? = nil
 
     /// Extract just the name from "Olá, Leonardo"
     private var userName: String {
@@ -93,21 +94,36 @@ struct CoffeeLargeTitleHeader: View {
                 Spacer()
 
                 HStack(spacing: 10) {
-                    if let onGiftTap {
-                        Button(action: onGiftTap) {
-                            Image(systemName: CoffeeIcon.gift)
-                                .font(.system(size: 18))
-                                .foregroundStyle(Color.coffeePrimaryLight)
-                                .frame(width: 38, height: 38)
-                                .background(Color.white.opacity(0.12))
-                                .clipShape(Circle())
+                    // Calendar icon (Black/Trial only)
+                    if let onCalendarTap {
+                        Button(action: onCalendarTap) {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(Color.coffeePrimaryLight)
+                                    .frame(width: 38, height: 38)
+                                    .background(Color.white.opacity(0.12))
+                                    .clipShape(Circle())
+
+                                // Badge with upcoming count
+                                if upcomingCount > 0 {
+                                    Text("\(min(upcomingCount, 99))")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(minWidth: 16, minHeight: 16)
+                                        .background(.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 4, y: -4)
+                                }
+                            }
                         }
                     }
 
-                    if let onSettingsTap {
-                        Button(action: onSettingsTap) {
-                            Image(systemName: CoffeeIcon.settings)
-                                .font(.system(size: 18))
+                    // Hamburger menu
+                    if let onMenuTap {
+                        Button(action: onMenuTap) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 18, weight: .medium))
                                 .foregroundStyle(Color.coffeePrimaryLight)
                                 .frame(width: 38, height: 38)
                                 .background(Color.white.opacity(0.12))
@@ -148,6 +164,13 @@ struct CoffeeLargeTitleHeader: View {
     @ViewBuilder
     private func planBadge(_ plan: UserPlan) -> some View {
         switch plan {
+        case .cafeCurto:
+            badgeCapsule(
+                icon: "cup.and.saucer",
+                text: "Café Curto",
+                color: Color.coffeePrimaryLight
+            )
+
         case .cafeComLeite:
             badgeCapsule(
                 icon: "cup.and.saucer.fill",
@@ -261,7 +284,7 @@ struct CoffeeSheetHeader: View {
         CoffeeLargeTitleHeader(
             greeting: "Olá, Gabriel",
             subtitle: "2026.1 · ESPM São Paulo",
-            onSettingsTap: { }
+            onMenuTap: { }
         )
 
         Spacer()

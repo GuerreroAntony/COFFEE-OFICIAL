@@ -47,6 +47,10 @@ final class APIClient: @unchecked Sendable {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // App version header for force update check
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        request.setValue(appVersion, forHTTPHeaderField: "X-App-Version")
+
         if authenticated, let token = KeychainManager.accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -79,6 +83,14 @@ final class APIClient: @unchecked Sendable {
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.unknown("Resposta invalida")
+        }
+
+        // Handle force update (426 Upgrade Required)
+        if httpResponse.statusCode == 426 {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .forceUpdateRequired, object: nil)
+            }
+            throw APIError.updateRequired
         }
 
         // Handle error responses
@@ -196,6 +208,12 @@ final class APIClient: @unchecked Sendable {
             }
         }
     }
+}
+
+// MARK: - Force Update Notification
+
+extension Notification.Name {
+    static let forceUpdateRequired = Notification.Name("ForceUpdateRequired")
 }
 
 // MARK: - Empty Data (for error-only responses)

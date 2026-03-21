@@ -319,9 +319,13 @@ struct ProfileScreenView: View {
             icon = "cup.and.saucer.fill"
             label = "Café com Leite"
             color = Color.coffeePrimary
+        case .cafeCurto:
+            icon = "cup.and.saucer"
+            label = "Café Curto"
+            color = Color(hex: "6F4E37")
         case .trial:
             icon = "clock.fill"
-            label = "Degustação"
+            label = "Trial Black"
             color = Color.coffeeWarning
         case .expired:
             icon = "clock.fill"

@@ -53,6 +53,7 @@ enum APIError: Error, LocalizedError {
     case aiError
     case espmUnavailable
     case espmTimeout
+    case updateRequired             // 426 — app desatualizado, forçar atualização
     case networkError(Error)
     case decodingError(Error)
     case unknown(String)
@@ -64,6 +65,7 @@ enum APIError: Error, LocalizedError {
         case .espmAuthFailed: return "Credenciais ESPM invalidas"
         case .accessDenied: return "Acesso negado"
         case .subscriptionRequired: return "Assine para continuar usando o Coffee."
+        case .updateRequired: return "Atualize o Coffee para continuar usando."
         case .notFound: return "Recurso nao encontrado"
         case .chatNotFound: return "Conversa nao encontrada"
         case .userNotFound: return "Email nao cadastrado"
@@ -99,6 +101,7 @@ enum APIError: Error, LocalizedError {
         case "ESPM_AUTH_FAILED": return .espmAuthFailed
         case "ACCESS_DENIED": return .accessDenied
         case "SUBSCRIPTION_REQUIRED": return .subscriptionRequired
+        case "UPDATE_REQUIRED": return .updateRequired
         case "NOT_FOUND": return .notFound
         case "CHAT_NOT_FOUND": return .chatNotFound
         case "USER_NOT_FOUND": return .userNotFound

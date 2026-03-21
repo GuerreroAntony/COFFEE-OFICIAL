@@ -6,6 +6,7 @@ import SwiftUI
 
 struct LoginScreenView: View {
     @Environment(\.router) private var router
+    @Environment(\.subscriptionService) private var subscriptionService
 
     @State private var email = ""
     @State private var password = ""
@@ -128,6 +129,7 @@ struct LoginScreenView: View {
                 Task {
                     do {
                         let auth = try await AuthService.login(email: email, password: password)
+                        subscriptionService.syncWithUser(auth.user)
                         router.login(user: auth.user)
                     } catch let error as APIError {
                         errorMessage = error.localizedDescription

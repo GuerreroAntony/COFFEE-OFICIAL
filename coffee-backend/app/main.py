@@ -1,14 +1,55 @@
-# v2.4 — appearance endpoint deployed
+# v2.5 — force update middleware
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import get_settings
 from app.database import close_pool, get_pool
 from app.modules.espm import router as espm_router
-from app.routers import account, auth, chat, compartilhamentos, devices, disciplinas, gift_codes, gravacoes, health, materiais, notificacoes, profile, repositorios, settings, subscription
+from app.routers import account, auth, calendario, chat, compartilhamentos, devices, disciplinas, gift_codes, gravacoes, health, materiais, notificacoes, profile, repositorios, settings, subscription
+
+
+def _version_tuple(v: str) -> tuple[int, ...]:
+    """Parse '1.2.3' → (1, 2, 3) for comparison."""
+    try:
+        return tuple(int(x) for x in v.strip().split("."))
+    except (ValueError, AttributeError):
+        return (0,)
+
+
+class VersionCheckMiddleware(BaseHTTPMiddleware):
+    """Block requests from outdated app versions (HTTP 426 Upgrade Required)."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip version check for health endpoint (Railway monitoring)
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        app_version = request.headers.get("X-App-Version")
+
+        # If header is absent, allow (backward compatibility)
+        if app_version:
+            cfg = get_settings()
+            min_version = cfg.MIN_IOS_VERSION
+
+            if _version_tuple(app_version) < _version_tuple(min_version):
+                return JSONResponse(
+                    status_code=426,
+                    content={
+                        "data": {
+                            "min_version": min_version,
+                            "store_url": cfg.APP_STORE_URL,
+                        },
+                        "error": "UPDATE_REQUIRED",
+                        "message": "Atualize o Coffee para continuar usando",
+                    },
+                )
+
+        return await call_next(request)
 
 
 @asynccontextmanager
@@ -40,6 +81,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(VersionCheckMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,6 +106,7 @@ app.include_router(gift_codes.router)
 app.include_router(settings.router)
 app.include_router(account.router)
 app.include_router(compartilhamentos.router)
+app.include_router(calendario.router)
 app.include_router(espm_router.router)
 
 

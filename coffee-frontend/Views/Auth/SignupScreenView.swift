@@ -6,6 +6,7 @@ import SwiftUI
 
 struct SignupScreenView: View {
     @Environment(\.router) private var router
+    @Environment(\.subscriptionService) private var subscriptionService
 
     @State private var nome = ""
     @State private var email = ""
@@ -110,6 +111,7 @@ struct SignupScreenView: View {
                                     email: email,
                                     password: password
                                 )
+                                subscriptionService.syncWithUser(auth.user)
                                 router.currentUser = auth.user
                                 router.goToLinkESPM()
                             } catch let error as APIError {

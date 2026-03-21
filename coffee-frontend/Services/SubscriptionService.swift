@@ -4,13 +4,14 @@ import RevenueCat
 
 // MARK: - Subscription Service
 // StoreKit 2 integration for Apple In-App Purchases
-// Two plans: Café com Leite (R$29,90) + Black (R$49,90)
+// Three plans: Café Curto (R$29,90) + Café com Leite (R$49,90) + Black (R$69,90)
 // POST /subscription/verify, GET /subscription/status
 
 @Observable
 final class SubscriptionService {
 
     // Product identifiers matching App Store Connect
+    static let cafeCurtoProductID = "com.coffee.cafe_curto.monthly"
     static let cafeComLeiteProductID = "com.coffee.cafe_com_leite.monthly"
     static let blackProductID = "com.coffee.black.monthly"
 
@@ -28,7 +29,12 @@ final class SubscriptionService {
     /// Convenience: true when user has active paid subscription or valid trial
     var isPremium: Bool { isSubscribed }
 
-    /// The Café com Leite plan (first plan)
+    /// The Café Curto plan (entry)
+    var cafeCurtoPlan: SubscriptionPlan? {
+        availablePlans.first { $0.planId == "cafe_curto" }
+    }
+
+    /// The Café com Leite plan (mid-tier)
     var cafeComLeitePlan: SubscriptionPlan? {
         availablePlans.first { $0.planId == "cafe_com_leite" }
     }
@@ -77,27 +83,39 @@ final class SubscriptionService {
         do {
             let offerings = try await Purchases.shared.offerings()
             guard let currentOffering = offerings.current else {
-                throw NSError(domain: "SubscriptionService", code: -1, 
+                throw NSError(domain: "SubscriptionService", code: -1,
                              userInfo: [NSLocalizedDescriptionKey: "Nenhuma oferta disponível"])
             }
-            
-            // Find package by product ID
-            let targetProductID = plan.planId == "black" ? Self.blackProductID : Self.cafeComLeiteProductID
-            guard let package = currentOffering.availablePackages.first(where: { 
-                $0.storeProduct.productIdentifier == targetProductID 
+
+            // Find package by product ID (3 plans)
+            let targetProductID: String
+            switch plan.planId {
+            case "cafe_curto": targetProductID = Self.cafeCurtoProductID
+            case "cafe_com_leite": targetProductID = Self.cafeComLeiteProductID
+            case "black": targetProductID = Self.blackProductID
+            default: targetProductID = Self.cafeComLeiteProductID
+            }
+
+            guard let package = currentOffering.availablePackages.first(where: {
+                $0.storeProduct.productIdentifier == targetProductID
             }) else {
                 throw NSError(domain: "SubscriptionService", code: -2,
                              userInfo: [NSLocalizedDescriptionKey: "Produto não encontrado"])
             }
-            
+
             let result = try await Purchases.shared.purchase(package: package)
             let customerInfo = result.customerInfo
-            
+
             // Update subscription state
             isSubscribed = !customerInfo.activeSubscriptions.isEmpty
             currentPlan = plan
-            userPlan = plan.planId == "black" ? .black : .cafeComLeite
-            
+            switch plan.planId {
+            case "cafe_curto": userPlan = .cafeCurto
+            case "cafe_com_leite": userPlan = .cafeComLeite
+            case "black": userPlan = .black
+            default: userPlan = .cafeComLeite
+            }
+
             print("✅ Compra realizada com sucesso: \(plan.name)")
             return true
         } catch {
@@ -106,11 +124,11 @@ final class SubscriptionService {
         }
     }
 
-    // MARK: - Start Free Trial (no card needed — linked to Café com Leite)
+    // MARK: - Start Free Trial (7 dias grátis do plano Black)
 
-    /// Activate 7-day free trial with Café com Leite limits
+    /// Activate 7-day free trial with Black limits
     func startFreeTrial() async {
-        // Mock: instantly activate with trial limits (= Café com Leite)
+        // Mock: instantly activate with trial limits (= Black)
         try? await Task.sleep(for: .seconds(0.8))
         isSubscribed = true
         hasUsedTrial = true
@@ -140,6 +158,8 @@ final class SubscriptionService {
                     userPlan = .black
                 } else if activeSubscription == Self.cafeComLeiteProductID {
                     userPlan = .cafeComLeite
+                } else if activeSubscription == Self.cafeCurtoProductID {
+                    userPlan = .cafeCurto
                 }
             }
             
@@ -177,7 +197,11 @@ final class SubscriptionService {
             )
             isSubscribed = true
             subscriptionStatus = status
-            userPlan = plano == "black" ? .black : .cafeComLeite
+            switch plano {
+            case "cafe_curto": userPlan = .cafeCurto
+            case "black": userPlan = .black
+            default: userPlan = .cafeComLeite
+            }
             return status
         }
 
