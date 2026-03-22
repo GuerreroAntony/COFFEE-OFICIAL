@@ -73,6 +73,7 @@ struct CoffeeLargeTitleHeader: View {
     var onCalendarTap: (() -> Void)? = nil
     var upcomingCount: Int = 0
     var onMenuTap: (() -> Void)? = nil
+    var onPlanTap: (() -> Void)? = nil
 
     /// Extract just the name from "Olá, Leonardo"
     private var userName: String {
@@ -147,7 +148,9 @@ struct CoffeeLargeTitleHeader: View {
                 Spacer()
 
                 if let plan = planStatus {
-                    planBadge(plan)
+                    Button { onPlanTap?() } label: {
+                        planBadge(plan)
+                    }
                 }
             }
         }

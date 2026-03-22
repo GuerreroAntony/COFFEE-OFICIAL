@@ -456,9 +456,9 @@ struct RecordingIdleView: View {
                     allRecordings.append(contentsOf: recs)
                 }
             }
-            // Sort by date descending and take the 6 most recent
+            // Sort by date descending and take the 3 most recent
             recentRecordings = Array(
-                allRecordings.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.prefix(6)
+                allRecordings.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.prefix(3)
             )
         } catch {
             print("[RecordingIdle] Error loading recent data: \(error)")

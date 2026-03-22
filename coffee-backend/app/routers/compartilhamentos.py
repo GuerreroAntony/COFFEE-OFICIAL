@@ -88,17 +88,25 @@ async def share_gravacao(
     if not grav:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Gravação não encontrada"))
 
+    # Validate at least one recipient method
+    if not body.recipient_emails and not body.recipient_ids and not body.group_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error_response("VALIDATION_ERROR", "Informe recipient_emails, recipient_ids ou group_id."),
+        )
+
     sender = await fetch_one("SELECT nome, email FROM users WHERE id = $1", user_id)
     sender_name = sender["nome"] if sender else "Aluno"
 
+    # Build recipients dict {user_id: {id, email, nome}} to dedup
+    recipients: dict[str, dict] = {}
     results: list[dict] = []
-    shared_count = 0
     not_found_emails: list[str] = []
 
+    # Process recipient_emails
     for email in body.recipient_emails:
-        # Find recipient by registered email
         recipient = await fetch_one(
-            "SELECT id, nome FROM users WHERE email = $1",
+            "SELECT id, nome, email FROM users WHERE email = $1",
             email,
         )
 
@@ -115,21 +123,56 @@ async def share_gravacao(
             ).model_dump(mode="json"))
             continue
 
+        uid = str(recipient["id"])
+        if uid not in recipients:
+            recipients[uid] = {"id": recipient["id"], "email": recipient["email"], "nome": recipient["nome"]}
+
+    # Process recipient_ids
+    if body.recipient_ids:
+        id_rows = await fetch_all(
+            "SELECT id, email, nome FROM users WHERE id = ANY($1)",
+            body.recipient_ids,
+        )
+        for r in id_rows:
+            if r["id"] == user_id:
+                continue
+            uid = str(r["id"])
+            if uid not in recipients:
+                recipients[uid] = {"id": r["id"], "email": r["email"], "nome": r["nome"]}
+
+    # Process group_id — expand to all group members (excluding sender)
+    if body.group_id:
+        group_member_rows = await fetch_all(
+            """SELECT u.id, u.email, u.nome
+               FROM group_members gm
+               JOIN users u ON u.id = gm.user_id
+               WHERE gm.group_id = $1 AND gm.user_id != $2""",
+            body.group_id, user_id,
+        )
+        for r in group_member_rows:
+            uid = str(r["id"])
+            if uid not in recipients:
+                recipients[uid] = {"id": r["id"], "email": r["email"], "nome": r["nome"]}
+
+    shared_count = 0
+
+    for uid, recip in recipients.items():
         # Create compartilhamento
         comp_row = await fetch_one(
             """INSERT INTO compartilhamentos
-               (sender_id, recipient_id, gravacao_id, shared_content, message, status)
-               VALUES ($1, $2, $3, $4::jsonb, $5, 'pending')
+               (sender_id, recipient_id, gravacao_id, shared_content, message, status, group_id)
+               VALUES ($1, $2, $3, $4::jsonb, $5, 'pending', $6)
                RETURNING id""",
-            user_id, recipient["id"], body.gravacao_id,
+            user_id, recip["id"], body.gravacao_id,
             json.dumps(body.shared_content),
             body.message,
+            body.group_id,
         )
         comp_id = comp_row["id"] if comp_row else None
         shared_count += 1
 
         results.append(ShareResultItem(
-            email=email, status="sent", recipient_name=recipient["nome"],
+            email=recip["email"], status="sent", recipient_name=recip["nome"],
         ).model_dump(mode="json"))
 
         # Create notification for recipient (with deep_link per contract v3.1)
@@ -142,7 +185,7 @@ async def share_gravacao(
         await execute_query(
             """INSERT INTO notificacoes (user_id, tipo, titulo, corpo, data_payload)
                VALUES ($1, 'compartilhamento', $2, $3, $4::jsonb)""",
-            recipient["id"],
+            recip["id"],
             f"{sender_name} compartilhou uma gravação",
             body.message or "Você recebeu uma gravação compartilhada.",
             data_payload,
@@ -150,10 +193,10 @@ async def share_gravacao(
 
         # Push notification in background
         background_tasks.add_task(
-            _send_share_push, recipient["id"], sender_name, str(comp_id) if comp_id else None,
+            _send_share_push, recip["id"], sender_name, str(comp_id) if comp_id else None,
         )
 
-    # Contract: 404 RECIPIENT_NOT_FOUND only if ALL emails not found
+    # Contract: 404 RECIPIENT_NOT_FOUND only if ALL emails not found and no other recipients
     if shared_count == 0 and not_found_emails:
         raise HTTPException(status_code=404, detail=error_response(
             "RECIPIENT_NOT_FOUND", "Nenhum destinatário encontrado no Coffee."))

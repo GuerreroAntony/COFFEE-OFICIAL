@@ -76,16 +76,12 @@ struct PremiumOfferScreenView: View {
         VStack(spacing: 0) {
             Spacer().frame(height: 52)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.white.opacity(0.15))
-                    .frame(width: 56, height: 56)
-
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.white)
-            }
-            .padding(.bottom, 12)
+            Image("coffee-logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 64, height: 64)
+                .foregroundStyle(.white)
+                .padding(.bottom, 12)
 
             Text("Escolha seu café")
                 .font(.system(size: 24, weight: .bold))

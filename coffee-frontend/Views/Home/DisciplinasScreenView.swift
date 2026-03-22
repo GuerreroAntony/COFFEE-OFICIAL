@@ -20,6 +20,7 @@ struct DisciplinasScreenView: View {
     @State private var editingDisciplineIndex: Int = 0
     @State private var showMenu = false
     @State private var showCalendar = false
+    @State private var showPlanGate = false
     @State private var upcomingCount: Int = 0
 
     // Default styles now live on Discipline.defaultStyles
@@ -31,7 +32,7 @@ struct DisciplinasScreenView: View {
     }
 
     private var newCount: Int { sharedItems.filter(\.isNew).count }
-    private var tabs: [String] { ["Disciplinas", "Outros", "Recebidos\(newCount > 0 ? " (\(newCount))" : "")"] }
+    private var tabs: [String] { ["Disciplinas", "Outros", "Social\(newCount > 0 ? " (\(newCount))" : "")"] }
 
     private var dynamicSubtitle: String {
         // Extract semester number and turma from the first discipline that has them
@@ -74,7 +75,8 @@ struct DisciplinasScreenView: View {
                     trialEnd: router.currentUser?.trialEnd,
                     onCalendarTap: calendarAvailable ? { showCalendar = true } : nil,
                     upcomingCount: upcomingCount,
-                    onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } }
+                    onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } },
+                    onPlanTap: { showPlanGate = true }
                 )
 
                 ScrollView {
@@ -156,9 +158,6 @@ struct DisciplinasScreenView: View {
                     floatingMenuRow(icon: "person.fill", title: "Perfil") {
                         dismissMenuThen { router.showProfile = true }
                     }
-                    floatingMenuRow(icon: "gift.fill", title: "Presente") {
-                        dismissMenuThen { router.showPromoCodes = true }
-                    }
                     floatingMenuRow(icon: "gearshape.fill", title: "Configurações") {
                         dismissMenuThen { router.showSettings = true }
                     }
@@ -187,6 +186,9 @@ struct DisciplinasScreenView: View {
         }
         .fullScreenCover(isPresented: $showCalendar) {
             CalendarioScreenView()
+        }
+        .sheet(isPresented: $showPlanGate) {
+            PremiumGateSheet()
         }
         .task { await loadData() }
         .onChange(of: router.selectedRepository) { _, newValue in

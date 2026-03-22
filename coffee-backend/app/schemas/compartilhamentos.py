@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 
 class CreateShareRequest(BaseModel):
     gravacao_id: UUID
-    recipient_emails: list[str] = Field(min_length=1)
+    recipient_emails: list[str] = Field(default=[])
+    recipient_ids: list[UUID] = []
+    group_id: Optional[UUID] = None
     shared_content: list[str] = Field(default=["transcription", "summary", "mind_map"])
     message: Optional[str] = None
 

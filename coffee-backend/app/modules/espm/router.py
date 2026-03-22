@@ -401,6 +401,39 @@ def _current_semester() -> str:
     return f"{now.year}/{sem}"
 
 
+async def _ensure_class_group(user_id: UUID, disciplina_id: UUID, nome: str, turma: str | None) -> None:
+    """
+    Auto-create or join the class group for a disciplina.
+    Each disciplina has at most one auto group (is_auto=true).
+    """
+    try:
+        existing = await fetch_one(
+            "SELECT id FROM groups WHERE disciplina_id = $1 AND is_auto = true",
+            disciplina_id,
+        )
+        if existing:
+            group_id = existing["id"]
+        else:
+            group_name = f"{nome} \u00b7 {turma}" if turma else nome
+            row = await fetch_one(
+                """INSERT INTO groups (nome, created_by, is_auto, disciplina_id)
+                   VALUES ($1, $2, true, $3)
+                   ON CONFLICT (disciplina_id) WHERE is_auto = true DO UPDATE SET nome = EXCLUDED.nome
+                   RETURNING id""",
+                group_name, user_id, disciplina_id,
+            )
+            group_id = row["id"]
+
+        await execute_query(
+            """INSERT INTO group_members (group_id, user_id, role)
+               VALUES ($1, $2, 'member')
+               ON CONFLICT (group_id, user_id) DO NOTHING""",
+            group_id, user_id,
+        )
+    except Exception as exc:
+        logger.warning("ensure_class_group.error", disciplina_id=str(disciplina_id), error=str(exc))
+
+
 async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
     """
     Faz upsert das disciplinas extraídas do Canvas e vincula ao aluno.
@@ -466,6 +499,10 @@ async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
                        ON CONFLICT (user_id, disciplina_id) DO NOTHING""",
                     user_id, row["id"],
                 )
+
+                # Auto-create/join class group
+                await _ensure_class_group(user_id, row["id"], disc["nome"], disc.get("turma"))
+
                 count += 1
 
         except Exception as exc:

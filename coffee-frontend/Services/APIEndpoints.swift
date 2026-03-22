@@ -194,4 +194,42 @@ enum APIEndpoints {
 
     /// GET - Health check
     static let health = "/health"
+
+    // MARK: - 15. Social (12 endpoints)
+
+    /// GET - List friends
+    static let socialFriends = "/social/friends"
+
+    /// GET - List pending friend requests
+    static let socialFriendRequests = "/social/friends/requests"
+
+    /// POST - Send friend request
+    static let socialFriendRequest = "/social/friends/request"
+
+    /// POST - Accept friend request
+    static func socialFriendAccept(id: String) -> String { "/social/friends/\(id)/accept" }
+
+    /// POST - Reject friend request
+    static func socialFriendReject(id: String) -> String { "/social/friends/\(id)/reject" }
+
+    /// DELETE - Remove friend
+    static func socialFriendRemove(id: String) -> String { "/social/friends/\(id)" }
+
+    /// GET - Search users
+    static let socialSearch = "/social/search"
+
+    /// GET/POST - List groups / Create group
+    static let socialGroups = "/social/groups"
+
+    /// GET/DELETE - Group detail / Delete group
+    static func socialGroup(id: String) -> String { "/social/groups/\(id)" }
+
+    /// POST - Add member to group
+    static func socialGroupMembers(id: String) -> String { "/social/groups/\(id)/members" }
+
+    /// DELETE - Remove member from group
+    static func socialGroupMember(groupId: String, userId: String) -> String { "/social/groups/\(groupId)/members/\(userId)" }
+
+    /// GET - Share targets (friends + groups)
+    static let socialShareTargets = "/social/share-targets"
 }
