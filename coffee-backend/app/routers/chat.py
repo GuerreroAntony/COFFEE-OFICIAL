@@ -90,7 +90,9 @@ def _reciprocal_rank_fusion(*ranked_lists: list[dict], k: int = 60) -> list[dict
     return [items[key] for key in sorted_keys]
 
 
-async def _validate_source_ownership(user_id: UUID, source_type: str, source_id: UUID):
+async def _validate_source_ownership(user_id: UUID, source_type: str, source_id: UUID | None):
+    if source_type == "all":
+        return  # "all" = search across all user's disciplines, no ownership check needed
     if source_type == "disciplina":
         row = await fetch_one(
             "SELECT 1 FROM user_disciplinas WHERE user_id = $1 AND disciplina_id = $2",
@@ -103,6 +105,15 @@ async def _validate_source_ownership(user_id: UUID, source_type: str, source_id:
         )
     if not row:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado à fonte"))
+
+
+async def _get_user_disciplina_ids(user_id: UUID) -> list[UUID]:
+    """Get all disciplina IDs for a user (for cross-discipline search)."""
+    rows = await fetch_all(
+        "SELECT disciplina_id FROM user_disciplinas WHERE user_id = $1",
+        user_id,
+    )
+    return [r["disciplina_id"] for r in rows]
 
 
 def _get_cycle_dates(created_at: datetime) -> tuple[date, date]:
@@ -217,28 +228,48 @@ async def create_chat(
     """Criar nova conversa."""
     await _validate_source_ownership(user_id, body.source_type, body.source_id)
 
-    row = await fetch_one(
-        """INSERT INTO chats (user_id, source_type, source_id)
-           VALUES ($1, $2, $3)
-           RETURNING id, source_type, source_id, created_at, updated_at""",
-        user_id, body.source_type, body.source_id,
-    )
-
-    if body.source_type == "disciplina":
-        source = await fetch_one("SELECT nome FROM disciplinas WHERE id = $1", body.source_id)
+    if body.source_type == "all":
+        # Cross-discipline chat: source_id stored as user_id for reference
+        row = await fetch_one(
+            """INSERT INTO chats (user_id, source_type, source_id)
+               VALUES ($1, 'all', $1)
+               RETURNING id, source_type, source_id, created_at, updated_at""",
+            user_id,
+        )
+        resp = ChatSummary(
+            id=row["id"],
+            source_type="all",
+            source_id=row["source_id"],
+            source_name="Todas as Disciplinas",
+            source_icon="books.vertical",
+            last_message=None,
+            message_count=0,
+            updated_at=row["updated_at"],
+        )
     else:
-        source = await fetch_one("SELECT nome FROM repositorios WHERE id = $1", body.source_id)
+        row = await fetch_one(
+            """INSERT INTO chats (user_id, source_type, source_id)
+               VALUES ($1, $2, $3)
+               RETURNING id, source_type, source_id, created_at, updated_at""",
+            user_id, body.source_type, body.source_id,
+        )
 
-    resp = ChatSummary(
-        id=row["id"],
-        source_type=row["source_type"],
-        source_id=row["source_id"],
-        source_name=source["nome"] if source else "Sem nome",
-        source_icon="school" if body.source_type == "disciplina" else "folder",
-        last_message=None,
-        message_count=0,
-        updated_at=row["updated_at"],
-    )
+        if body.source_type == "disciplina":
+            source = await fetch_one("SELECT nome FROM disciplinas WHERE id = $1", body.source_id)
+        else:
+            source = await fetch_one("SELECT nome FROM repositorios WHERE id = $1", body.source_id)
+
+        resp = ChatSummary(
+            id=row["id"],
+            source_type=row["source_type"],
+            source_id=row["source_id"],
+            source_name=source["nome"] if source else "Sem nome",
+            source_icon="school" if body.source_type == "disciplina" else "folder",
+            last_message=None,
+            message_count=0,
+            updated_at=row["updated_at"],
+        )
+
     return success_response(resp.model_dump(mode="json"))
 
 
@@ -386,10 +417,21 @@ async def send_message(
                LIMIT 8""",
             vec_str, body.gravacao_id, _MIN_SIMILARITY,
         )
-    elif source_type == "disciplina":
+    elif source_type in ("disciplina", "all"):
+        # For "all": get user's discipline IDs; for single: use source_id
+        if source_type == "all":
+            disc_ids = await _get_user_disciplina_ids(user_id)
+            if not disc_ids:
+                chunk_rows = []
+            disc_filter_sql = "e.disciplina_id = ANY($2)"
+            disc_filter_val = disc_ids
+        else:
+            disc_filter_sql = "e.disciplina_id = $2"
+            disc_filter_val = source_id
+
         # Hybrid search: vector + full-text in parallel, merged via RRF
         vec_transcription_task = fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+            f"""SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
                       1 - (e.embedding <=> $1::vector) AS similarity,
                       g.date AS gravacao_date,
@@ -397,15 +439,15 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                LEFT JOIN gravacoes g ON e.fonte_id = g.id
-               WHERE e.disciplina_id = $2
+               WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'transcricao'
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
                LIMIT 12""",
-            vec_str, source_id, _MIN_SIMILARITY,
+            vec_str, disc_filter_val, _MIN_SIMILARITY,
         )
         vec_material_task = fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+            f"""SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
                       1 - (e.embedding <=> $1::vector) AS similarity,
                       NULL AS gravacao_date,
@@ -413,16 +455,16 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                JOIN materiais m ON e.fonte_id = m.id
-               WHERE e.disciplina_id = $2
+               WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'material'
                  AND m.ai_enabled = true
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
                LIMIT 12""",
-            vec_str, source_id, _MIN_SIMILARITY,
+            vec_str, disc_filter_val, _MIN_SIMILARITY,
         )
         fts_transcription_task = fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+            f"""SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
                       ts_rank_cd(e.tsv, plainto_tsquery('portuguese', $1)) AS similarity,
                       g.date AS gravacao_date,
@@ -430,15 +472,15 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                LEFT JOIN gravacoes g ON e.fonte_id = g.id
-               WHERE e.disciplina_id = $2
+               WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'transcricao'
                  AND e.tsv @@ plainto_tsquery('portuguese', $1)
                ORDER BY similarity DESC
                LIMIT 12""",
-            body.text, source_id,
+            body.text, disc_filter_val,
         )
         fts_material_task = fetch_all(
-            """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
+            f"""SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
                       ts_rank_cd(e.tsv, plainto_tsquery('portuguese', $1)) AS similarity,
                       NULL AS gravacao_date,
@@ -446,13 +488,13 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                JOIN materiais m ON e.fonte_id = m.id
-               WHERE e.disciplina_id = $2
+               WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'material'
                  AND m.ai_enabled = true
                  AND e.tsv @@ plainto_tsquery('portuguese', $1)
                ORDER BY similarity DESC
                LIMIT 12""",
-            body.text, source_id,
+            body.text, disc_filter_val,
         )
 
         vec_trans, vec_mat, fts_trans, fts_mat = await asyncio.gather(

@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class CreateChatRequest(BaseModel):
-    source_type: str = Field(pattern="^(disciplina|repositorio)$")
-    source_id: UUID
+    source_type: str = Field(pattern="^(disciplina|repositorio|all)$")
+    source_id: Optional[UUID] = None  # None when source_type = "all"
 
 
 class SendMessageRequest(BaseModel):
@@ -38,7 +38,7 @@ class MessageResponse(BaseModel):
 class ChatSummary(BaseModel):
     id: UUID
     source_type: str
-    source_id: UUID
+    source_id: Optional[UUID] = None
     source_name: str
     source_icon: Optional[str] = None
     last_message: Optional[str] = None

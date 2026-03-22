@@ -120,7 +120,7 @@ struct SendMessageRequest: Codable {
 
 struct CreateChatRequest: Codable {
     let sourceType: String
-    let sourceId: String
+    let sourceId: String?
 
     enum CodingKeys: String, CodingKey {
         case sourceType = "source_type"

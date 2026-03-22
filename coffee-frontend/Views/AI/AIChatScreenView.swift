@@ -363,7 +363,7 @@ struct AIChatScreenView: View {
                     emptyState
                         .frame(minHeight: geo.size.height)
                 } else {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: 24) {
                         ForEach(messages) { msg in
                             AIChatMessageRow(msg: msg)
                         }
@@ -502,9 +502,11 @@ struct AIChatScreenView: View {
         var text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty || !chatAttachments.isEmpty else { return }
 
-        // Use selected discipline or first discipline for "Todas"
+        // "Todas as Disciplinas" = selectedDiscipline is nil → use source_type "all"
+        let isAllDisciplines = (selectedDiscipline == nil)
         let disc = selectedDiscipline ?? disciplines.first
-        guard let disc else {
+        // Allow sending even without a discipline when in "all" mode
+        if !isAllDisciplines && disc == nil {
             showNoDisciplineAlert = true
             return
         }
@@ -539,8 +541,13 @@ struct AIChatScreenView: View {
             do {
                 // Create chat if needed
                 if currentChatId == nil {
-                    let chat = try await AIService.createChat(sourceType: "disciplina", sourceId: disc.id)
-                    currentChatId = chat.id
+                    if isAllDisciplines {
+                        let chat = try await AIService.createChat(sourceType: "all", sourceId: nil)
+                        currentChatId = chat.id
+                    } else if let disc {
+                        let chat = try await AIService.createChat(sourceType: "disciplina", sourceId: disc.id)
+                        currentChatId = chat.id
+                    }
                 }
 
                 guard let chatId = currentChatId else { return }
@@ -664,25 +671,21 @@ struct AIChatMessageRow: View {
 
     private var aiMessage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Turn separator
-            Divider()
-                .padding(.bottom, 16)
-
             // Avatar row
-            HStack(spacing: 8) {
-                BaristaAvatar(size: 28)
+            HStack(spacing: 10) {
+                BaristaAvatar(size: 26)
                 Text("Barista")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.coffeeTextSecondary)
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 12)
 
-            // Content — no bubble, no background, full-width
+            // Content — clean, full-width, breathable
             Group {
                 if msg.isStreaming {
                     Text(msg.text)
-                        .font(.system(size: 15))
-                        .lineSpacing(4)
+                        .font(.system(size: 15.5))
+                        .lineSpacing(6)
                 } else {
                     Markdown(msg.text)
                         .markdownTheme(.coffee)
@@ -703,7 +706,7 @@ struct AIChatMessageRow: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.top, 8)
+                .padding(.top, 12)
             }
 
             if !msg.sources.isEmpty {

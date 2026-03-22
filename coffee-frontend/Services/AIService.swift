@@ -17,15 +17,15 @@ enum AIService {
 
     // MARK: - Create Conversation
 
-    static func createChat(sourceType: String, sourceId: String) async throws -> Chat {
+    static func createChat(sourceType: String, sourceId: String? = nil) async throws -> Chat {
         if APIClient.useMocks {
             try await Task.sleep(for: .seconds(0.3))
             return Chat(
                 id: UUID().uuidString,
                 sourceType: sourceType,
-                sourceId: sourceId,
-                sourceName: "Nova Conversa",
-                sourceIcon: "school",
+                sourceId: sourceId ?? UUID().uuidString,
+                sourceName: sourceType == "all" ? "Todas as Disciplinas" : "Nova Conversa",
+                sourceIcon: sourceType == "all" ? "books.vertical" : "school",
                 lastMessage: nil,
                 messageCount: 0,
                 updatedAt: Date()
