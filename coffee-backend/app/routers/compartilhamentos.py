@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.database import execute_query, fetch_all, fetch_one
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_with_plan
 from app.schemas.base import error_response, success_response
 from app.schemas.compartilhamentos import (
     AcceptShareRequest,
@@ -68,9 +68,18 @@ def _date_label(date_str: str | None) -> str | None:
 async def share_gravacao(
     body: CreateShareRequest,
     background_tasks: BackgroundTasks,
-    user_id: UUID = Depends(get_current_user),
+    user_plan: tuple = Depends(get_current_user_with_plan),
 ):
-    """Compartilhar gravação com outros usuários por email."""
+    """Compartilhar gravação com outros usuários por email. Black only."""
+    user_id, plano = user_plan
+
+    # Plan guard: sharing requires Black plan
+    if plano not in ("black", "trial"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("PLAN_REQUIRED", "Compartilhar é exclusivo do plano Black."),
+        )
+
     # Verify ownership
     grav = await fetch_one(
         "SELECT id, short_summary, date FROM gravacoes WHERE id = $1 AND user_id = $2",

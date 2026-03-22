@@ -38,9 +38,16 @@ enum MockData {
             gravacoesTotal: 20,
             horasGravadas: 12.5,
             questionsRemaining: QuestionsRemaining(
-                espresso: 68,
-                lungo: 27,
-                coldBrew: 14
+                espresso: -1,
+                lungo: -1,
+                coldBrew: -1
+            ),
+            baristaUsage: BaristaUsage(
+                usagePercent: 28.5,
+                budgetUsd: 1.75,
+                usedUsd: 0.50,
+                remainingUsd: 1.25,
+                cycleResetAt: Calendar.current.date(byAdding: .day, value: 18, to: Date())
             ),
             questionsResetAt: Calendar.current.date(byAdding: .day, value: 18, to: Date())
         ),

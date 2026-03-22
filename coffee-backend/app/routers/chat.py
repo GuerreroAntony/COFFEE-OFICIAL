@@ -326,6 +326,13 @@ async def send_message(
             detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para usar o chat"),
         )
 
+    # Plan guard: Barista IA requires cafe_com_leite or black (not cafe_curto)
+    if plano == "cafe_curto":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("PLAN_REQUIRED", "O Barista IA está disponível a partir do plano Café com Leite."),
+        )
+
     # Verify chat ownership
     chat = await fetch_one(
         "SELECT id, source_type, source_id FROM chats WHERE id = $1 AND user_id = $2",
