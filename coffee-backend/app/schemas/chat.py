@@ -11,7 +11,7 @@ class CreateChatRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
-    mode: str = Field(pattern="^(espresso|lungo|cold_brew)$")
+    mode: str = Field(pattern="^(rapido|professor|amigo|espresso|lungo|cold_brew)$")
     gravacao_id: Optional[UUID] = None
 
 
