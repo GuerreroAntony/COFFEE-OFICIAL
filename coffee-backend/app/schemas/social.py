@@ -65,6 +65,7 @@ class GroupResponse(BaseModel):
     id: UUID
     nome: str
     is_auto: bool
+    turma: Optional[str] = None
     disciplina_id: Optional[UUID] = None
     member_count: int
     members: Optional[list[GroupMemberResponse]] = None

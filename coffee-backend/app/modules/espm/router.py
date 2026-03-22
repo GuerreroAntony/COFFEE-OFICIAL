@@ -403,24 +403,27 @@ def _current_semester() -> str:
 
 async def _ensure_class_group(user_id: UUID, disciplina_id: UUID, nome: str, turma: str | None) -> None:
     """
-    Auto-create or join the class group for a disciplina.
-    Each disciplina has at most one auto group (is_auto=true).
+    Auto-create or join the class group for a turma (e.g. "AD1N").
+    One group per turma — all students in that class share the same group.
     """
+    if not turma:
+        return  # No turma = no auto-group
+
     try:
+        # Check if group for this turma already exists
         existing = await fetch_one(
-            "SELECT id FROM groups WHERE disciplina_id = $1 AND is_auto = true",
-            disciplina_id,
+            "SELECT id FROM groups WHERE turma = $1 AND is_auto = true",
+            turma,
         )
         if existing:
             group_id = existing["id"]
         else:
-            group_name = f"{nome} \u00b7 {turma}" if turma else nome
+            group_name = f"Turma {turma}"
             row = await fetch_one(
-                """INSERT INTO groups (nome, created_by, is_auto, disciplina_id)
+                """INSERT INTO groups (nome, created_by, is_auto, turma)
                    VALUES ($1, $2, true, $3)
-                   ON CONFLICT (disciplina_id) WHERE is_auto = true DO UPDATE SET nome = EXCLUDED.nome
                    RETURNING id""",
-                group_name, user_id, disciplina_id,
+                group_name, user_id, turma,
             )
             group_id = row["id"]
 
@@ -431,7 +434,7 @@ async def _ensure_class_group(user_id: UUID, disciplina_id: UUID, nome: str, tur
             group_id, user_id,
         )
     except Exception as exc:
-        logger.warning("ensure_class_group.error", disciplina_id=str(disciplina_id), error=str(exc))
+        logger.warning("ensure_class_group.error", turma=turma, error=str(exc))
 
 
 async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:

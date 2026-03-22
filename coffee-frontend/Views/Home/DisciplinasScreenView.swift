@@ -672,27 +672,19 @@ struct DisciplinasScreenView: View {
                 .padding(.horizontal, 16)
             }
 
-            // Empty state only if everything is empty
-            if friends.isEmpty && groups.isEmpty && sharedItems.isEmpty && friendRequests.isEmpty {
-                CoffeeEmptyState(
-                    icon: "person.2.fill",
-                    title: "Nada por aqui ainda",
-                    message: "Adicione amigos ou conecte a ESPM para ver seus grupos de turma."
-                )
-                .padding(.top, 40)
-            }
+            Spacer().frame(height: 20)
         }
         .sheet(isPresented: $showAddFriend) {
             AddFriendSheet()
         }
         .sheet(isPresented: $showCreateGroup) {
-            CreateGroupSheet(friends: friends) { _ in
+            CreateGroupSheet { _ in
                 Task { groups = (try? await SocialService.getGroups()) ?? groups }
             }
         }
         .sheet(item: $selectedGroup) { group in
             NavigationStack {
-                GroupDetailView(group: group)
+                GroupDetailView(groupId: group.id)
             }
         }
     }

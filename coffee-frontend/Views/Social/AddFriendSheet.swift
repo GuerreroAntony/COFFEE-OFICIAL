@@ -59,6 +59,8 @@ struct AddFriendSheet: View {
             }
         }
         .background(Color.coffeeBackground)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .onChange(of: searchText) { _, newValue in
             debounceSearch(query: newValue)
         }

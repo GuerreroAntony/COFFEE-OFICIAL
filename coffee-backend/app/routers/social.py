@@ -395,7 +395,7 @@ async def list_groups(user_id: UUID = Depends(get_current_user)):
     """List groups where the current user is a member."""
     rows = await fetch_all(
         """
-        SELECT g.id, g.nome, g.is_auto, g.disciplina_id, g.created_at,
+        SELECT g.id, g.nome, g.is_auto, g.turma, g.disciplina_id, g.created_at,
                (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count
         FROM groups g
         JOIN group_members gm ON gm.group_id = g.id
@@ -410,7 +410,8 @@ async def list_groups(user_id: UUID = Depends(get_current_user)):
             id=r["id"],
             nome=r["nome"],
             is_auto=r["is_auto"],
-            disciplina_id=r["disciplina_id"],
+            turma=r.get("turma"),
+            disciplina_id=r.get("disciplina_id"),
             member_count=r["member_count"],
             members=None,
             created_at=r["created_at"],
@@ -502,7 +503,7 @@ async def get_group(
         raise HTTPException(status_code=403, detail=error_response("FORBIDDEN", "Você não é membro desse grupo."))
 
     group_row = await fetch_one(
-        """SELECT g.id, g.nome, g.is_auto, g.disciplina_id, g.created_at,
+        """SELECT g.id, g.nome, g.is_auto, g.turma, g.disciplina_id, g.created_at,
                   (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count
            FROM groups g
            WHERE g.id = $1""",
@@ -536,7 +537,8 @@ async def get_group(
             id=group_row["id"],
             nome=group_row["nome"],
             is_auto=group_row["is_auto"],
-            disciplina_id=group_row["disciplina_id"],
+            turma=group_row.get("turma"),
+            disciplina_id=group_row.get("disciplina_id"),
             member_count=group_row["member_count"],
             members=members,
             created_at=group_row["created_at"],
@@ -710,7 +712,7 @@ async def get_share_targets(user_id: UUID = Depends(get_current_user)):
     # Groups
     group_rows = await fetch_all(
         """
-        SELECT g.id, g.nome, g.is_auto, g.disciplina_id, g.created_at,
+        SELECT g.id, g.nome, g.is_auto, g.turma, g.disciplina_id, g.created_at,
                (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count
         FROM groups g
         JOIN group_members gm ON gm.group_id = g.id
@@ -724,7 +726,8 @@ async def get_share_targets(user_id: UUID = Depends(get_current_user)):
             id=r["id"],
             nome=r["nome"],
             is_auto=r["is_auto"],
-            disciplina_id=r["disciplina_id"],
+            turma=r.get("turma"),
+            disciplina_id=r.get("disciplina_id"),
             member_count=r["member_count"],
             members=None,
             created_at=r["created_at"],

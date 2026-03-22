@@ -113,6 +113,8 @@ struct CreateGroupSheet: View {
             .background(Color.coffeeBackground)
         }
         .background(Color.coffeeBackground)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .task {
             await loadFriends()
         }
