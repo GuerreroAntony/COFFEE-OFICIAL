@@ -22,6 +22,13 @@ struct DisciplinasScreenView: View {
     @State private var showCalendar = false
     @State private var showPlanGate = false
     @State private var upcomingCount: Int = 0
+    // Social
+    @State private var friends: [Friend] = []
+    @State private var friendRequests: [Friend] = []
+    @State private var groups: [SocialGroup] = []
+    @State private var showAddFriend = false
+    @State private var showCreateGroup = false
+    @State private var selectedGroup: SocialGroup? = nil
 
     // Default styles now live on Discipline.defaultStyles
 
@@ -31,8 +38,8 @@ struct DisciplinasScreenView: View {
         return plano == .black || plano == .trial
     }
 
-    private var newCount: Int { sharedItems.filter(\.isNew).count }
-    private var tabs: [String] { ["Disciplinas", "Outros", "Social\(newCount > 0 ? " (\(newCount))" : "")"] }
+    private var socialBadgeCount: Int { sharedItems.filter(\.isNew).count + friendRequests.count }
+    private var tabs: [String] { ["Disciplinas", "Outros", "Social\(socialBadgeCount > 0 ? " (\(socialBadgeCount))" : "")"] }
 
     private var dynamicSubtitle: String {
         // Extract semester number and turma from the first discipline that has them
@@ -485,22 +492,21 @@ struct DisciplinasScreenView: View {
         }
     }
 
-    // MARK: - Recebidos Tab
+    // MARK: - Social Tab
 
     private var recebidosTab: some View {
         VStack(alignment: .leading, spacing: 0) {
-            let newItems = sharedItems.filter(\.isNew)
-            let olderItems = sharedItems.filter { !$0.isNew }
 
-            if !newItems.isEmpty {
-                CoffeeSectionHeader(title: "Novos (\(newItems.count))")
+            // ── Friend Requests ──
+            if !friendRequests.isEmpty {
+                CoffeeSectionHeader(title: "Solicitações (\(friendRequests.count))")
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
 
                 CoffeeCellGroup {
-                    ForEach(Array(newItems.enumerated()), id: \.element.id) { index, item in
-                        sharedItemRow(item, isNew: true)
-                        if index < newItems.count - 1 {
+                    ForEach(Array(friendRequests.enumerated()), id: \.element.id) { index, req in
+                        friendRequestRow(req)
+                        if index < friendRequests.count - 1 {
                             Divider().padding(.leading, 62)
                         }
                     }
@@ -509,15 +515,156 @@ struct DisciplinasScreenView: View {
                 .padding(.bottom, 20)
             }
 
-            if !olderItems.isEmpty {
-                CoffeeSectionHeader(title: "Anteriores")
+            // ── Friends ──
+            HStack {
+                CoffeeSectionHeader(title: "Amigos\(friends.isEmpty ? "" : " (\(friends.count))")")
+                Spacer()
+                Button { showAddFriend = true } label: {
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+
+            if friends.isEmpty {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 6) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                        Text("Adicione amigos para compartilhar aulas")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(friends) { friend in
+                            VStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.coffeePrimary.opacity(0.12))
+                                    .frame(width: 52, height: 52)
+                                    .overlay(
+                                        Text(friend.initials)
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(Color.coffeePrimary)
+                                    )
+                                Text(friend.nome.components(separatedBy: " ").first ?? friend.nome)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Color.coffeeTextSecondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 64)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 16)
+            }
+
+            // ── Groups ──
+            HStack {
+                CoffeeSectionHeader(title: "Grupos\(groups.isEmpty ? "" : " (\(groups.count))")")
+                Spacer()
+                Button { showCreateGroup = true } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+
+            if groups.isEmpty {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 6) {
+                        Image(systemName: "person.3")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                        Text("Grupos de turma aparecem ao conectar a ESPM")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 16)
+            } else {
+                CoffeeCellGroup {
+                    ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                        Button { selectedGroup = group } label: {
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(group.isAuto ? Color.coffeePrimary.opacity(0.1) : Color.coffeeTextSecondary.opacity(0.08))
+                                        .frame(width: 44, height: 44)
+                                    Image(systemName: group.isAuto ? "graduationcap.fill" : "person.3.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(group.isAuto ? Color.coffeePrimary : Color.coffeeTextSecondary)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text(group.nome)
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundStyle(Color.coffeeTextPrimary)
+                                            .lineLimit(1)
+                                        if group.isAuto {
+                                            Text("Turma")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(Color.coffeePrimary)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.coffeePrimary.opacity(0.1))
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                    Text("\(group.memberCount) membro\(group.memberCount == 1 ? "" : "s")")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < groups.count - 1 {
+                            Divider().padding(.leading, 74)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+            }
+
+            // ── Received Shares ──
+            let newItems = sharedItems.filter(\.isNew)
+            let olderItems = sharedItems.filter { !$0.isNew }
+
+            if !sharedItems.isEmpty {
+                CoffeeSectionHeader(title: "Recebidos\(newItems.isEmpty ? "" : " (\(newItems.count))")")
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
 
                 CoffeeCellGroup {
-                    ForEach(Array(olderItems.enumerated()), id: \.element.id) { index, item in
-                        sharedItemRow(item, isNew: false)
-                        if index < olderItems.count - 1 {
+                    let allItems = newItems + olderItems
+                    ForEach(Array(allItems.enumerated()), id: \.element.id) { index, item in
+                        sharedItemRow(item, isNew: item.isNew)
+                        if index < allItems.count - 1 {
                             Divider().padding(.leading, 62)
                         }
                     }
@@ -525,15 +672,86 @@ struct DisciplinasScreenView: View {
                 .padding(.horizontal, 16)
             }
 
-            if sharedItems.isEmpty {
+            // Empty state only if everything is empty
+            if friends.isEmpty && groups.isEmpty && sharedItems.isEmpty && friendRequests.isEmpty {
                 CoffeeEmptyState(
                     icon: "person.2.fill",
                     title: "Nada por aqui ainda",
-                    message: "Quando colegas compartilharem aulas com você, elas aparecerão aqui."
+                    message: "Adicione amigos ou conecte a ESPM para ver seus grupos de turma."
                 )
                 .padding(.top, 40)
             }
         }
+        .sheet(isPresented: $showAddFriend) {
+            AddFriendSheet()
+        }
+        .sheet(isPresented: $showCreateGroup) {
+            CreateGroupSheet(friends: friends) { _ in
+                Task { groups = (try? await SocialService.getGroups()) ?? groups }
+            }
+        }
+        .sheet(item: $selectedGroup) { group in
+            NavigationStack {
+                GroupDetailView(group: group)
+            }
+        }
+    }
+
+    private func friendRequestRow(_ req: Friend) -> some View {
+        HStack(spacing: 14) {
+            Circle()
+                .fill(Color.blue.opacity(0.1))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Text(req.initials)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.blue)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(req.nome)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                Text(req.email)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button {
+                    Task {
+                        try? await SocialService.acceptFriendRequest(id: req.id)
+                        friendRequests.removeAll { $0.id == req.id }
+                        friends = (try? await SocialService.getFriends()) ?? friends
+                    }
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.green)
+                        .clipShape(Circle())
+                }
+
+                Button {
+                    Task {
+                        try? await SocialService.rejectFriendRequest(id: req.id)
+                        friendRequests.removeAll { $0.id == req.id }
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.red.opacity(0.8))
+                        .clipShape(Circle())
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     private func sharedItemRow(_ item: SharedItem, isNew: Bool) -> some View {
@@ -666,10 +884,16 @@ struct DisciplinasScreenView: View {
         async let d = try? DisciplineService.getDisciplines()
         async let r = try? DisciplineService.getRepositories()
         async let s = try? DisciplineService.getSharedItems()
+        async let f = try? SocialService.getFriends()
+        async let fr = try? SocialService.getFriendRequests()
+        async let g = try? SocialService.getGroups()
 
         disciplines = await d ?? disciplines
         repositories = await r ?? repositories
         sharedItems = await s ?? sharedItems
+        friends = await f ?? friends
+        friendRequests = await fr ?? friendRequests
+        groups = await g ?? groups
 
         // Update cache
         router.cachedDisciplines = disciplines
