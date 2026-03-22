@@ -13,9 +13,8 @@ from app.config import settings
 
 def get_plan_budget(plano: str) -> float:
     """Return AI budget in USD for a given plan's 30-day cycle."""
-    if plano == "black":
+    if plano in ("black", "trial"):
         return settings.BLACK_BUDGET_USD
-    # trial + cafe_com_leite share the same budget
     return settings.CAFE_COM_LEITE_BUDGET_USD
 
 

@@ -104,8 +104,8 @@ async def upload_audio_recording(
             detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para gravar aulas"),
         )
 
-    # Recording hours limit by plan
-    hours_limit = {"cafe_curto": 20, "cafe_com_leite": 40, "trial": 40}.get(plano)
+    # Recording hours limit by plan (trial + black = unlimited)
+    hours_limit = {"cafe_curto": 20, "cafe_com_leite": 40}.get(plano)
     if hours_limit is not None:
         total_row = await fetch_one(
             "SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM gravacoes WHERE user_id = $1",
