@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     BLACK_LUNGO_LIMIT: int = 100
     BLACK_COLD_BREW_LIMIT: int = 25
     SYNC_COOLDOWN_HOURS: int = 1
+    # Barista v2 budgets (USD per 30-day cycle)
+    CAFE_COM_LEITE_BUDGET_USD: float = 1.75
+    BLACK_BUDGET_USD: float = 2.92
     # Force Update
     MIN_IOS_VERSION: str = "1.0.0"
     APP_STORE_URL: str = "https://apps.apple.com/app/coffee-espm/id6744076580"

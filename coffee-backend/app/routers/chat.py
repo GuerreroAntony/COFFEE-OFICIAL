@@ -1,7 +1,8 @@
 import asyncio
 import json
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from datetime import datetime, date, timedelta, timezone
+from math import floor
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,7 +20,7 @@ from app.schemas.chat import (
 )
 from app.schemas.base import error_response, success_response
 from app.services.openai_service import OpenAIService
-from app.services.anthropic_service import AnthropicService
+from app.services.anthropic_service import AnthropicService, ChatResult, SONNET
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
 _openai = OpenAIService()
@@ -28,12 +29,9 @@ _anthropic = AnthropicService()
 # Minimum cosine similarity for vector search (lowered for RRF — full-text compensates)
 _MIN_SIMILARITY = 0.25
 
-# Mode → model mapping (reference only; actual routing is in event_stream below)
-_MODE_MODELS = {
-    "espresso": "gpt-4o-mini",
-    "lungo": "claude-sonnet-4-20250514",
-    "cold_brew": "claude-opus-4-20250514",
-}
+# Sonnet 4 pricing (per million tokens)
+_INPUT_COST_PER_M = 3.0
+_OUTPUT_COST_PER_M = 15.0
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -107,54 +105,61 @@ async def _validate_source_ownership(user_id: UUID, source_type: str, source_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado à fonte"))
 
 
-async def _get_cycle_start(user_id: UUID) -> datetime:
-    """Calculate the start of the current 30-day billing cycle."""
-    row = await fetch_one("SELECT created_at FROM users WHERE id = $1", user_id)
-    if not row:
-        return datetime.now(timezone.utc)
-    created_at = row["created_at"]
+def _get_cycle_dates(created_at: datetime) -> tuple[date, date]:
+    """Calculate the current 30-day billing cycle start and end dates."""
     now = datetime.now(timezone.utc)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
     elapsed = (now - created_at).total_seconds()
-    cycles = int(elapsed // (30 * 86400))
-    from datetime import timedelta
-    return created_at + timedelta(days=cycles * 30)
+    cycle_number = floor(elapsed / (30 * 86400))
+    cycle_start = (created_at + timedelta(days=cycle_number * 30)).date()
+    cycle_end = cycle_start + timedelta(days=30)
+    return cycle_start, cycle_end
 
 
-async def _get_questions_remaining(user_id: UUID, cycle_start: datetime, plano: str) -> dict:
-    """Get remaining questions per mode for the current cycle, based on user's plan."""
-    from app.plan_limits import get_plan_limits
-    limits = get_plan_limits(plano)
+async def _get_or_create_budget(user_id: UUID, plano: str) -> dict:
+    """Get or create usage_budget row for current cycle. Returns dict with budget_usd, used_usd."""
+    from app.plan_limits import get_plan_budget
 
-    espresso_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
-             AND m.created_at >= $2""",
+    user_row = await fetch_one("SELECT created_at FROM users WHERE id = $1", user_id)
+    if not user_row:
+        return {"budget_usd": 0.0, "used_usd": 0.0, "cycle_start": date.today(), "cycle_end": date.today() + timedelta(days=30)}
+
+    cycle_start, cycle_end = _get_cycle_dates(user_row["created_at"])
+    budget_usd = get_plan_budget(plano)
+
+    # Try to get existing budget row
+    row = await fetch_one(
+        "SELECT budget_usd, used_usd FROM usage_budget WHERE user_id = $1 AND cycle_start = $2",
         user_id, cycle_start,
     )
-    lungo_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'lungo'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
-    )
-    cold_brew_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'cold_brew'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
-    )
-    espresso_used = espresso_row["cnt"] if espresso_row else 0
-    lungo_used = lungo_row["cnt"] if lungo_row else 0
-    cold_brew_used = cold_brew_row["cnt"] if cold_brew_row else 0
+    if row:
+        return {"budget_usd": row["budget_usd"], "used_usd": row["used_usd"], "cycle_start": cycle_start, "cycle_end": cycle_end}
 
-    return {
-        "espresso": -1 if limits["espresso"] == -1 else max(0, limits["espresso"] - espresso_used),
-        "lungo": max(0, limits["lungo"] - lungo_used),
-        "cold_brew": max(0, limits["cold_brew"] - cold_brew_used),
-    }
+    # Create new budget row for this cycle
+    await execute_query(
+        """INSERT INTO usage_budget (user_id, cycle_start, cycle_end, budget_usd, used_usd)
+           VALUES ($1, $2, $3, $4, 0)
+           ON CONFLICT (user_id, cycle_start) DO NOTHING""",
+        user_id, cycle_start, cycle_end, budget_usd,
+    )
+    return {"budget_usd": budget_usd, "used_usd": 0.0, "cycle_start": cycle_start, "cycle_end": cycle_end}
+
+
+def _calc_cost(input_tokens: int, output_tokens: int) -> float:
+    """Calculate USD cost from token counts."""
+    return round(
+        (input_tokens * _INPUT_COST_PER_M / 1_000_000)
+        + (output_tokens * _OUTPUT_COST_PER_M / 1_000_000),
+        6,
+    )
+
+
+def _usage_percent(used: float, budget: float) -> float:
+    """Return usage as percentage (0-100). 100 = fully used."""
+    if budget <= 0:
+        return 100.0
+    return round(min(100.0, (used / budget) * 100), 1)
 
 
 # ── GET /chats ───────────────────────────────────────────────
@@ -311,7 +316,7 @@ async def send_message(
     body: SendMessageRequest,
     user_plan: tuple = Depends(get_current_user_with_plan),
 ):
-    """Enviar pergunta ao Barista (SSE streaming). Requires mode: espresso|lungo|cold_brew."""
+    """Enviar pergunta ao Barista (SSE streaming). Mode: rapido|professor|amigo (legacy: espresso|lungo|cold_brew)."""
     user_id, plano = user_plan
 
     # Subscription guard: expired users can't chat
@@ -329,24 +334,15 @@ async def send_message(
     if not chat:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Chat não encontrado"))
 
-    # Monthly limit check per plan
-    cycle_start = await _get_cycle_start(user_id)
-    questions_remaining = await _get_questions_remaining(user_id, cycle_start, plano)
-
-    if body.mode == "espresso" and questions_remaining["espresso"] != -1 and questions_remaining["espresso"] <= 0:
+    # Budget check
+    budget_info = await _get_or_create_budget(user_id, plano)
+    if budget_info["used_usd"] >= budget_info["budget_usd"]:
         raise HTTPException(
             status_code=429,
-            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Espresso atingido. Faça upgrade pro plano Black para perguntas ilimitadas."),
-        )
-    if body.mode == "lungo" and questions_remaining["lungo"] <= 0:
-        raise HTTPException(
-            status_code=429,
-            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Lungo atingido"),
-        )
-    if body.mode == "cold_brew" and questions_remaining["cold_brew"] <= 0:
-        raise HTTPException(
-            status_code=429,
-            detail=error_response("QUESTION_LIMIT", "Limite mensal de perguntas Cold Brew atingido"),
+            detail=error_response(
+                "BUDGET_EXHAUSTED",
+                "Seu limite mensal do Barista foi atingido. Ele renova automaticamente no próximo ciclo."
+            ),
         )
 
     # Save user message with mode
@@ -363,12 +359,10 @@ async def send_message(
     source_type = chat["source_type"]
     source_id = chat["source_id"]
 
-    # ── RAG: hybrid search with diversified source retrieval ──
-    # Vector similarity + full-text search (tsvector), merged via Reciprocal Rank Fusion
-    # Diversified: up to 6 transcription chunks + 6 material chunks = 12 total
+    # ── RAG: hybrid search — 4 transcription + 4 material = 8 chunks ──
 
     if body.gravacao_id:
-        # Single recording context — no diversification needed
+        # Single recording context
         chunk_rows = await fetch_all(
             """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       COALESCE(d.nome, r.nome) AS source_name,
@@ -382,13 +376,11 @@ async def send_message(
                WHERE e.fonte_tipo = 'transcricao' AND e.fonte_id = $2
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 12""",
+               LIMIT 8""",
             vec_str, body.gravacao_id, _MIN_SIMILARITY,
         )
     elif source_type == "disciplina":
         # Hybrid search: vector + full-text in parallel, merged via RRF
-        # 4 parallel queries: vector×{transcricao,material} + fts×{transcricao,material}
-
         vec_transcription_task = fetch_all(
             """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       d.nome AS source_name,
@@ -402,7 +394,7 @@ async def send_message(
                  AND e.fonte_tipo = 'transcricao'
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 20""",
+               LIMIT 12""",
             vec_str, source_id, _MIN_SIMILARITY,
         )
         vec_material_task = fetch_all(
@@ -419,7 +411,7 @@ async def send_message(
                  AND m.ai_enabled = true
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 20""",
+               LIMIT 12""",
             vec_str, source_id, _MIN_SIMILARITY,
         )
         fts_transcription_task = fetch_all(
@@ -435,7 +427,7 @@ async def send_message(
                  AND e.fonte_tipo = 'transcricao'
                  AND e.tsv @@ plainto_tsquery('portuguese', $1)
                ORDER BY similarity DESC
-               LIMIT 20""",
+               LIMIT 12""",
             body.text, source_id,
         )
         fts_material_task = fetch_all(
@@ -452,7 +444,7 @@ async def send_message(
                  AND m.ai_enabled = true
                  AND e.tsv @@ plainto_tsquery('portuguese', $1)
                ORDER BY similarity DESC
-               LIMIT 20""",
+               LIMIT 12""",
             body.text, source_id,
         )
 
@@ -461,12 +453,12 @@ async def send_message(
             fts_transcription_task, fts_material_task,
         )
 
-        # RRF merge per source type, then take top 6 of each
-        merged_trans = _reciprocal_rank_fusion(list(vec_trans), list(fts_trans))[:6]
-        merged_mat = _reciprocal_rank_fusion(list(vec_mat), list(fts_mat))[:6]
+        # RRF merge per source type, then take top 4 of each = 8 total
+        merged_trans = _reciprocal_rank_fusion(list(vec_trans), list(fts_trans))[:4]
+        merged_mat = _reciprocal_rank_fusion(list(vec_mat), list(fts_mat))[:4]
         chunk_rows = merged_trans + merged_mat
     else:
-        # Repository: only transcriptions (repos don't have materials)
+        # Repository: only transcriptions
         chunk_rows = await fetch_all(
             """SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
                       r.nome AS source_name,
@@ -479,11 +471,11 @@ async def send_message(
                WHERE g.source_type = 'repositorio' AND g.source_id = $2
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
-               LIMIT 12""",
+               LIMIT 8""",
             vec_str, source_id, _MIN_SIMILARITY,
         )
 
-    # Build context with rich labels (date for transcriptions, name for materials)
+    # Build context with rich labels
     context_texts = []
     for row in chunk_rows:
         if row["fonte_tipo"] == "transcricao" and row.get("gravacao_date"):
@@ -512,52 +504,60 @@ async def send_message(
     source_name = chunk_rows[0]["source_name"] if chunk_rows else "Geral"
 
     # Select personality prompt by mode
-    from app.prompts import ESPRESSO_PROMPT, LUNGO_PROMPT, COLD_BREW_PROMPT
-    mode_prompts = {
-        "espresso": ESPRESSO_PROMPT,
-        "lungo": LUNGO_PROMPT,
-        "cold_brew": COLD_BREW_PROMPT,
-    }
-    system_prompt = mode_prompts.get(body.mode, ESPRESSO_PROMPT)
+    from app.prompts import MODE_PROMPTS, RAPIDO_PROMPT
+    system_prompt = MODE_PROMPTS.get(body.mode, RAPIDO_PROMPT)
 
-    # SSE stream — route by mode
+    # Token usage tracker
+    chat_result = ChatResult()
+
+    # SSE stream — ALL modes use Sonnet 4 via Anthropic
     async def event_stream() -> AsyncGenerator[str, None]:
         full_text = ""
         try:
-            if body.mode == "espresso":
-                # Espresso: GPT-4o-mini (fast, unlimited)
-                stream_gen = _openai.chat_rag(history_msgs, context_texts, model="gpt-4o-mini", system_prompt=system_prompt)
-            elif body.mode == "lungo":
-                # Lungo: Claude Sonnet (balanced quality + prompt caching)
-                from app.services.anthropic_service import SONNET
-                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, model=SONNET, system_prompt=system_prompt)
-            else:
-                # Cold Brew: Claude Opus (premium, deep analysis)
-                from app.services.anthropic_service import OPUS
-                stream_gen = _anthropic.chat_rag(history_msgs, context_texts, model=OPUS, system_prompt=system_prompt)
+            stream_gen = _anthropic.chat_rag(
+                history_msgs,
+                context_texts,
+                model=SONNET,
+                system_prompt=system_prompt,
+                result_holder=chat_result,
+            )
 
             async for delta in stream_gen:
                 full_text += delta
                 yield f"data: {json.dumps({'token': delta}, ensure_ascii=False)}\n\n"
 
-            # Save assistant message with sources and mode
+            # Calculate cost from actual token usage
+            cost = _calc_cost(chat_result.input_tokens, chat_result.output_tokens)
+
+            # Save assistant message with sources, mode, and token tracking
             msg_row = await fetch_one(
-                """INSERT INTO mensagens (chat_id, role, conteudo, fontes, mode)
-                   VALUES ($1, 'assistant', $2, $3::jsonb, $4)
+                """INSERT INTO mensagens (chat_id, role, conteudo, fontes, mode, input_tokens, output_tokens, cost_usd)
+                   VALUES ($1, 'assistant', $2, $3::jsonb, $4, $5, $6, $7)
                    RETURNING id""",
                 chat_id, full_text,
                 json.dumps(sources, ensure_ascii=False),
                 body.mode,
+                chat_result.input_tokens,
+                chat_result.output_tokens,
+                cost,
             )
             msg_id = str(msg_row["id"]) if msg_row else str(uuid4())
+
+            # Update budget used
+            await execute_query(
+                """UPDATE usage_budget SET used_usd = used_usd + $1
+                   WHERE user_id = $2 AND cycle_start = $3""",
+                cost, user_id, budget_info["cycle_start"],
+            )
 
             # Update chat updated_at
             await execute_query(
                 "UPDATE chats SET updated_at = NOW() WHERE id = $1", chat_id
             )
 
-            # Recalculate remaining after this message
-            updated_remaining = await _get_questions_remaining(user_id, cycle_start, plano)
+            # Calculate updated usage percentage
+            new_used = budget_info["used_usd"] + cost
+            usage_pct = _usage_percent(new_used, budget_info["budget_usd"])
 
             done_payload = {
                 "done": True,
@@ -565,27 +565,28 @@ async def send_message(
                 "chat_id": str(chat_id),
                 "sources": sources,
                 "label": f"Barista de {source_name}",
-                "questions_remaining": updated_remaining,
+                "usage_percent": usage_pct,
+                "budget_usd": budget_info["budget_usd"],
+                "used_usd": round(new_used, 4),
+                # Legacy: keep questions_remaining for old iOS versions
+                "questions_remaining": {
+                    "espresso": -1,
+                    "lungo": -1,
+                    "cold_brew": -1,
+                },
             }
             yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    # Decrement remaining for the mode used (before streaming, for headers)
-    if body.mode == "lungo":
-        remaining_for_mode = max(0, questions_remaining["lungo"] - 1)
-    elif body.mode == "cold_brew":
-        remaining_for_mode = max(0, questions_remaining["cold_brew"] - 1)
-    else:
-        remaining_for_mode = -1
+    current_pct = _usage_percent(budget_info["used_usd"], budget_info["budget_usd"])
 
     headers = {
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
-        "X-Questions-Remaining-Espresso": str(questions_remaining["espresso"]),
-        "X-Questions-Remaining-Lungo": str(remaining_for_mode if body.mode == "lungo" else questions_remaining["lungo"]),
-        "X-Questions-Remaining-ColdBrew": str(remaining_for_mode if body.mode == "cold_brew" else questions_remaining["cold_brew"]),
+        "X-Usage-Percent": str(current_pct),
+        "X-Budget-USD": str(budget_info["budget_usd"]),
     }
 
     return StreamingResponse(

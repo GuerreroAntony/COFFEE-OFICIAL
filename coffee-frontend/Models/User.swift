@@ -101,18 +101,36 @@ struct UserUsage: Codable {
     let gravacoesTotal: Int
     let horasGravadas: Double
     let questionsRemaining: QuestionsRemaining
+    let baristaUsage: BaristaUsage?
     let questionsResetAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case gravacoesTotal = "gravacoes_total"
         case horasGravadas = "horas_gravadas"
         case questionsRemaining = "questions_remaining"
+        case baristaUsage = "barista_usage"
         case questionsResetAt = "questions_reset_at"
     }
 }
 
+struct BaristaUsage: Codable {
+    let usagePercent: Double
+    let budgetUsd: Double
+    let usedUsd: Double
+    let remainingUsd: Double
+    let cycleResetAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case usagePercent = "usage_percent"
+        case budgetUsd = "budget_usd"
+        case usedUsd = "used_usd"
+        case remainingUsd = "remaining_usd"
+        case cycleResetAt = "cycle_reset_at"
+    }
+}
+
 struct QuestionsRemaining: Codable {
-    let espresso: Int   // -1 = unlimited
+    let espresso: Int   // -1 = unlimited (legacy)
     let lungo: Int
     let coldBrew: Int
 

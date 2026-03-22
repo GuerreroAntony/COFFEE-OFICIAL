@@ -44,42 +44,41 @@ enum MessageSender: String, Codable {
     case ai
 }
 
-// MARK: - AI Modes (Espresso, Lungo, Cold Brew)
+// MARK: - AI Modes (Rápido, Professor, Amigo)
 
 enum AIMode: String, Codable, CaseIterable {
+    case rapido
+    case professor
+    case amigo
+    // Legacy modes (for existing messages in DB)
     case espresso
     case lungo
     case coldBrew = "cold_brew"
 
+    // Only show new modes in picker
+    static var pickerCases: [AIMode] { [.rapido, .professor, .amigo] }
+
     var displayName: String {
         switch self {
-        case .espresso: return "Espresso"
-        case .lungo: return "Lungo"
-        case .coldBrew: return "Cold Brew"
+        case .rapido, .espresso: return "Rapido"
+        case .professor, .lungo: return "Professor"
+        case .amigo, .coldBrew: return "Amigo"
         }
     }
 
     var icon: String {
         switch self {
-        case .espresso: return CoffeeIcon.bolt
-        case .lungo: return CoffeeIcon.sparkles
-        case .coldBrew: return CoffeeIcon.brain
+        case .rapido, .espresso: return "bolt.fill"
+        case .professor, .lungo: return "graduationcap.fill"
+        case .amigo, .coldBrew: return "person.2.fill"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .espresso: return "Rapido e direto ao ponto"
-        case .lungo: return "Equilibrado e claro"
-        case .coldBrew: return "Profundo e detalhado"
-        }
-    }
-
-    var monthlyLimit: String {
-        switch self {
-        case .espresso: return "Ilimitado"
-        case .lungo: return "30/mes"
-        case .coldBrew: return "15/mes"
+        case .rapido, .espresso: return "Direto ao ponto"
+        case .professor, .lungo: return "Explicacao clara e estruturada"
+        case .amigo, .coldBrew: return "Como um amigo explicando"
         }
     }
 }
@@ -137,12 +136,19 @@ struct SSEDonePayload: Codable {
     let chatId: String?
     let sources: [ChatSource]?
     let label: String?
+    let usagePercent: Double?
+    let budgetUsd: Double?
+    let usedUsd: Double?
+    // Legacy
     let questionsRemaining: QuestionsRemaining?
 
     enum CodingKeys: String, CodingKey {
         case done, sources, label
         case messageId = "message_id"
         case chatId = "chat_id"
+        case usagePercent = "usage_percent"
+        case budgetUsd = "budget_usd"
+        case usedUsd = "used_usd"
         case questionsRemaining = "questions_remaining"
     }
 }

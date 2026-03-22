@@ -1,16 +1,27 @@
 """
-Plan limits helper — centralizes per-plan question limits and gift code counts.
+Plan limits helper — centralizes per-plan budgets, gift codes, and plan checks.
+
+Barista v2: single model (Sonnet 4), budget-based limits instead of per-mode counts.
 
 Plans:
-  - trial (Degustação): same limits as cafe_com_leite, 7 days free
-  - cafe_com_leite: Espresso 75, Lungo 30, Cold Brew 15
-  - black: Espresso unlimited, Lungo 100, Cold Brew 25
+  - trial (Degustação): same budget as cafe_com_leite, 7 days free
+  - cafe_com_leite: $1.75/cycle
+  - black: $2.92/cycle
 """
 from app.config import settings
 
 
+def get_plan_budget(plano: str) -> float:
+    """Return AI budget in USD for a given plan's 30-day cycle."""
+    if plano == "black":
+        return settings.BLACK_BUDGET_USD
+    # trial + cafe_com_leite share the same budget
+    return settings.CAFE_COM_LEITE_BUDGET_USD
+
+
+# Legacy: keep old function for backward compatibility during transition
 def get_plan_limits(plano: str) -> dict:
-    """Return question limits dict for a given plan.
+    """Legacy — return question limits dict (for old code paths).
 
     Returns:
         dict with keys "espresso", "lungo", "cold_brew".
@@ -22,7 +33,6 @@ def get_plan_limits(plano: str) -> dict:
             "lungo": settings.BLACK_LUNGO_LIMIT,
             "cold_brew": settings.BLACK_COLD_BREW_LIMIT,
         }
-    # trial + cafe_com_leite share the same limits
     return {
         "espresso": settings.CAFE_ESPRESSO_LIMIT,
         "lungo": settings.CAFE_LUNGO_LIMIT,
