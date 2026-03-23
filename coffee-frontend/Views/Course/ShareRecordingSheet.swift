@@ -472,20 +472,13 @@ struct ShareRecordingSheet: View {
 
         Task {
             do {
-                // Use recipient_ids for direct sharing
-                let body: [String: Any] = [
-                    "gravacao_id": recordingId,
-                    "recipient_ids": allIds,
-                    "shared_content": content,
-                    "message": ""
-                ]
-                let jsonData = try JSONSerialization.data(withJSONObject: body)
-
-                let _: ShareResponse = try await APIClient.shared.request(
-                    path: APIEndpoints.compartilhamentos,
-                    method: .POST,
-                    body: jsonData
+                let request = ShareByIdsRequest(
+                    gravacaoId: recordingId,
+                    recipientIds: allIds,
+                    sharedContent: content,
+                    message: ""
                 )
+                let _ = try await DisciplineService.shareRecordingByIds(request: request)
                 isSending = false
                 showSuccess = true
             } catch {
@@ -496,11 +489,17 @@ struct ShareRecordingSheet: View {
     }
 }
 
-// Response type for share
-private struct ShareResponse: Codable {
-    let sharedCount: Int?
+struct ShareByIdsRequest: Codable {
+    let gravacaoId: String
+    let recipientIds: [String]
+    let sharedContent: [String]
+    let message: String
+
     enum CodingKeys: String, CodingKey {
-        case sharedCount = "shared_count"
+        case gravacaoId = "gravacao_id"
+        case recipientIds = "recipient_ids"
+        case sharedContent = "shared_content"
+        case message
     }
 }
 
