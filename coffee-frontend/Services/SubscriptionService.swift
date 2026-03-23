@@ -157,13 +157,14 @@ final class SubscriptionService {
 
     // MARK: - Start Free Trial (7 dias grátis do plano Black)
 
-    /// Activate 7-day free trial via RevenueCat (Introductory Offer on Black plan)
-    func startFreeTrial() async throws {
-        guard let blackPlan = availablePlans.first(where: { $0.planId == "black" }) else {
+    /// Activate 7-day free trial via RevenueCat (Introductory Offer configured on all plans)
+    func startFreeTrial(plan: SubscriptionPlan? = nil) async throws {
+        let targetPlan = plan ?? availablePlans.first(where: { $0.planId == "black" })
+        guard let targetPlan else {
             throw NSError(domain: "SubscriptionService", code: -3,
-                         userInfo: [NSLocalizedDescriptionKey: "Plano Black não encontrado"])
+                         userInfo: [NSLocalizedDescriptionKey: "Plano não encontrado"])
         }
-        let _ = try await purchase(plan: blackPlan)
+        let _ = try await purchase(plan: targetPlan)
         hasUsedTrial = true
     }
 

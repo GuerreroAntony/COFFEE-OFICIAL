@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Premium Offer Screen (Three-Plan Paywall)
 // Three plan cards: Curto (brown) + c/ Leite (beige) + Black (black)
 // Comparison table below with green checkmarks and red X icons
-// Promo code section + "Testar 7 dias grátis" CTA (Black trial only)
+// Promo code section + "Testar 7 dias grátis" CTA (all plans have Introductory Offer)
 
 struct PremiumOfferScreenView: View {
     @Environment(\.router) private var router
@@ -441,95 +441,50 @@ struct PremiumOfferScreenView: View {
     // MARK: - Bottom CTA
 
     private var bottomCTA: some View {
-        let isBlackSelected = selectedPlanId == "black"
+        let selectedPlan = subscription.availablePlans.first(where: { $0.planId == selectedPlanId })
+        let planName: String = {
+            switch selectedPlanId {
+            case "cafe_curto": return "Curto"
+            case "cafe_com_leite": return "c/ Leite"
+            default: return "Black"
+            }
+        }()
 
         return VStack(spacing: 12) {
-            if isBlackSelected {
-                // Black selected — show trial CTA
-                Button {
-                    handleStartTrial()
-                } label: {
-                    HStack(spacing: 10) {
-                        if isStartingTrial {
-                            ProgressView().tint(.white)
-                        } else {
-                            Image(systemName: "gift.fill")
-                                .font(.system(size: 16))
-                        }
-                        Text("Testar 7 dias grátis")
-                            .font(.system(size: 17, weight: .bold))
+            Button {
+                handleStartTrial()
+            } label: {
+                HStack(spacing: 10) {
+                    if isStartingTrial {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 16))
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.coffeePrimary, Color(hex: "5A3E2B")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
+                    Text("Testar 7 dias grátis")
+                        .font(.system(size: 17, weight: .bold))
                 }
-                .buttonStyle(.plain)
-                .disabled(isStartingTrial)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    LinearGradient(
+                        colors: [Color.coffeePrimary, Color(hex: "5A3E2B")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
+            }
+            .buttonStyle(.plain)
+            .disabled(isStartingTrial)
 
-                Text("Acesso completo ao plano Black.")
+            if let price = selectedPlan?.price {
+                Text("7 dias grátis, depois R$\(String(format: "%.2f", price).replacingOccurrences(of: ".", with: ","))/mês no plano \(planName).")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.coffeeTextSecondary)
-            } else {
-                // Curto or Leite selected — show subscribe CTA
-                let planName = selectedPlanId == "cafe_curto" ? "Curto" : "c/ Leite"
-                let planPrice = selectedPlanId == "cafe_curto" ? "R$29,90" : "R$49,90"
-
-                Button {
-                    handlePurchase()
-                } label: {
-                    HStack(spacing: 10) {
-                        if isPurchasing {
-                            ProgressView().tint(.white)
-                        } else {
-                            Image(systemName: "cup.and.saucer.fill")
-                                .font(.system(size: 16))
-                        }
-                        Text("Assinar \(planName) · \(planPrice)/mês")
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.coffeePrimary, Color(hex: "5A3E2B")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: Color.coffeePrimary.opacity(0.3), radius: 8, y: 4)
-                }
-                .buttonStyle(.plain)
-                .disabled(isPurchasing)
-
-                // Hint to try Black
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedPlanId = "black"
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 12))
-                        Text("Ou teste o Black grátis por 7 dias")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.coffeePrimary)
-                }
-                .buttonStyle(.plain)
             }
-
-            // Restaurar compras removido
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 48)
@@ -539,22 +494,11 @@ struct PremiumOfferScreenView: View {
     // MARK: - Actions
 
     private func handleStartTrial() {
+        guard let plan = subscription.availablePlans.first(where: { $0.planId == selectedPlanId }) else { return }
         isStartingTrial = true
         Task {
-            let _ = try? await subscription.startFreeTrial()
+            let _ = try? await subscription.startFreeTrial(plan: plan)
             isStartingTrial = false
-            if let user = router.currentUser {
-                router.login(user: user)
-            }
-        }
-    }
-
-    private func handlePurchase() {
-        guard let plan = subscription.availablePlans.first(where: { $0.planId == selectedPlanId }) else { return }
-        isPurchasing = true
-        Task {
-            let _ = try? await subscription.purchase(plan: plan)
-            isPurchasing = false
             if let user = router.currentUser {
                 router.login(user: user)
             }
