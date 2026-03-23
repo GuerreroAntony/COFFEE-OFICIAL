@@ -1,7 +1,7 @@
 import SwiftUI
 
 // MARK: - Share Recording Sheet
-// Two-step in-app share: 1) Select content → 2) Enter recipient email
+// Two-step: 1) Select content → 2) Pick friends or search by name/email
 
 struct ShareRecordingSheet: View {
     let recordingId: String
@@ -13,11 +13,18 @@ struct ShareRecordingSheet: View {
     @State private var step = 1
     @State private var shareResumo = true
     @State private var shareMapa = true
-    @State private var emails: [String] = []
-    @State private var currentEmail = ""
     @State private var isSending = false
     @State private var showSuccess = false
     @State private var errorMessage: String? = nil
+
+    // Step 2 state
+    @State private var friends: [Friend] = []
+    @State private var selectedFriendIds: Set<String> = []
+    @State private var searchText = ""
+    @State private var searchResults: [UserSearchResult] = []
+    @State private var isSearching = false
+    @State private var selectedSearchIds: Set<String> = []
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +33,7 @@ struct ShareRecordingSheet: View {
             } else if step == 1 {
                 step1ContentSelection
             } else {
-                step2EmailEntry
+                step2RecipientPicker
             }
         }
         .background(Color.coffeeBackground)
@@ -49,9 +56,7 @@ struct ShareRecordingSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
 
-                // Selection cards
                 CoffeeCellGroup {
-                    // Resumo option
                     if hasResumo {
                         Button {
                             shareResumo.toggle()
@@ -70,7 +75,6 @@ struct ShareRecordingSheet: View {
                         Divider().padding(.leading, 72)
                     }
 
-                    // Mapa Mental option
                     if hasMindMap {
                         Button {
                             shareMapa.toggle()
@@ -89,12 +93,12 @@ struct ShareRecordingSheet: View {
 
                 Spacer()
 
-                // Continue button
                 CoffeeButton(
                     "Continuar",
                     isDisabled: !shareResumo && !shareMapa
                 ) {
                     step = 2
+                    loadFriends()
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
@@ -102,11 +106,11 @@ struct ShareRecordingSheet: View {
         }
     }
 
-    // MARK: - Step 2: Email Entry
+    // MARK: - Step 2: Recipient Picker
 
-    private var step2EmailEntry: some View {
+    private var step2RecipientPicker: some View {
         VStack(spacing: 0) {
-            // Custom header with back button
+            // Header with back
             VStack(spacing: 0) {
                 Capsule()
                     .fill(Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.3))
@@ -140,100 +144,154 @@ struct ShareRecordingSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 18)
+                .padding(.bottom, 12)
             }
 
-            VStack(spacing: 20) {
-                Text("Digite o e-mail de cadastro da pessoa que deseja compartilhar:")
+            // Search bar
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
                     .font(.system(size: 15))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.5))
 
-                // Email input
-                HStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "envelope")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.5))
-
-                        TextField("email@exemplo.com", text: $currentEmail)
-                            .font(.system(size: 15))
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                TextField("Buscar por nome ou email", text: $searchText)
+                    .font(.system(size: 15))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: searchText) { _, newValue in
+                        debounceSearch(query: newValue)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .background(Color.coffeeInputBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    // Add button
+                if !searchText.isEmpty {
                     Button {
-                        addEmail()
+                        searchText = ""
+                        searchResults = []
                     } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.coffeePrimary)
-                            .frame(width: 48, height: 48)
-                            .background(Color.coffeePrimary.opacity(0.1))
-                            .clipShape(Circle())
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
                     }
-                    .disabled(currentEmail.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .opacity(currentEmail.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
                 }
-                .padding(.horizontal, 20)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(Color.coffeeInputBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
 
-                // Added emails list
-                if !emails.isEmpty {
-                    VStack(spacing: 8) {
-                        ForEach(emails, id: \.self) { email in
-                            HStack {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(Color.coffeePrimary.opacity(0.5))
-                                Text(email)
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color.coffeeTextPrimary)
-                                Spacer()
-                                Button {
-                                    emails.removeAll { $0 == email }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Friends section (when not searching)
+                    if searchText.isEmpty && !friends.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("AMIGOS")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                                .padding(.horizontal, 20)
+
+                            VStack(spacing: 0) {
+                                ForEach(friends) { friend in
+                                    Button {
+                                        toggleFriend(friend)
+                                    } label: {
+                                        recipientRow(
+                                            initials: friend.initials,
+                                            name: friend.nome,
+                                            subtitle: nil,
+                                            isSelected: selectedFriendIds.contains(friend.userId)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if friend.id != friends.last?.id {
+                                        Divider().padding(.leading, 68)
+                                    }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
                             .background(Color.coffeeCardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 16)
                         }
                     }
-                    .padding(.horizontal, 20)
-                }
 
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.coffeeDanger)
-                        .padding(.horizontal, 20)
-                }
+                    // Search results
+                    if !searchText.isEmpty {
+                        if isSearching {
+                            ProgressView()
+                                .padding(.top, 20)
+                        } else if searchResults.isEmpty && searchText.count >= 2 {
+                            VStack(spacing: 8) {
+                                Image(systemName: "person.slash")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                                Text("Nenhum resultado")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Color.coffeeTextSecondary)
+                            }
+                            .padding(.top, 20)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(searchResults) { user in
+                                    Button {
+                                        toggleSearchUser(user)
+                                    } label: {
+                                        recipientRow(
+                                            initials: user.initials,
+                                            name: user.nome,
+                                            subtitle: user.email,
+                                            isSelected: selectedSearchIds.contains(user.id)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
 
-                Spacer()
+                                    if user.id != searchResults.last?.id {
+                                        Divider().padding(.leading, 68)
+                                    }
+                                }
+                            }
+                            .background(Color.coffeeCardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 16)
+                        }
+                    }
 
-                // Share button
-                CoffeeButton(
-                    "Compartilhar",
-                    isLoading: isSending,
-                    isDisabled: emails.isEmpty && currentEmail.trimmingCharacters(in: .whitespaces).isEmpty
-                ) {
-                    handleShare()
+                    // Empty state
+                    if searchText.isEmpty && friends.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "person.2")
+                                .font(.system(size: 28))
+                                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                            Text("Busque por nome ou email")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
+                .padding(.bottom, 100)
             }
+
+            if let error = errorMessage {
+                Text(error)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.coffeeDanger)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+            }
+
+            // Share button
+            CoffeeButton(
+                "Compartilhar",
+                isLoading: isSending,
+                isDisabled: selectedFriendIds.isEmpty && selectedSearchIds.isEmpty
+            ) {
+                handleShare()
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 40)
+            .padding(.top, 8)
+            .background(Color.coffeeBackground)
         }
     }
 
@@ -271,7 +329,53 @@ struct ShareRecordingSheet: View {
         }
     }
 
-    // MARK: - Option Row
+    // MARK: - Row Components
+
+    private func recipientRow(initials: String, name: String, subtitle: String?, isSelected: Bool) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.coffeePrimary.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Text(initials)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.coffeePrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                    .lineLimit(1)
+                if let sub = subtitle {
+                    Text(sub)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(isSelected ? Color.coffeePrimary : Color.clear)
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? Color.coffeePrimary : Color.coffeeTextSecondary.opacity(0.3), lineWidth: 1.5)
+                    )
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
 
     private func shareOptionRow(icon: String, title: String, subtitle: String, isSelected: Bool) -> some View {
         HStack(spacing: 14) {
@@ -295,7 +399,6 @@ struct ShareRecordingSheet: View {
 
             Spacer()
 
-            // Checkmark
             ZStack {
                 Circle()
                     .fill(isSelected ? Color.coffeePrimary : Color.clear)
@@ -304,7 +407,6 @@ struct ShareRecordingSheet: View {
                         Circle()
                             .stroke(isSelected ? Color.coffeePrimary : Color.coffeeTextSecondary.opacity(0.3), lineWidth: 1.5)
                     )
-
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 13, weight: .bold))
@@ -319,35 +421,70 @@ struct ShareRecordingSheet: View {
 
     // MARK: - Actions
 
-    private func addEmail() {
-        let email = currentEmail.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !email.isEmpty, !emails.contains(email) else { return }
-        emails.append(email)
-        currentEmail = ""
+    private func loadFriends() {
+        Task {
+            friends = (try? await SocialService.getFriends()) ?? []
+        }
+    }
+
+    private func toggleFriend(_ friend: Friend) {
+        if selectedFriendIds.contains(friend.userId) {
+            selectedFriendIds.remove(friend.userId)
+        } else {
+            selectedFriendIds.insert(friend.userId)
+        }
+    }
+
+    private func toggleSearchUser(_ user: UserSearchResult) {
+        if selectedSearchIds.contains(user.id) {
+            selectedSearchIds.remove(user.id)
+        } else {
+            selectedSearchIds.insert(user.id)
+        }
+    }
+
+    private func debounceSearch(query: String) {
+        searchTask?.cancel()
+        guard query.count >= 2 else {
+            searchResults = []
+            return
+        }
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            isSearching = true
+            searchResults = (try? await SocialService.searchUsers(query: query)) ?? []
+            isSearching = false
+        }
     }
 
     private func handleShare() {
-        // Add current email if typed but not yet added
-        if !currentEmail.trimmingCharacters(in: .whitespaces).isEmpty {
-            addEmail()
-        }
-
-        guard !emails.isEmpty else { return }
-
         var content: [String] = []
         if shareResumo { content.append("resumo") }
         if shareMapa { content.append("mapa") }
+
+        // Collect all recipient IDs
+        let allIds = Array(selectedFriendIds.union(selectedSearchIds))
+        guard !allIds.isEmpty else { return }
 
         isSending = true
         errorMessage = nil
 
         Task {
             do {
-                let _ = try await DisciplineService.shareRecording(
-                    gravacaoId: recordingId,
-                    recipientEmails: emails,
-                    sharedContent: content,
-                    message: nil
+                // Use recipient_ids for direct sharing
+                let body: [String: Any] = [
+                    "gravacao_id": recordingId,
+                    "recipient_ids": allIds,
+                    "shared_content": content,
+                    "message": ""
+                ]
+                let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+                let _: ShareResponse = try await APIClient.shared.request(
+                    path: APIEndpoints.compartilhamentos,
+                    method: .POST,
+                    body: jsonData
                 )
                 isSending = false
                 showSuccess = true
@@ -359,7 +496,13 @@ struct ShareRecordingSheet: View {
     }
 }
 
-// MARK: - Preview
+// Response type for share
+private struct ShareResponse: Codable {
+    let sharedCount: Int?
+    enum CodingKeys: String, CodingKey {
+        case sharedCount = "shared_count"
+    }
+}
 
 #Preview {
     ShareRecordingSheet(
