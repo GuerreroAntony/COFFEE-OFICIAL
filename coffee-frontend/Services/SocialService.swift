@@ -19,9 +19,15 @@ enum SocialService {
         try await APIClient.shared.request(path: APIEndpoints.socialFriendRequests)
     }
 
+    private struct FriendRequestResponse: Decodable {
+        let id: String?
+        let status: String?
+        let message: String?
+    }
+
     static func sendFriendRequest(email: String? = nil, userId: String? = nil) async throws {
         let body = SendFriendRequestBody(addresseeEmail: email, addresseeId: userId)
-        let _: EmptyData = try await APIClient.shared.request(
+        let _: FriendRequestResponse = try await APIClient.shared.request(
             path: APIEndpoints.socialFriendRequest,
             method: .POST,
             body: body
