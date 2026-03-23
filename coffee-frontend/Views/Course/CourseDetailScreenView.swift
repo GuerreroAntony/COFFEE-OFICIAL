@@ -484,13 +484,23 @@ struct CourseDetailScreenView: View {
     private func recordingRow(_ recording: Recording) -> some View {
         HStack(spacing: 14) {
             // Icon
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.coffeePrimary.opacity(0.09))
+                    .fill(recording.receivedFrom != nil
+                          ? Color.blue.opacity(0.09)
+                          : Color.coffeePrimary.opacity(0.09))
                     .frame(width: 50, height: 50)
-                Image(systemName: "waveform")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.coffeePrimary)
+                Image(systemName: recording.receivedFrom != nil ? "person.wave.2" : "waveform")
+                    .font(.system(size: recording.receivedFrom != nil ? 18 : 20))
+                    .foregroundStyle(recording.receivedFrom != nil ? .blue : Color.coffeePrimary)
+
+                if recording.receivedFrom != nil {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.blue)
+                        .background(Circle().fill(Color.coffeeCardBackground).frame(width: 16, height: 16))
+                        .offset(x: 4, y: 4)
+                }
             }
 
             // Content
@@ -505,6 +515,14 @@ struct CourseDetailScreenView: View {
                     statusBadge(for: recording.status)
 
                     Spacer(minLength: 0)
+                }
+
+                // Shared from indicator
+                if let sender = recording.receivedFrom {
+                    Text("Compartilhada por \(sender)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
                 }
 
                 // Duration
