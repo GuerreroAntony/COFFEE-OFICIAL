@@ -393,11 +393,64 @@ async def espm_disconnect(user_id: UUID = Depends(get_current_user)):
 
 # ── Helper: upsert disciplinas ────────────────────────────────────────────────
 
+def _current_semester() -> str:
+    """Return current semester string matching Canvas format, e.g. '2026/1'."""
+    from datetime import datetime
+    now = datetime.now()
+    sem = 1 if now.month <= 6 else 2
+    return f"{now.year}/{sem}"
+
+
+async def _ensure_class_group(user_id: UUID, disciplina_id: UUID, nome: str, turma: str | None) -> None:
+    """
+    Auto-create or join the class group for a turma (e.g. "AD1N").
+    One group per turma — all students in that class share the same group.
+    """
+    if not turma:
+        return  # No turma = no auto-group
+
+    try:
+        # Check if group for this turma already exists
+        existing = await fetch_one(
+            "SELECT id FROM groups WHERE turma = $1 AND is_auto = true",
+            turma,
+        )
+        if existing:
+            group_id = existing["id"]
+        else:
+            group_name = f"Turma {turma}"
+            row = await fetch_one(
+                """INSERT INTO groups (nome, created_by, is_auto, turma)
+                   VALUES ($1, $2, true, $3)
+                   RETURNING id""",
+                group_name, user_id, turma,
+            )
+            group_id = row["id"]
+
+        await execute_query(
+            """INSERT INTO group_members (group_id, user_id, role)
+               VALUES ($1, $2, 'member')
+               ON CONFLICT (group_id, user_id) DO NOTHING""",
+            group_id, user_id,
+        )
+    except Exception as exc:
+        logger.warning("ensure_class_group.error", turma=turma, error=str(exc))
+
+
 async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
     """
     Faz upsert das disciplinas extraídas do Canvas e vincula ao aluno.
     Usa (nome, semestre) como chave de dedup.
+    Filtra apenas disciplinas do semestre atual.
     """
+    if not disciplines:
+        return 0
+
+    # Filtrar apenas disciplinas do semestre atual
+    current = _current_semester()
+    disciplines = [d for d in disciplines if d.get("semestre") == current]
+    logger.info("semester_filter", current=current, after_filter=len(disciplines))
+
     if not disciplines:
         return 0
 
@@ -449,6 +502,10 @@ async def _upsert_disciplinas(user_id: UUID, disciplines: list[dict]) -> int:
                        ON CONFLICT (user_id, disciplina_id) DO NOTHING""",
                     user_id, row["id"],
                 )
+
+                # Auto-create/join class group
+                await _ensure_class_group(user_id, row["id"], disc["nome"], disc.get("turma"))
+
                 count += 1
 
         except Exception as exc:

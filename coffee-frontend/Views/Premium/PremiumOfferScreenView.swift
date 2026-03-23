@@ -76,16 +76,12 @@ struct PremiumOfferScreenView: View {
         VStack(spacing: 0) {
             Spacer().frame(height: 52)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.white.opacity(0.15))
-                    .frame(width: 56, height: 56)
-
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.white)
-            }
-            .padding(.bottom, 12)
+            Image("coffee-logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 64, height: 64)
+                .foregroundStyle(.white)
+                .padding(.bottom, 12)
 
             Text("Escolha seu café")
                 .font(.system(size: 24, weight: .bold))
@@ -479,7 +475,7 @@ struct PremiumOfferScreenView: View {
                 .buttonStyle(.plain)
                 .disabled(isStartingTrial)
 
-                Text("Acesso completo ao plano Black. Sem cartão.")
+                Text("Acesso completo ao plano Black.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.coffeeTextSecondary)
             } else {
@@ -533,19 +529,7 @@ struct PremiumOfferScreenView: View {
                 .buttonStyle(.plain)
             }
 
-            // Restore purchases
-            Button("Restaurar compras") {
-                Task {
-                    await subscription.restorePurchases()
-                    if subscription.isPremium {
-                        if let user = router.currentUser {
-                            router.login(user: user)
-                        }
-                    }
-                }
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(Color.coffeeTextSecondary)
+            // Restaurar compras removido
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 48)

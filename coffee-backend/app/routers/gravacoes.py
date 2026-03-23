@@ -104,6 +104,20 @@ async def upload_audio_recording(
             detail=error_response("SUBSCRIPTION_REQUIRED", "Assinatura necessária para gravar aulas"),
         )
 
+    # Recording hours limit by plan (trial + black = unlimited)
+    hours_limit = {"cafe_curto": 20, "cafe_com_leite": 40}.get(plano)
+    if hours_limit is not None:
+        total_row = await fetch_one(
+            "SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM gravacoes WHERE user_id = $1",
+            user_id,
+        )
+        total_hours = (total_row["total"] if total_row else 0) / 3600.0
+        if total_hours >= hours_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=error_response("HOURS_LIMIT", f"Limite de {hours_limit}h de gravação atingido. Faça upgrade para mais horas."),
+            )
+
     await _validate_source_ownership(user_id, "disciplina", disciplina_id)
 
     # Validate file type
@@ -362,9 +376,10 @@ async def listar_gravacoes(
 async def get_gravacao(
     gravacao_id: UUID,
     background_tasks: BackgroundTasks,
-    user_id: UUID = Depends(get_current_user),
+    user_plan: tuple = Depends(get_current_user_with_plan),
 ):
     """Detalhe completo de uma gravação."""
+    user_id, plano = user_plan
     row = await fetch_one(
         """SELECT id, source_type, source_id, date, duration_seconds, status,
                   short_summary, full_summary, mind_map, received_from,
@@ -438,9 +453,9 @@ async def get_gravacao(
             for m in mat_rows
         ]
 
-    # Parse mind_map JSONB
+    # Parse mind_map JSONB (Black-only feature)
     mind_map = None
-    if row["mind_map"]:
+    if row["mind_map"] and plano in ("black", "trial"):
         import json as json_mod
         raw_mm = row["mind_map"]
         if isinstance(raw_mm, str):
@@ -653,9 +668,13 @@ async def download_resumo_pdf(
 @router.get("/{gravacao_id}/pdf/mindmap")
 async def download_mindmap_pdf(
     gravacao_id: UUID,
-    user_id: UUID = Depends(get_current_user),
+    user_plan: tuple = Depends(get_current_user_with_plan),
 ):
-    """Download PDF do mapa mental da gravação."""
+    """Download PDF do mapa mental da gravação. Black only."""
+    user_id, plano = user_plan
+    if plano not in ("black", "trial"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=error_response("PLAN_REQUIRED", "Mapa mental é exclusivo do plano Black."))
     row = await fetch_one(
         """SELECT id, date, mind_map
            FROM gravacoes WHERE id = $1 AND user_id = $2""",

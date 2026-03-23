@@ -30,14 +30,11 @@ struct PremiumGateSheet: View {
                 VStack(spacing: 16) {
                     Spacer().frame(height: 20)
 
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 72, height: 72)
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.white)
-                    }
+                    Image("coffee-logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 72, height: 72)
+                        .foregroundStyle(.white)
 
                     Text("Escolha seu café")
                         .font(.system(size: 26, weight: .bold))
@@ -400,7 +397,7 @@ struct PremiumGateSheet: View {
                 .buttonStyle(.plain)
                 .disabled(isStartingTrial)
 
-                Text("Acesso completo ao plano Black. Sem cartão.")
+                Text("Acesso completo ao plano Black.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.coffeeTextSecondary)
             } else {
@@ -449,14 +446,7 @@ struct PremiumGateSheet: View {
                 .buttonStyle(.plain)
             }
 
-            Button("Restaurar compras") {
-                Task {
-                    await subscription.restorePurchases()
-                    if subscription.isPremium { dismiss() }
-                }
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(Color.coffeeTextSecondary)
+            // Restaurar compras removido
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 40)

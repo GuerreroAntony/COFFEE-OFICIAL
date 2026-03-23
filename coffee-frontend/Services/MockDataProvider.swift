@@ -38,9 +38,16 @@ enum MockData {
             gravacoesTotal: 20,
             horasGravadas: 12.5,
             questionsRemaining: QuestionsRemaining(
-                espresso: 68,
-                lungo: 27,
-                coldBrew: 14
+                espresso: -1,
+                lungo: -1,
+                coldBrew: -1
+            ),
+            baristaUsage: BaristaUsage(
+                usagePercent: 28.5,
+                budgetUsd: 1.75,
+                usedUsd: 0.50,
+                remainingUsd: 1.25,
+                cycleResetAt: Calendar.current.date(byAdding: .day, value: 18, to: Date())
             ),
             questionsResetAt: Calendar.current.date(byAdding: .day, value: 18, to: Date())
         ),
@@ -258,6 +265,8 @@ enum MockData {
                 hasMindMap: true
             ),
             sourceDiscipline: "Gestão de Marketing",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-1",
             sharedContent: ["resumo", "mapa"],
             message: "Olha o resumo da aula que você perdeu!",
             status: .pending,
@@ -275,6 +284,8 @@ enum MockData {
                 hasMindMap: false
             ),
             sourceDiscipline: "Finanças I",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-2",
             sharedContent: ["resumo"],
             message: nil,
             status: .pending,
@@ -292,6 +303,8 @@ enum MockData {
                 hasMindMap: false
             ),
             sourceDiscipline: "Gestão de Marketing",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-1",
             sharedContent: ["resumo"],
             message: "Resumo da prova!",
             status: .pending,

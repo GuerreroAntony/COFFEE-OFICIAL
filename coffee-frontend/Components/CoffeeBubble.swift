@@ -24,10 +24,10 @@ struct CoffeeBubble: View {
                 }
             }
             .foregroundStyle(isFromUser ? .white : Color.coffeeTextPrimary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(isFromUser ? Color.coffeePrimary : Color(hex: "E9E9EB"))
-            .clipShape(ChatBubbleShape(isFromUser: isFromUser))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             if !isFromUser { Spacer(minLength: 60) }
         }

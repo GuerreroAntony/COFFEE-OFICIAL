@@ -122,6 +122,7 @@ final class NavigationRouter {
         cachedRepositories = nil
         cachedSharedItems = nil
         lastHomeDataFetch = nil
+        CacheManager.shared.invalidateAll()
         withAnimation(.easeInOut(duration: 0.3)) {
             authState = .login
             activeTab = .home

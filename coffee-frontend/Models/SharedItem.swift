@@ -7,6 +7,8 @@ struct SharedItem: Codable, Identifiable {
     let sender: SharedSender
     let gravacao: SharedGravacao
     let sourceDiscipline: String
+    let sourceType: String?
+    let sourceId: String?
     let sharedContent: [String]      // ["resumo", "mapa"]
     let message: String?
     var status: ShareStatus
@@ -16,6 +18,8 @@ struct SharedItem: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, sender, gravacao, message, status
         case sourceDiscipline = "source_discipline"
+        case sourceType = "source_type"
+        case sourceId = "source_id"
         case sharedContent = "shared_content"
         case isNew = "is_new"
         case createdAt = "created_at"

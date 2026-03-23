@@ -150,10 +150,15 @@ async def listar_materiais(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_response("ACCESS_DENIED", "Acesso negado"))
 
     rows = await fetch_all(
-        """SELECT id, disciplina_id, tipo, nome, url_storage, fonte, ai_enabled, size_bytes, created_at
-           FROM materiais WHERE disciplina_id = $1
-           ORDER BY created_at DESC""",
-        disciplina_id,
+        """SELECT m.id, m.disciplina_id, m.tipo, m.nome, m.url_storage, m.fonte,
+                  COALESCE(ump.ai_enabled, m.ai_enabled) AS ai_enabled,
+                  m.size_bytes, m.created_at
+           FROM materiais m
+           LEFT JOIN user_material_preferences ump
+               ON ump.material_id = m.id AND ump.user_id = $2
+           WHERE m.disciplina_id = $1
+           ORDER BY m.created_at DESC""",
+        disciplina_id, user_id,
     )
     items = [_material_response(r) for r in rows]
     return success_response(items)
@@ -188,36 +193,51 @@ async def toggle_ai(
     background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
-    """Inverte ai_enabled e gera/remove embeddings."""
-    row = await fetch_one(
-        """UPDATE materiais m
-           SET ai_enabled = NOT m.ai_enabled
-           FROM user_disciplinas ud
-           WHERE m.id = $1
-             AND ud.disciplina_id = m.disciplina_id
-             AND ud.user_id = $2
-           RETURNING m.id, m.ai_enabled, m.texto_extraido, m.disciplina_id""",
+    """Toggle ai_enabled per-user (stored in user_material_preferences)."""
+    # Verify ownership
+    mat = await fetch_one(
+        """SELECT m.id, m.ai_enabled AS default_ai, m.texto_extraido, m.disciplina_id
+           FROM materiais m
+           JOIN user_disciplinas ud ON ud.disciplina_id = m.disciplina_id AND ud.user_id = $2
+           WHERE m.id = $1""",
         material_id, user_id,
     )
-    if not row:
+    if not mat:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_response("NOT_FOUND", "Material não encontrado"))
 
-    # Generate or remove embeddings based on new state
-    if row["ai_enabled"]:
-        # ai_enabled became True → generate embeddings
-        if row["texto_extraido"]:
-            # Fetch material name for contextual retrieval prefix
-            mat_info = await fetch_one("SELECT nome FROM materiais WHERE id = $1", row["id"])
+    # Get current user preference (or fall back to material default)
+    pref = await fetch_one(
+        "SELECT ai_enabled FROM user_material_preferences WHERE user_id = $1 AND material_id = $2",
+        user_id, material_id,
+    )
+    current_val = pref["ai_enabled"] if pref else mat["default_ai"]
+    new_val = not current_val
+
+    # Upsert user preference
+    await execute_query(
+        """INSERT INTO user_material_preferences (user_id, material_id, ai_enabled)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, material_id)
+           DO UPDATE SET ai_enabled = $3""",
+        user_id, material_id, new_val,
+    )
+
+    # Embeddings are shared — ensure they exist if any user wants them
+    if new_val and mat["texto_extraido"]:
+        # Check if embeddings already exist for this material
+        emb_exists = await fetch_one(
+            "SELECT 1 FROM embeddings WHERE fonte_id = $1 AND fonte_tipo = 'material' LIMIT 1",
+            material_id,
+        )
+        if not emb_exists:
+            mat_info = await fetch_one("SELECT nome FROM materiais WHERE id = $1", material_id)
             mat_nome = mat_info["nome"] if mat_info else "Material"
             background_tasks.add_task(
                 generate_material_embeddings,
-                row["texto_extraido"], row["id"], row["disciplina_id"], mat_nome,
+                mat["texto_extraido"], mat["id"], mat["disciplina_id"], mat_nome,
             )
-    else:
-        # ai_enabled became False → remove embeddings
-        background_tasks.add_task(remove_embeddings, row["id"])
 
-    resp = ToggleAIResponse(id=row["id"], ai_enabled=row["ai_enabled"])
+    resp = ToggleAIResponse(id=mat["id"], ai_enabled=new_val)
     return success_response(resp.model_dump(mode="json"))
 
 

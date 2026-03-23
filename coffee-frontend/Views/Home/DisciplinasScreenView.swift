@@ -20,18 +20,29 @@ struct DisciplinasScreenView: View {
     @State private var editingDisciplineIndex: Int = 0
     @State private var showMenu = false
     @State private var showCalendar = false
+    @State private var showPlanGate = false
     @State private var upcomingCount: Int = 0
+    // Social
+    @State private var friends: [Friend] = []
+    @State private var friendRequests: [Friend] = []
+    @State private var groups: [SocialGroup] = []
+    @State private var showAddFriend = false
+    // @State private var showCreateGroup = false  // Groups disabled for now
+    @State private var selectedGroup: SocialGroup? = nil
+    @State private var selectedFriend: Friend? = nil
 
     // Default styles now live on Discipline.defaultStyles
 
-    /// Calendar is only available for Black or active Trial users
-    private var calendarAvailable: Bool {
-        guard let plano = router.currentUser?.plano else { return false }
-        return plano == .black || plano == .trial
-    }
+    /// Calendar icon is always visible; access is gated via PlanAccess
+    private var calendarAvailable: Bool { true }
 
-    private var newCount: Int { sharedItems.filter(\.isNew).count }
-    private var tabs: [String] { ["Disciplinas", "Outros", "Recebidos\(newCount > 0 ? " (\(newCount))" : "")"] }
+    private var plano: UserPlan? { router.currentUser?.plano }
+
+    private var socialBadgeCount: Int {
+        let friendPending = friends.compactMap(\.pendingCount).reduce(0, +)
+        return friendPending + friendRequests.count
+    }
+    private var tabs: [String] { ["Disciplinas", "Outros", "Social\(socialBadgeCount > 0 ? " (\(socialBadgeCount))" : "")"] }
 
     private var dynamicSubtitle: String {
         // Extract semester number and turma from the first discipline that has them
@@ -68,13 +79,20 @@ struct DisciplinasScreenView: View {
             VStack(spacing: 0) {
                 // Large Title Header
                 CoffeeLargeTitleHeader(
-                    greeting: "Olá, \(router.currentUser?.nome ?? "Aluno")",
+                    greeting: "Olá, \((router.currentUser?.nome ?? "Aluno").components(separatedBy: " ").first ?? "Aluno")",
                     subtitle: dynamicSubtitle,
                     planStatus: router.currentUser?.plano,
                     trialEnd: router.currentUser?.trialEnd,
-                    onCalendarTap: calendarAvailable ? { showCalendar = true } : nil,
+                    onCalendarTap: calendarAvailable ? {
+                        if PlanAccess.canUseCalendar(plano) {
+                            showCalendar = true
+                        } else {
+                            router.showPremiumOffer()
+                        }
+                    } : nil,
                     upcomingCount: upcomingCount,
-                    onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } }
+                    onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } },
+                    onPlanTap: { showPlanGate = true }
                 )
 
                 ScrollView {
@@ -93,7 +111,13 @@ struct DisciplinasScreenView: View {
                         switch activeTab {
                         case 0: disciplinasTab
                         case 1: outrosTab
-                        case 2: recebidosTab
+                        case 2:
+                            if PlanAccess.canUseSocial(plano) {
+                                recebidosTab
+                            } else {
+                                UpgradeGateView(feature: .social) { router.showPremiumOffer() }
+                                    .frame(minHeight: 300)
+                            }
                         default: EmptyView()
                         }
                     }
@@ -187,6 +211,9 @@ struct DisciplinasScreenView: View {
         }
         .fullScreenCover(isPresented: $showCalendar) {
             CalendarioScreenView()
+        }
+        .sheet(isPresented: $showPlanGate) {
+            PremiumGateSheet()
         }
         .task { await loadData() }
         .onChange(of: router.selectedRepository) { _, newValue in
@@ -507,22 +534,21 @@ struct DisciplinasScreenView: View {
         }
     }
 
-    // MARK: - Recebidos Tab
+    // MARK: - Social Tab
 
     private var recebidosTab: some View {
         VStack(alignment: .leading, spacing: 0) {
-            let newItems = sharedItems.filter(\.isNew)
-            let olderItems = sharedItems.filter { !$0.isNew }
 
-            if !newItems.isEmpty {
-                CoffeeSectionHeader(title: "Novos (\(newItems.count))")
+            // ── Friend Requests ──
+            if !friendRequests.isEmpty {
+                CoffeeSectionHeader(title: "Solicitações (\(friendRequests.count))")
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
 
                 CoffeeCellGroup {
-                    ForEach(Array(newItems.enumerated()), id: \.element.id) { index, item in
-                        sharedItemRow(item, isNew: true)
-                        if index < newItems.count - 1 {
+                    ForEach(Array(friendRequests.enumerated()), id: \.element.id) { index, req in
+                        friendRequestRow(req)
+                        if index < friendRequests.count - 1 {
                             Divider().padding(.leading, 62)
                         }
                     }
@@ -531,31 +557,139 @@ struct DisciplinasScreenView: View {
                 .padding(.bottom, 20)
             }
 
-            if !olderItems.isEmpty {
-                CoffeeSectionHeader(title: "Anteriores")
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
+            // ── Friends ──
+            HStack {
+                CoffeeSectionHeader(title: "Amigos\(friends.isEmpty ? "" : " (\(friends.count))")")
+                Spacer()
+                Button { showAddFriend = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
 
-                CoffeeCellGroup {
-                    ForEach(Array(olderItems.enumerated()), id: \.element.id) { index, item in
-                        sharedItemRow(item, isNew: false)
-                        if index < olderItems.count - 1 {
-                            Divider().padding(.leading, 62)
+            if friends.isEmpty {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 6) {
+                        Image(systemName: "person.2")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                        Text("Adicione amigos para compartilhar aulas")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(friends) { friend in
+                            Button { selectedFriend = friend } label: {
+                                VStack(spacing: 6) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Circle()
+                                            .fill(Color.coffeePrimary.opacity(0.12))
+                                            .frame(width: 52, height: 52)
+                                            .overlay(
+                                                Text(friend.initials)
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundStyle(Color.coffeePrimary)
+                                            )
+                                        if let count = friend.pendingCount, count > 0 {
+                                            Text("\(count)")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .frame(width: 18, height: 18)
+                                                .background(Color.red)
+                                                .clipShape(Circle())
+                                        }
+                                    }
+                                    .padding(.top, 2)
+                                    .padding(.trailing, 2)
+                                    Text(friend.nome.components(separatedBy: " ").first ?? friend.nome)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(width: 64)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
 
-            if sharedItems.isEmpty {
-                CoffeeEmptyState(
-                    icon: "person.2.fill",
-                    title: "Nada por aqui ainda",
-                    message: "Quando colegas compartilharem aulas com você, elas aparecerão aqui."
+            Spacer().frame(height: 20)
+        }
+        .sheet(isPresented: $showAddFriend) {
+            AddFriendSheet()
+        }
+        .sheet(item: $selectedFriend) { friend in
+            FriendDetailSheet(friend: friend)
+        }
+    }
+
+    private func friendRequestRow(_ req: Friend) -> some View {
+        HStack(spacing: 14) {
+            Circle()
+                .fill(Color.blue.opacity(0.1))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Text(req.initials)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.blue)
                 )
-                .padding(.top, 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(req.nome)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                Text(req.email)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button {
+                    Task {
+                        try? await SocialService.acceptFriendRequest(id: req.id)
+                        friendRequests.removeAll { $0.id == req.id }
+                        friends = (try? await SocialService.getFriends()) ?? friends
+                    }
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.green)
+                        .clipShape(Circle())
+                }
+
+                Button {
+                    Task {
+                        try? await SocialService.rejectFriendRequest(id: req.id)
+                        friendRequests.removeAll { $0.id == req.id }
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.red.opacity(0.8))
+                        .clipShape(Circle())
+                }
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     private func sharedItemRow(_ item: SharedItem, isNew: Bool) -> some View {
@@ -688,10 +822,17 @@ struct DisciplinasScreenView: View {
         async let d = try? DisciplineService.getDisciplines()
         async let r = try? DisciplineService.getRepositories()
         async let s = try? DisciplineService.getSharedItems()
+        async let f = try? SocialService.getFriends()
+        async let fr = try? SocialService.getFriendRequests()
+        async let g = try? SocialService.getGroups()
 
         disciplines = await d ?? disciplines
         repositories = await r ?? repositories
         sharedItems = await s ?? sharedItems
+        friends = await f ?? friends
+        let frResult = await fr
+        friendRequests = frResult?.received ?? friendRequests
+        groups = await g ?? groups
 
         // Update cache
         router.cachedDisciplines = disciplines

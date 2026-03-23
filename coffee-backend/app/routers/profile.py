@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from math import floor
 from uuid import UUID
@@ -9,6 +10,7 @@ from app.database import execute_query, fetch_all, fetch_one
 from app.dependencies import get_current_user
 from app.schemas.base import error_response, success_response
 from app.schemas.profile import (
+    BaristaUsage,
     GiftCodeProfile,
     ProfileResponse,
     QuestionsRemaining,
@@ -45,7 +47,6 @@ async def _build_profile(user_id: UUID) -> dict:
         "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active'",
         user_id,
     )
-    # Active if premium with subscription OR trial still valid
     trial_end = user.get("trial_end")
     trial_valid = (
         user["plano"] == "trial"
@@ -64,48 +65,37 @@ async def _build_profile(user_id: UUID) -> dict:
     gravacoes_total = grav_row["total"] if grav_row else 0
     horas_gravadas = round((grav_row["total_seconds"] if grav_row else 0) / 3600.0, 1)
 
-    # Questions remaining per mode (30-day cycle from created_at)
+    # Billing cycle
     cycle_start, cycle_end = _get_current_cycle(user["created_at"])
 
-    from app.plan_limits import get_plan_limits
-    limits = get_plan_limits(user["plano"])
+    # Barista v2: budget-based usage
+    from app.plan_limits import get_plan_budget
+    budget_usd = get_plan_budget(user["plano"])
 
-    espresso_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'espresso'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
+    budget_row = await fetch_one(
+        "SELECT used_usd FROM usage_budget WHERE user_id = $1 AND cycle_start = $2",
+        user_id, cycle_start.date() if hasattr(cycle_start, 'date') else cycle_start,
     )
-    lungo_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'lungo'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
-    )
-    cold_brew_row = await fetch_one(
-        """SELECT COUNT(*) AS cnt FROM mensagens m
-           JOIN chats c ON m.chat_id = c.id
-           WHERE c.user_id = $1 AND m.role = 'user' AND m.mode = 'cold_brew'
-             AND m.created_at >= $2""",
-        user_id, cycle_start,
+    used_usd = budget_row["used_usd"] if budget_row else 0.0
+    remaining_usd = max(0.0, budget_usd - used_usd)
+    usage_percent = min(100.0, round((used_usd / budget_usd) * 100, 1)) if budget_usd > 0 else 0.0
+
+    barista_usage = BaristaUsage(
+        usage_percent=usage_percent,
+        budget_usd=budget_usd,
+        used_usd=round(used_usd, 4),
+        remaining_usd=round(remaining_usd, 4),
+        cycle_reset_at=cycle_end,
     )
 
-    espresso_used = espresso_row["cnt"] if espresso_row else 0
-    lungo_used = lungo_row["cnt"] if lungo_row else 0
-    cold_brew_used = cold_brew_row["cnt"] if cold_brew_row else 0
-
-    questions = QuestionsRemaining(
-        espresso=-1 if limits["espresso"] == -1 else max(0, limits["espresso"] - espresso_used),
-        lungo=max(0, limits["lungo"] - lungo_used),
-        cold_brew=max(0, limits["cold_brew"] - cold_brew_used),
-    )
+    # Legacy questions_remaining (all -1 = unlimited, for old iOS)
+    questions = QuestionsRemaining(espresso=-1, lungo=-1, cold_brew=-1)
 
     usage = UsageStats(
         gravacoes_total=gravacoes_total,
         horas_gravadas=horas_gravadas,
         questions_remaining=questions,
+        barista_usage=barista_usage,
         questions_reset_at=cycle_end,
     )
 

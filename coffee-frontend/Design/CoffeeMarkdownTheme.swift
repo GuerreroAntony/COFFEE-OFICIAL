@@ -10,7 +10,7 @@ extension Theme {
         // Base text
         .text {
             ForegroundColor(Color.coffeeTextPrimary)
-            FontSize(15)
+            FontSize(15.5)
         }
         // Inline code
         .code {
@@ -43,43 +43,44 @@ extension Theme {
             configuration.label
                 .markdownTextStyle {
                     FontWeight(.bold)
-                    FontSize(17)
+                    FontSize(18)
                     ForegroundColor(Color.coffeeTextPrimary)
                 }
                 .relativeLineSpacing(.em(0.1))
-                .markdownMargin(top: 12, bottom: 6)
+                .markdownMargin(top: 28, bottom: 12)
         }
         // H3
         .heading3 { configuration in
             configuration.label
                 .markdownTextStyle {
                     FontWeight(.semibold)
-                    FontSize(15)
+                    FontSize(16.5)
                     ForegroundColor(Color.coffeeTextPrimary)
                 }
-                .markdownMargin(top: 10, bottom: 4)
+                .markdownMargin(top: 24, bottom: 10)
         }
         // Paragraphs
         .paragraph { configuration in
             configuration.label
-                .relativeLineSpacing(.em(0.2))
-                .markdownMargin(top: 0, bottom: 8)
+                .relativeLineSpacing(.em(0.4))
+                .markdownMargin(top: 0, bottom: 16)
         }
         // Blockquotes
         .blockquote { configuration in
             HStack(spacing: 0) {
-                RoundedRectangle(cornerRadius: 1.5)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.coffeePrimaryLight)
                     .frame(width: 3)
 
                 configuration.label
                     .markdownTextStyle {
                         ForegroundColor(Color.coffeeTextSecondary)
-                        FontSize(14)
+                        FontSize(14.5)
                     }
                     .relativePadding(.leading, length: .em(1))
             }
             .fixedSize(horizontal: false, vertical: true)
+            .markdownMargin(top: 16, bottom: 16)
         }
         // Code blocks
         .codeBlock { configuration in
@@ -103,7 +104,7 @@ extension Theme {
         // List items
         .listItem { configuration in
             configuration.label
-                .markdownMargin(top: 4, bottom: 4)
+                .markdownMargin(top: 8, bottom: 8)
         }
         // Bullet markers
         .bulletedListMarker { _ in
@@ -114,6 +115,6 @@ extension Theme {
         // Horizontal rule
         .thematicBreak {
             Divider()
-                .markdownMargin(top: 12, bottom: 12)
+                .markdownMargin(top: 24, bottom: 24)
         }
 }

@@ -197,6 +197,14 @@ enum DisciplineService {
         )
     }
 
+    static func shareRecordingByIds(request: ShareByIdsRequest) async throws -> ShareResponse {
+        return try await APIClient.shared.request(
+            path: APIEndpoints.compartilhamentos,
+            method: .POST,
+            body: request
+        )
+    }
+
     static func getSharedItems() async throws -> [SharedItem] {
         if APIClient.useMocks {
             return MockData.sharedItems

@@ -121,12 +121,19 @@ enum MaterialService {
 
     // MARK: - Toggle AI Feed
 
-    static func toggleAI(materialId: String) async throws -> Material {
+    struct ToggleAIResult: Codable {
+        let id: String
+        let aiEnabled: Bool
+        enum CodingKeys: String, CodingKey {
+            case id
+            case aiEnabled = "ai_enabled"
+        }
+    }
+
+    static func toggleAI(materialId: String) async throws -> ToggleAIResult {
         if APIClient.useMocks {
             try await Task.sleep(for: .seconds(0.3))
-            var material = MockData.allMaterials.first { $0.id == materialId } ?? MockData.allMaterials[0]
-            material.aiEnabled.toggle()
-            return material
+            return ToggleAIResult(id: materialId, aiEnabled: true)
         }
 
         return try await APIClient.shared.request(

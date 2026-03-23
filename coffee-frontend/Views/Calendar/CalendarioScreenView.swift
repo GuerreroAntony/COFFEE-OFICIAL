@@ -143,15 +143,8 @@ struct CalendarioScreenView: View {
 
                     // Events for day
                     if isLoading {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .tint(Color.coffeePrimary)
-                            Text("Carregando eventos...")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Color.coffeeTextSecondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
+                        EventCardSkeleton(count: 4)
+                            .padding(.top, 16)
                     } else if eventsForSelectedDay.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "calendar")
@@ -322,16 +315,27 @@ struct CalendarioScreenView: View {
     // MARK: - Actions
 
     private func loadData() async {
-        isLoading = true
+        let cache = CacheManager.shared
+
+        // Show cached events instantly
+        if let cached: [CalendarEvent] = cache.get("calendar_events") {
+            events = cached
+            isLoading = false
+        } else {
+            isLoading = true
+        }
 
         // Request notification permission
         requestNotificationPermission()
 
-        // Load disciplines for add event sheet
-        disciplines = (try? await DisciplineService.getDisciplines()) ?? []
+        // Load disciplines + events in PARALLEL
+        async let d = try? DisciplineService.getDisciplines()
+        async let e: () = fetchEvents()
+        disciplines = await d ?? []
+        await e
 
-        // Load events
-        await fetchEvents()
+        // Cache fresh events
+        cache.set("calendar_events", data: events)
         isLoading = false
 
         // Schedule local notifications for upcoming events

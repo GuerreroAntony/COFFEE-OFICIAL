@@ -6,15 +6,26 @@ from pydantic import BaseModel, Field
 
 
 class QuestionsRemaining(BaseModel):
-    espresso: int = 75
-    lungo: int = 30
-    cold_brew: int = 15
+    """Legacy — kept for backward compatibility with old iOS versions."""
+    espresso: int = -1
+    lungo: int = -1
+    cold_brew: int = -1
+
+
+class BaristaUsage(BaseModel):
+    """Barista v2 — budget-based usage tracking."""
+    usage_percent: float = 0.0       # 0-100, how much of budget is used
+    budget_usd: float = 0.0          # total budget for this cycle
+    used_usd: float = 0.0            # how much has been used
+    remaining_usd: float = 0.0       # budget - used
+    cycle_reset_at: datetime         # when the cycle resets
 
 
 class UsageStats(BaseModel):
     gravacoes_total: int
     horas_gravadas: float
-    questions_remaining: QuestionsRemaining
+    questions_remaining: QuestionsRemaining  # legacy
+    barista_usage: BaristaUsage              # v2
     questions_reset_at: datetime
 
 

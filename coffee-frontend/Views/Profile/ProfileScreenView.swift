@@ -11,6 +11,7 @@ struct ProfileScreenView: View {
 
     @State private var showCancellation = false
     @State private var showDeleteAccount = false
+    @State private var showPlanSheet = false
     @State private var isPurchasing = false
     @State private var profile: UserProfile? = nil
     @State private var espmStatus: ESPMStatus? = nil
@@ -57,41 +58,98 @@ struct ProfileScreenView: View {
                         .padding(.horizontal, 20)
 
                     if isLoading {
-                        ProgressView()
-                            .tint(Color.coffeePrimary)
-                            .padding(.vertical, 20)
+                        ProfileSkeleton()
+                            .padding(.vertical, 8)
                     } else if let usage = profile?.usage {
                         CoffeeCellGroup {
-                            CoffeeCell(
-                                icon: CoffeeIcon.mic,
-                                title: "Gravações",
-                                subtitle: nil,
-                                trailing: .text("\(usage.gravacoesTotal)")
-                            )
-                            CoffeeCell(
-                                icon: "clock.fill",
-                                title: "Horas gravadas",
-                                subtitle: nil,
-                                trailing: .text(String(format: "%.1fh", usage.horasGravadas))
-                            )
-                            CoffeeCell(
-                                icon: "bolt.fill",
-                                title: "Espresso (restantes)",
-                                subtitle: nil,
-                                trailing: .text(usage.questionsRemaining.espresso < 0 ? "∞" : "\(usage.questionsRemaining.espresso)")
-                            )
-                            CoffeeCell(
-                                icon: CoffeeIcon.sparkles,
-                                title: "Lungo (restantes)",
-                                subtitle: nil,
-                                trailing: .text("\(usage.questionsRemaining.lungo)")
-                            )
-                            CoffeeCell(
-                                icon: "brain.head.profile",
-                                title: "Cold Brew (restantes)",
-                                subtitle: nil,
-                                trailing: .text("\(usage.questionsRemaining.coldBrew)")
-                            )
+                            // Horas gravadas with limit bar
+                            VStack(spacing: 10) {
+                                HStack {
+                                    Image(systemName: "clock.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Color.coffeePrimary)
+                                    Text("Horas gravadas")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(Color.coffeeTextPrimary)
+                                    Spacer()
+                                    let userPlano = profile?.plano ?? .trial
+                                    let limitH: Double = userPlano == .black ? -1 : (userPlano == .cafeComLeite ? 40 : 20)
+                                    if limitH < 0 {
+                                        Text(String(format: "%.1fh", usage.horasGravadas))
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(Color.coffeeTextSecondary)
+                                    } else {
+                                        Text(String(format: "%.1fh de %.0fh", usage.horasGravadas, limitH))
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(Color.coffeeTextSecondary)
+                                    }
+                                }
+
+                                GeometryReader { geo in
+                                    let userPlano = profile?.plano ?? .trial
+                                    let limitH: Double = userPlano == .black ? -1 : (userPlano == .cafeComLeite ? 40 : 20)
+                                    let pct = limitH > 0 ? min(1.0, usage.horasGravadas / limitH) : 0
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.coffeeTextSecondary.opacity(0.12))
+                                            .frame(height: 10)
+                                        if limitH > 0 {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(pct > 0.85 ? Color.red.opacity(0.8) : Color.coffeePrimary)
+                                                .frame(width: geo.size.width * pct, height: 10)
+                                        }
+                                    }
+                                }
+                                .frame(height: 10)
+
+                                if (profile?.plano ?? .trial) == .black {
+                                    Text("Ilimitado")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            // Barista usage bar (hidden for plans without Barista access)
+                            if PlanAccess.canUseBarista(router.currentUser?.plano), let barista = usage.baristaUsage {
+                                VStack(spacing: 10) {
+                                    HStack {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(Color.coffeePrimary)
+                                        Text("Barista IA")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(Color.coffeeTextPrimary)
+                                        Spacer()
+                                        Text(String(format: "%.0f%% usado", barista.usagePercent))
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(Color.coffeeTextSecondary)
+                                    }
+
+                                    // Progress bar
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.coffeeTextSecondary.opacity(0.12))
+                                                .frame(height: 10)
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(barista.usagePercent > 85 ? Color.red.opacity(0.8) : Color.coffeePrimary)
+                                                .frame(width: geo.size.width * min(1.0, barista.usagePercent / 100.0), height: 10)
+                                        }
+                                    }
+                                    .frame(height: 10)
+
+                                    if let reset = barista.cycleResetAt {
+                                        Text("Renova \(reset.formatted(.dateTime.day().month()))")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.coffeeTextSecondary)
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            }
                         }
                         .padding(.horizontal, 16)
                     }
@@ -150,11 +208,11 @@ struct ProfileScreenView: View {
 
                     CoffeeCellGroup {
                         if subscription.isPremium {
-                            // User is premium — show cancel option
-                            Button { showCancellation = true } label: {
+                            // User is premium — show plans
+                            Button { showUpgradeSheet() } label: {
                                 CoffeeCell(
-                                    icon: "xmark.circle.fill",
-                                    title: "Cancelar assinatura",
+                                    icon: "books.vertical.fill",
+                                    title: "Ver planos",
                                     subtitle: nil,
                                     trailing: .chevron
                                 )
@@ -168,7 +226,7 @@ struct ProfileScreenView: View {
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill(Color.coffeePrimary.opacity(0.1))
                                             .frame(width: 50, height: 50)
-                                        Image(systemName: "cup.and.saucer.fill")
+                                        Image(systemName: "books.vertical.fill")
                                             .font(.system(size: 20))
                                             .foregroundStyle(Color.coffeePrimary)
                                     }
@@ -258,6 +316,9 @@ struct ProfileScreenView: View {
                     subscription.cancelSubscription()
                 })
             }
+            .sheet(isPresented: $showPlanSheet) {
+                PremiumGateSheet()
+            }
             .alert("Excluir conta", isPresented: $showDeleteAccount) {
                 Button("Cancelar", role: .cancel) { }
                 Button("Excluir", role: .destructive) {
@@ -276,30 +337,34 @@ struct ProfileScreenView: View {
     // MARK: - Load Profile
 
     private func loadProfile() async {
-        isLoading = true
-        do {
-            profile = try await ProfileService.getProfile()
-        } catch {
-            print("[ProfileScreen] Error loading profile: \(error)")
+        let cache = CacheManager.shared
+
+        // Show cached profile instantly
+        if let cached: UserProfile = cache.get("profile") {
+            profile = cached
+            isLoading = false
+        } else {
+            isLoading = true
         }
-        // Fetch ESPM status for token expiration
-        if router.currentUser?.espmConnected == true {
-            do {
-                espmStatus = try await DisciplineService.getESPMStatus()
-            } catch {
-                print("[ProfileScreen] Error loading ESPM status: \(error)")
-            }
+
+        // Fetch profile + ESPM status in PARALLEL
+        let needsEspm = router.currentUser?.espmConnected == true
+        async let profileTask = try? ProfileService.getProfile()
+        async let espmTask = needsEspm ? try? DisciplineService.getESPMStatus() : nil
+
+        if let fresh = await profileTask {
+            profile = fresh
+            cache.set("profile", data: fresh, ttl: CacheManager.detailTTL)
         }
+        espmStatus = await espmTask
+
         isLoading = false
     }
 
     // MARK: - Show Upgrade Sheet
 
     private func showUpgradeSheet() {
-        dismiss()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            router.showPremiumGate = true
-        }
+        showPlanSheet = true
     }
 
     // MARK: - Plan Badge
@@ -316,7 +381,7 @@ struct ProfileScreenView: View {
             label = "Black"
             color = Color(hex: "1A1008")
         case .cafeComLeite:
-            icon = "cup.and.saucer.fill"
+            icon = "books.vertical.fill"
             label = "Café com Leite"
             color = Color.coffeePrimary
         case .cafeCurto:

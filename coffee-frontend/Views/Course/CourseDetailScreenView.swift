@@ -94,11 +94,34 @@ struct CourseDetailScreenView: View {
     }
 
     private func loadInitialData() async {
+        let cache = CacheManager.shared
+        let recKey = "recordings_\(discipline.id)"
+        let matKey = "materials_\(discipline.id)"
+
+        // Show cached data instantly
+        if let cachedRec: [Recording] = cache.get(recKey) {
+            recordings = cachedRec
+            isLoadingRecordings = false
+        }
+        if let cachedMat: [Material] = cache.get(matKey) {
+            materials = cachedMat
+            isLoadingMaterials = false
+        }
+
+        // Fetch fresh data in parallel
         async let r = try? RecordingService.getRecordings(sourceType: "disciplina", sourceId: discipline.id)
         async let m = try? MaterialService.getMaterials(disciplinaId: discipline.id)
-        recordings = await r ?? []
+
+        if let freshRec = await r {
+            withAnimation(.easeInOut(duration: 0.2)) { recordings = freshRec }
+            cache.set(recKey, data: freshRec)
+        }
         isLoadingRecordings = false
-        materials = await m ?? []
+
+        if let freshMat = await m {
+            withAnimation(.easeInOut(duration: 0.2)) { materials = freshMat }
+            cache.set(matKey, data: freshMat)
+        }
         isLoadingMaterials = false
 
         if materials.isEmpty && discipline.canvasCourseId != nil && !hasAutoSynced {
@@ -241,18 +264,13 @@ struct CourseDetailScreenView: View {
     @ViewBuilder
     private func aulasTab(scrollHeight: CGFloat) -> some View {
         if isLoadingRecordings {
-            VStack {
-                Spacer()
-                ProgressView()
-                    .tint(Color.coffeePrimary)
-                Text("Carregando aulas...")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .padding(.top, 8)
-                Spacer()
+            VStack(alignment: .leading, spacing: 16) {
+                CoffeeSectionHeader(title: "Carregando aulas...")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                RecordingCardSkeleton(count: 3)
+                    .padding(.horizontal, 16)
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: scrollHeight)
         } else if recordings.isEmpty {
             VStack(spacing: 12) {
                 Spacer()
@@ -297,18 +315,13 @@ struct CourseDetailScreenView: View {
     @ViewBuilder
     private func conteudoTab(scrollHeight: CGFloat) -> some View {
         if isLoadingMaterials {
-            VStack {
-                Spacer()
-                ProgressView()
-                    .tint(Color.coffeePrimary)
-                Text("Carregando materiais...")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .padding(.top, 8)
-                Spacer()
+            VStack(alignment: .leading, spacing: 16) {
+                CoffeeSectionHeader(title: "Carregando materiais...")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                RecordingCardSkeleton(count: 3)
+                    .padding(.horizontal, 16)
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: scrollHeight)
         } else if materials.isEmpty {
             VStack(spacing: 16) {
                 Spacer()
@@ -471,13 +484,23 @@ struct CourseDetailScreenView: View {
     private func recordingRow(_ recording: Recording) -> some View {
         HStack(spacing: 14) {
             // Icon
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.coffeePrimary.opacity(0.09))
+                    .fill(recording.receivedFrom != nil
+                          ? Color.blue.opacity(0.09)
+                          : Color.coffeePrimary.opacity(0.09))
                     .frame(width: 50, height: 50)
-                Image(systemName: "waveform")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.coffeePrimary)
+                Image(systemName: recording.receivedFrom != nil ? "person.wave.2" : "waveform")
+                    .font(.system(size: recording.receivedFrom != nil ? 18 : 20))
+                    .foregroundStyle(recording.receivedFrom != nil ? .blue : Color.coffeePrimary)
+
+                if recording.receivedFrom != nil {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.blue)
+                        .background(Circle().fill(Color.coffeeCardBackground).frame(width: 16, height: 16))
+                        .offset(x: 4, y: 4)
+                }
             }
 
             // Content
@@ -492,6 +515,14 @@ struct CourseDetailScreenView: View {
                     statusBadge(for: recording.status)
 
                     Spacer(minLength: 0)
+                }
+
+                // Shared from indicator
+                if let sender = recording.receivedFrom {
+                    Text("Compartilhada por \(sender)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
                 }
 
                 // Duration
@@ -595,11 +626,9 @@ struct CourseDetailScreenView: View {
                         materials[idx].aiEnabled = newValue
                         Task {
                             do {
-                                let updated = try await MaterialService.toggleAI(materialId: material.id)
-                                if let i = materials.firstIndex(where: { $0.id == material.id }) {
-                                    materials[i] = updated
-                                }
+                                _ = try await MaterialService.toggleAI(materialId: material.id)
                             } catch {
+                                // Revert on failure
                                 if let i = materials.firstIndex(where: { $0.id == material.id }) {
                                     materials[i].aiEnabled = !newValue
                                 }
@@ -665,11 +694,15 @@ struct RecordingDetailSheet: View {
                     .foregroundStyle(Color.coffeeTextSecondary)
                 Spacer()
 
-                // Share button
+                // Share button (gated by plan)
                 Button {
-                    showShareSheet = true
+                    if PlanAccess.canShare(router.currentUser?.plano) {
+                        showShareSheet = true
+                    } else {
+                        router.showPremiumOffer()
+                    }
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: PlanAccess.canShare(router.currentUser?.plano) ? "square.and.arrow.up" : "lock.fill")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.coffeePrimary)
                         .frame(width: 36, height: 36)
@@ -799,38 +832,47 @@ struct RecordingDetailSheet: View {
     // MARK: - Mind Map
 
     private func mindMapView(_ detail: RecordingDetail) -> some View {
-        VStack(spacing: 16) {
-            if let mindMap = detail.mindMap {
-                MindMapCanvasView(
-                    mindMap: mindMap,
-                    onFullscreen: { showMindMapFullscreen = true }
-                )
-                .padding(.top, 8)
-
-                // Download mind map image
-                downloadButton(label: "Baixar mapa mental") {
-                    let exportView = MindMapCanvasView(mindMap: mindMap)
-                    if let image = exportView.renderAsImage() {
-                        PDFExportService.shareImage(
-                            image,
-                            fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).png"
+        Group {
+            if !PlanAccess.canUseMindMap(router.currentUser?.plano) {
+                UpgradeGateView(feature: .mindMap) { router.showPremiumOffer() }
+                    .frame(minHeight: 300)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
+            } else {
+                VStack(spacing: 16) {
+                    if let mindMap = detail.mindMap {
+                        MindMapCanvasView(
+                            mindMap: mindMap,
+                            onFullscreen: { showMindMapFullscreen = true }
                         )
+                        .padding(.top, 8)
+
+                        // Download mind map image
+                        downloadButton(label: "Baixar mapa mental") {
+                            let exportView = MindMapCanvasView(mindMap: mindMap)
+                            if let image = exportView.renderAsImage() {
+                                PDFExportService.shareImage(
+                                    image,
+                                    fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).png"
+                                )
+                            }
+                        }
+                    } else {
+                        CoffeeEmptyState(
+                            icon: CoffeeIcon.mindMap,
+                            title: "Sem mapa mental",
+                            message: "Mapas mentais são gerados automaticamente pela IA."
+                        )
+                        .padding(.top, 40)
                     }
                 }
-            } else {
-                CoffeeEmptyState(
-                    icon: CoffeeIcon.mindMap,
-                    title: "Sem mapa mental",
-                    message: "Mapas mentais são gerados automaticamente pela IA."
-                )
-                .padding(.top, 40)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 32)
-        .fullScreenCover(isPresented: $showMindMapFullscreen) {
-            if let mindMap = detail.mindMap {
-                MindMapFullscreenSheet(mindMap: mindMap)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
+                .fullScreenCover(isPresented: $showMindMapFullscreen) {
+                    if let mindMap = detail.mindMap {
+                        MindMapFullscreenSheet(mindMap: mindMap)
+                    }
+                }
             }
         }
     }

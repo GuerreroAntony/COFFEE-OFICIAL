@@ -10,15 +10,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 from app.database import close_pool, get_pool
 from app.modules.espm import router as espm_router
-from app.routers import account, auth, calendario, chat, compartilhamentos, devices, disciplinas, gift_codes, gravacoes, health, materiais, notificacoes, profile, repositorios, settings, subscription
+from app.routers import account, auth, calendario, chat, compartilhamentos, devices, disciplinas, gift_codes, gravacoes, health, materiais, notificacoes, profile, repositorios, settings, social, subscription
 
 
 def _version_tuple(v: str) -> tuple[int, ...]:
-    """Parse '1.2.3' → (1, 2, 3) for comparison."""
+    """Parse '1.2.3' → (1, 2, 3) for comparison. Pads to 3 segments."""
     try:
-        return tuple(int(x) for x in v.strip().split("."))
+        parts = [int(x) for x in v.strip().split(".")]
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts)
     except (ValueError, AttributeError):
-        return (0,)
+        return (0, 0, 0)
 
 
 class VersionCheckMiddleware(BaseHTTPMiddleware):
@@ -106,6 +109,7 @@ app.include_router(gift_codes.router)
 app.include_router(settings.router)
 app.include_router(account.router)
 app.include_router(compartilhamentos.router)
+app.include_router(social.router)
 app.include_router(calendario.router)
 app.include_router(espm_router.router)
 

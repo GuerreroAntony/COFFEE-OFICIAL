@@ -34,30 +34,30 @@ struct AIChatPickerRecording: Identifiable, Equatable {
 }
 
 enum AIModeOption: String, CaseIterable, Identifiable {
-    case coldBrew, lungo, espresso
+    case amigo, professor, rapido
     var id: String { rawValue }
 
     var name: String {
         switch self {
-        case .espresso: "Espresso"
-        case .lungo: "Lungo"
-        case .coldBrew: "Cold Brew"
+        case .rapido: "Rapido"
+        case .professor: "Professor"
+        case .amigo: "Amigo"
         }
     }
 
     var icon: String {
         switch self {
-        case .espresso: "bolt.fill"
-        case .lungo: CoffeeIcon.sparkles
-        case .coldBrew: "brain.head.profile"
+        case .rapido: "bolt.fill"
+        case .professor: "graduationcap.fill"
+        case .amigo: "person.2.fill"
         }
     }
 
     var modeDescription: String {
         switch self {
-        case .espresso: "Rápido e direto ao ponto"
-        case .lungo: "Equilibrado e claro"
-        case .coldBrew: "Profundo e detalhado"
+        case .rapido: "Direto ao ponto"
+        case .professor: "Explicacao clara e estruturada"
+        case .amigo: "Como um amigo explicando"
         }
     }
 }
@@ -72,7 +72,7 @@ struct AIChatScreenView: View {
     @State private var isTyping = false
     @State private var isStreaming = false
     @AppStorage("hasSeenBaristaIntro") private var hasSeenIntro = false
-    @State private var showIntro = false
+    @State private var showIntro: Bool? = nil  // nil = not yet decided
     @State private var showHistory = false
     @State private var showContextPicker = false
     @State private var showModePicker = false
@@ -80,7 +80,7 @@ struct AIChatScreenView: View {
 
     @State private var selectedDiscipline: AIChatPickerDiscipline? = nil
     @State private var selectedRecording: AIChatPickerRecording? = nil
-    @State private var selectedMode = AIModeOption.lungo
+    @State private var selectedMode = AIModeOption.professor
     @State private var currentChatId: String? = nil
 
     @State private var disciplines: [AIChatPickerDiscipline] = []
@@ -103,37 +103,72 @@ struct AIChatScreenView: View {
     @State private var chatAttachments: [(name: String, text: String)] = []
 
     var body: some View {
-        VStack(spacing: 0) {
-            navBar
-            contextStrip
-            messagesList
-
-            AIChatInputArea(
-                input: $input,
-                showModePicker: $showModePicker,
-                selectedMode: $selectedMode,
-                isListening: isListening,
-                attachments: chatAttachments,
-                onSend: handleSend,
-                onMicTap: { isListening ? stopListening() : startListening() },
-                onAttachTap: { showAttachmentSheet = true },
-                onRemoveAttachment: { index in
-                    if chatAttachments.indices.contains(index) {
-                        chatAttachments.remove(at: index)
+        ZStack {
+            if !PlanAccess.canUseBarista(router.currentUser?.plano) {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button {
+                            router.activeTab = .home
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Voltar")
+                                    .font(.system(size: 17))
+                            }
+                            .foregroundStyle(Color.coffeePrimary)
+                        }
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    UpgradeGateView(feature: .barista) { router.showPremiumOffer() }
                 }
-            )
+            } else if showIntro == true {
+                // Clean background while intro is visible — no flash of empty chat
+                Color.coffeeBackground
+                    .ignoresSafeArea()
+            } else {
+                VStack(spacing: 0) {
+                    navBar
+                    contextStrip
+                    messagesList
+
+                    AIChatInputArea(
+                        input: $input,
+                        showModePicker: $showModePicker,
+                        selectedMode: $selectedMode,
+                        isListening: isListening,
+                        attachments: chatAttachments,
+                        onSend: handleSend,
+                        onMicTap: { isListening ? stopListening() : startListening() },
+                        onAttachTap: { showAttachmentSheet = true },
+                        onRemoveAttachment: { index in
+                            if chatAttachments.indices.contains(index) {
+                                chatAttachments.remove(at: index)
+                            }
+                        }
+                    )
+                }
+                .transition(.opacity.animation(.easeOut(duration: 0.3)))
+            }
         }
         .background(Color.coffeeBackground)
-        .sheet(isPresented: $showIntro) {
+        .fullScreenCover(isPresented: Binding(
+            get: { showIntro == true },
+            set: { newVal in if !newVal { showIntro = false } }
+        )) {
             AIChatIntroSheet(onDismiss: {
-                showIntro = false
+                withAnimation(.easeOut(duration: 0.35)) {
+                    showIntro = false
+                }
                 hasSeenIntro = true
             })
         }
         .onAppear {
-            if !hasSeenIntro {
-                showIntro = true
+            if showIntro == nil {
+                showIntro = hasSeenIntro ? false : true
             }
         }
         .sheet(isPresented: $showHistory) {
@@ -349,7 +384,7 @@ struct AIChatScreenView: View {
                     emptyState
                         .frame(minHeight: geo.size.height)
                 } else {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: 24) {
                         ForEach(messages) { msg in
                             AIChatMessageRow(msg: msg)
                         }
@@ -488,9 +523,11 @@ struct AIChatScreenView: View {
         var text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty || !chatAttachments.isEmpty else { return }
 
-        // Use selected discipline or first discipline for "Todas"
+        // "Todas as Disciplinas" = selectedDiscipline is nil → use source_type "all"
+        let isAllDisciplines = (selectedDiscipline == nil)
         let disc = selectedDiscipline ?? disciplines.first
-        guard let disc else {
+        // Allow sending even without a discipline when in "all" mode
+        if !isAllDisciplines && disc == nil {
             showNoDisciplineAlert = true
             return
         }
@@ -515,9 +552,9 @@ struct AIChatScreenView: View {
 
         let mode: AIMode = {
             switch selectedMode {
-            case .espresso: return .espresso
-            case .lungo: return .lungo
-            case .coldBrew: return .coldBrew
+            case .rapido: return .rapido
+            case .professor: return .professor
+            case .amigo: return .amigo
             }
         }()
 
@@ -525,8 +562,13 @@ struct AIChatScreenView: View {
             do {
                 // Create chat if needed
                 if currentChatId == nil {
-                    let chat = try await AIService.createChat(sourceType: "disciplina", sourceId: disc.id)
-                    currentChatId = chat.id
+                    if isAllDisciplines {
+                        let chat = try await AIService.createChat(sourceType: "all", sourceId: nil)
+                        currentChatId = chat.id
+                    } else if let disc {
+                        let chat = try await AIService.createChat(sourceType: "disciplina", sourceId: disc.id)
+                        currentChatId = chat.id
+                    }
                 }
 
                 guard let chatId = currentChatId else { return }
@@ -650,25 +692,21 @@ struct AIChatMessageRow: View {
 
     private var aiMessage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Turn separator
-            Divider()
-                .padding(.bottom, 16)
-
             // Avatar row
-            HStack(spacing: 8) {
-                BaristaAvatar(size: 28)
+            HStack(spacing: 10) {
+                BaristaAvatar(size: 26)
                 Text("Barista")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.coffeeTextSecondary)
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 12)
 
-            // Content — no bubble, no background, full-width
+            // Content — clean, full-width, breathable
             Group {
                 if msg.isStreaming {
                     Text(msg.text)
-                        .font(.system(size: 15))
-                        .lineSpacing(4)
+                        .font(.system(size: 15.5))
+                        .lineSpacing(6)
                 } else {
                     Markdown(msg.text)
                         .markdownTheme(.coffee)
@@ -689,7 +727,7 @@ struct AIChatMessageRow: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.top, 8)
+                .padding(.top, 12)
             }
 
             if !msg.sources.isEmpty {
@@ -860,8 +898,8 @@ struct AIChatInputArea: View {
                         Circle()
                             .fill(isListening ? Color.coffeeDanger : Color.coffeeTextSecondary.opacity(0.1))
                             .frame(width: 36, height: 36)
-                            .scaleEffect(isListening ? 1.1 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isListening)
+                            .scaleEffect(isListening ? 1.15 : 1.0)
+                            .animation(isListening ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .easeInOut(duration: 0.2), value: isListening)
                         Image(systemName: "mic.fill")
                             .font(.system(size: 16))
                             .foregroundStyle(isListening ? .white : Color.coffeeTextSecondary)
@@ -964,11 +1002,22 @@ struct AIChatIntroSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Drag indicator
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.coffeeTextSecondary.opacity(0.3))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
+            // Close button
+            HStack {
+                Spacer()
+                Button {
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .padding(10)
+                        .background(Color.coffeeTextSecondary.opacity(0.1))
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
 
             ScrollView {
                 VStack(spacing: 28) {
@@ -999,7 +1048,7 @@ struct AIChatIntroSheet: View {
                             .multilineTextAlignment(.center)
                             .lineSpacing(2)
                     }
-                    .padding(.top, 24)
+                    .padding(.top, 8)
 
                     // Features card
                     VStack(spacing: 0) {
@@ -1053,7 +1102,6 @@ struct AIChatIntroSheet: View {
             .padding(.bottom, 40)
         }
         .background(Color.coffeeBackground)
-        .presentationDetents([.large])
     }
 
     private func introFeatureRow(icon: String, color: Color, title: String, desc: String, showDivider: Bool) -> some View {
