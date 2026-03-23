@@ -19,8 +19,8 @@ enum SocialService {
         try await APIClient.shared.request(path: APIEndpoints.socialFriendRequests)
     }
 
-    static func sendFriendRequest(email: String) async throws {
-        let body = SendFriendRequestBody(addresseeEmail: email)
+    static func sendFriendRequest(email: String? = nil, userId: String? = nil) async throws {
+        let body = SendFriendRequestBody(addresseeEmail: email, addresseeId: userId)
         let _: EmptyData = try await APIClient.shared.request(
             path: APIEndpoints.socialFriendRequest,
             method: .POST,

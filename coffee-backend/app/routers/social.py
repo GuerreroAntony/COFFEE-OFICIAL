@@ -146,16 +146,27 @@ async def send_friend_request(
     background_tasks: BackgroundTasks,
     user_id: UUID = Depends(get_current_user),
 ):
-    """Send a friend request by email."""
-    # Look up addressee
-    addressee = await fetch_one(
-        "SELECT id, nome FROM users WHERE email = $1",
-        body.addressee_email,
-    )
+    """Send a friend request by email or user_id."""
+    # Look up addressee by ID or email
+    if body.addressee_id:
+        addressee = await fetch_one(
+            "SELECT id, nome FROM users WHERE id = $1",
+            body.addressee_id,
+        )
+    elif body.addressee_email:
+        addressee = await fetch_one(
+            "SELECT id, nome FROM users WHERE email = $1",
+            body.addressee_email,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error_response("VALIDATION_ERROR", "Forneça addressee_email ou addressee_id."),
+        )
     if not addressee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_response("USER_NOT_FOUND", "Nenhum usuário encontrado com esse email."),
+            detail=error_response("USER_NOT_FOUND", "Nenhum usuário encontrado."),
         )
     addressee_id = addressee["id"]
 

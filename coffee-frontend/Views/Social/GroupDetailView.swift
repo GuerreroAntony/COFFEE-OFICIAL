@@ -8,12 +8,16 @@ struct GroupDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    @Environment(\.router) private var router
+
     @State private var group: SocialGroup?
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showAddMember = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var friendIds: Set<String> = []
+    @State private var pendingRequestIds: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -181,6 +185,32 @@ struct GroupDetailView: View {
                     .padding(.vertical, 3)
                     .background(Color.coffeeWarning.opacity(0.1))
                     .clipShape(Capsule())
+            } else if member.userId != currentUserId {
+                if friendIds.contains(member.userId) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.coffeeSuccess)
+                } else if pendingRequestIds.contains(member.userId) {
+                    Text("Pendente")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.coffeeTextSecondary.opacity(0.1))
+                        .clipShape(Capsule())
+                } else {
+                    Button {
+                        sendFriendRequest(to: member)
+                    } label: {
+                        Text("Adicionar")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.coffeePrimary)
+                            .clipShape(Capsule())
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -234,11 +264,32 @@ struct GroupDetailView: View {
         isLoading = true
         errorMessage = nil
         do {
-            group = try await SocialService.getGroupDetail(id: groupId)
+            async let g = SocialService.getGroupDetail(id: groupId)
+            async let f = SocialService.getFriends()
+            group = try await g
+            let friends = (try? await f) ?? []
+            friendIds = Set(friends.map(\.userId))
         } catch {
             errorMessage = "Erro ao carregar grupo"
         }
         isLoading = false
+    }
+
+    private var currentUserId: String {
+        router.currentUser?.id ?? ""
+    }
+
+    private func sendFriendRequest(to member: GroupMember) {
+        // Optimistic UI — show "Pendente" immediately
+        pendingRequestIds.insert(member.userId)
+        Task {
+            do {
+                try await SocialService.sendFriendRequest(userId: member.userId)
+            } catch {
+                // Revert on failure
+                pendingRequestIds.remove(member.userId)
+            }
+        }
     }
 
     private func removeMember(_ member: GroupMember) {

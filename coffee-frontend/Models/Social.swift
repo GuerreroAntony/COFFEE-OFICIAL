@@ -84,9 +84,11 @@ struct ShareTargets: Codable {
 // MARK: - Requests
 
 struct SendFriendRequestBody: Codable {
-    let addresseeEmail: String
+    let addresseeEmail: String?
+    let addresseeId: String?
     enum CodingKeys: String, CodingKey {
         case addresseeEmail = "addressee_email"
+        case addresseeId = "addressee_id"
     }
 }
 

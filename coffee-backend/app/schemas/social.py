@@ -21,7 +21,8 @@ def _initials(nome: str) -> str:
 # ── Friends ───────────────────────────────────────────────────────────────────
 
 class SendFriendRequest(BaseModel):
-    addressee_email: str
+    addressee_email: str | None = None
+    addressee_id: UUID | None = None
 
 
 class FriendResponse(BaseModel):

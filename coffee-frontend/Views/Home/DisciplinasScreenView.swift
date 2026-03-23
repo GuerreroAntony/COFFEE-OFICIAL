@@ -76,7 +76,7 @@ struct DisciplinasScreenView: View {
             VStack(spacing: 0) {
                 // Large Title Header
                 CoffeeLargeTitleHeader(
-                    greeting: "Olá, \(router.currentUser?.nome ?? "Aluno")",
+                    greeting: "Olá, \((router.currentUser?.nome ?? "Aluno").components(separatedBy: " ").first ?? "Aluno")",
                     subtitle: dynamicSubtitle,
                     planStatus: router.currentUser?.plano,
                     trialEnd: router.currentUser?.trialEnd,

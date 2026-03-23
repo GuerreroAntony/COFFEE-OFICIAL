@@ -475,7 +475,7 @@ struct PremiumOfferScreenView: View {
                 .buttonStyle(.plain)
                 .disabled(isStartingTrial)
 
-                Text("Acesso completo ao plano Black. Sem cartão.")
+                Text("Acesso completo ao plano Black.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.coffeeTextSecondary)
             } else {
@@ -529,19 +529,7 @@ struct PremiumOfferScreenView: View {
                 .buttonStyle(.plain)
             }
 
-            // Restore purchases
-            Button("Restaurar compras") {
-                Task {
-                    await subscription.restorePurchases()
-                    if subscription.isPremium {
-                        if let user = router.currentUser {
-                            router.login(user: user)
-                        }
-                    }
-                }
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(Color.coffeeTextSecondary)
+            // Restaurar compras removido
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 48)
