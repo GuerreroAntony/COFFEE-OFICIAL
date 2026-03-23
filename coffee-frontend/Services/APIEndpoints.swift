@@ -20,6 +20,9 @@ enum APIEndpoints {
     /// POST - Password recovery
     static let forgotPassword = "/auth/forgot-password"
 
+    /// POST - Reset password with code
+    static let resetPassword = "/auth/reset-password"
+
     /// POST - Renew JWT
     static let refreshToken = "/auth/refresh"
 

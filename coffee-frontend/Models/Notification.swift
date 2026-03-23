@@ -76,6 +76,19 @@ struct ForgotPasswordRequest: Codable {
     let email: String
 }
 
+// MARK: - Reset Password Request (POST /auth/reset-password)
+
+struct ResetPasswordRequest: Codable {
+    let email: String
+    let code: String
+    let newPassword: String
+
+    enum CodingKeys: String, CodingKey {
+        case email, code
+        case newPassword = "new_password"
+    }
+}
+
 // MARK: - Profile Update Request (PATCH /profile)
 
 struct UpdateProfileRequest: Codable {

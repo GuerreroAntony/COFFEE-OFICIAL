@@ -82,6 +82,23 @@ enum AuthService {
         )
     }
 
+    // MARK: - Reset Password
+
+    static func resetPassword(email: String, code: String, newPassword: String) async throws {
+        if APIClient.useMocks {
+            try await Task.sleep(for: .seconds(1))
+            return
+        }
+
+        let body = ResetPasswordRequest(email: email, code: code, newPassword: newPassword)
+        let _: EmptyData = try await APIClient.shared.request(
+            path: APIEndpoints.resetPassword,
+            method: .POST,
+            body: body,
+            authenticated: false
+        )
+    }
+
     // MARK: - Refresh Token
 
     static func refreshToken() async throws -> String {

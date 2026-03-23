@@ -19,6 +19,7 @@ struct LoginScreenView: View {
     @State private var forgotLoading = false
     @State private var forgotSuccess = false
     @State private var forgotError: String? = nil
+    @State private var showResetPassword = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -185,10 +186,15 @@ struct LoginScreenView: View {
         } message: {
             Text("Digite seu e-mail e enviaremos um link para redefinir sua senha.")
         }
-        .alert("E-mail enviado", isPresented: $forgotSuccess) {
-            Button("OK") { }
+        .alert("Código enviado", isPresented: $forgotSuccess) {
+            Button("Digitar código") { showResetPassword = true }
         } message: {
-            Text("Verifique sua caixa de entrada (e spam) para o link de recuperação.")
+            Text("Enviamos um código de 6 dígitos para \(forgotEmail). Verifique sua caixa de entrada e spam.")
+        }
+        .sheet(isPresented: $showResetPassword) {
+            ResetPasswordView(email: forgotEmail) {
+                showResetPassword = false
+            }
         }
         .alert("Erro", isPresented: Binding(get: { forgotError != nil }, set: { if !$0 { forgotError = nil } })) {
             Button("OK") { forgotError = nil }
@@ -220,6 +226,192 @@ struct LoginScreenView: View {
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
+// MARK: - Reset Password View
+
+struct ResetPasswordView: View {
+    let email: String
+    var onSuccess: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var code = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var showPassword = false
+    @State private var isLoading = false
+    @State private var errorMessage: String? = nil
+    @State private var isSuccess = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Spacer()
+
+                VStack(spacing: 16) {
+                    Image(systemName: "lock.rotation")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Color.coffeePrimary)
+
+                    Text("Redefinir senha")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(Color.coffeeTextPrimary)
+
+                    Text("Enviamos um código de 6 dígitos para\n\(email)")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.bottom, 32)
+
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("CÓDIGO")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+
+                        TextField("000000", text: $code)
+                            .font(.system(size: 24, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color.coffeeTextPrimary)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .tint(Color.coffeePrimary)
+                            .onChange(of: code) { _, newValue in
+                                code = String(newValue.prefix(6)).filter { $0.isNumber }
+                            }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.coffeeSeparator).frame(height: 0.5)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("NOVA SENHA")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+
+                        HStack {
+                            Group {
+                                if showPassword {
+                                    TextField("Mínimo 6 caracteres", text: $newPassword)
+                                } else {
+                                    SecureField("Mínimo 6 caracteres", text: $newPassword)
+                                }
+                            }
+                            .font(.coffeeBody)
+                            .textContentType(.newPassword)
+                            .tint(Color.coffeePrimary)
+
+                            Button { showPassword.toggle() } label: {
+                                Image(systemName: showPassword ? "eye.slash" : "eye")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(Color.coffeeTextSecondary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.coffeeSeparator).frame(height: 0.5)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("CONFIRMAR SENHA")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+
+                        Group {
+                            if showPassword {
+                                TextField("Repita a senha", text: $confirmPassword)
+                            } else {
+                                SecureField("Repita a senha", text: $confirmPassword)
+                            }
+                        }
+                        .font(.coffeeBody)
+                        .textContentType(.newPassword)
+                        .tint(Color.coffeePrimary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .background(Color.coffeeCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 24)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 12)
+                }
+
+                Spacer().frame(height: 24)
+
+                CoffeeButton("Redefinir senha", isLoading: isLoading) {
+                    handleReset()
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+            }
+            .background(Color.coffeeBackground)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                }
+            }
+            .alert("Senha redefinida!", isPresented: $isSuccess) {
+                Button("OK") {
+                    onSuccess()
+                    dismiss()
+                }
+            } message: {
+                Text("Sua senha foi alterada com sucesso. Faça login com a nova senha.")
+            }
+            .onTapGesture {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
+                )
+            }
+        }
+    }
+
+    private func handleReset() {
+        errorMessage = nil
+        let trimmedCode = code.trimmingCharacters(in: .whitespaces)
+        guard trimmedCode.count == 6 else {
+            errorMessage = "Digite o código de 6 dígitos."
+            return
+        }
+        guard newPassword.count >= 6 else {
+            errorMessage = "A senha deve ter no mínimo 6 caracteres."
+            return
+        }
+        guard newPassword == confirmPassword else {
+            errorMessage = "As senhas não conferem."
+            return
+        }
+        isLoading = true
+        Task {
+            do {
+                try await AuthService.resetPassword(email: email, code: trimmedCode, newPassword: newPassword)
+                isSuccess = true
+            } catch {
+                errorMessage = "Código inválido ou expirado. Tente novamente."
+            }
+            isLoading = false
+        }
     }
 }
 
