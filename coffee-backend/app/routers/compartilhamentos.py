@@ -232,9 +232,10 @@ async def _send_share_push(recipient_id: UUID, sender_name: str, comp_id: str | 
 @router.get("/received")
 async def list_received_shares(
     status_filter: str = "all",
+    group_id: str | None = None,
     user_id: UUID = Depends(get_current_user),
 ):
-    """Listar compartilhamentos recebidos (inbox). Contract v3.1 shape."""
+    """Listar compartilhamentos recebidos (inbox). Optional group_id filter."""
     query = """
         SELECT c.id, c.shared_content, c.message, c.status, c.created_at,
                u.nome AS sender_name, u.email AS sender_email,
@@ -249,11 +250,19 @@ async def list_received_shares(
         LEFT JOIN disciplinas d ON g.source_type = 'disciplina' AND g.source_id = d.id
         WHERE c.recipient_id = $1
     """
-    params = [user_id]
+    params: list = [user_id]
+    param_idx = 2
+
+    if group_id:
+        from uuid import UUID as UUIDType
+        query += f" AND c.group_id = ${param_idx}"
+        params.append(UUIDType(group_id))
+        param_idx += 1
 
     if status_filter != "all":
-        query += " AND c.status = $2"
+        query += f" AND c.status = ${param_idx}"
         params.append(status_filter)
+        param_idx += 1
 
     query += " ORDER BY c.created_at DESC"
 

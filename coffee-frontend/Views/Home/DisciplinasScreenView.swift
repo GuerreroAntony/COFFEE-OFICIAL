@@ -520,7 +520,7 @@ struct DisciplinasScreenView: View {
                 CoffeeSectionHeader(title: "Amigos\(friends.isEmpty ? "" : " (\(friends.count))")")
                 Spacer()
                 Button { showAddFriend = true } label: {
-                    Image(systemName: "person.badge.plus")
+                    Image(systemName: "plus")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.coffeePrimary)
                 }
@@ -573,7 +573,7 @@ struct DisciplinasScreenView: View {
                 CoffeeSectionHeader(title: "Grupos\(groups.isEmpty ? "" : " (\(groups.count))")")
                 Spacer()
                 Button { showCreateGroup = true } label: {
-                    Image(systemName: "plus.circle")
+                    Image(systemName: "plus")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.coffeePrimary)
                 }
@@ -611,21 +611,10 @@ struct DisciplinasScreenView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 6) {
-                                        Text(group.nome)
-                                            .font(.system(size: 15, weight: .medium))
-                                            .foregroundStyle(Color.coffeeTextPrimary)
-                                            .lineLimit(1)
-                                        if group.isAuto {
-                                            Text("Turma")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(Color.coffeePrimary)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.coffeePrimary.opacity(0.1))
-                                                .clipShape(Capsule())
-                                        }
-                                    }
+                                    Text(group.nome)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(Color.coffeeTextPrimary)
+                                        .lineLimit(1)
                                     Text("\(group.memberCount) membro\(group.memberCount == 1 ? "" : "s")")
                                         .font(.system(size: 12))
                                         .foregroundStyle(Color.coffeeTextSecondary)
@@ -638,7 +627,8 @@ struct DisciplinasScreenView: View {
                                     .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 14)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
@@ -884,7 +874,8 @@ struct DisciplinasScreenView: View {
         repositories = await r ?? repositories
         sharedItems = await s ?? sharedItems
         friends = await f ?? friends
-        friendRequests = await fr ?? friendRequests
+        let frResult = await fr
+        friendRequests = frResult?.received ?? friendRequests
         groups = await g ?? groups
 
         // Update cache

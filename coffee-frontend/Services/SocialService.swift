@@ -15,7 +15,12 @@ enum SocialService {
         try await APIClient.shared.request(path: APIEndpoints.socialFriends)
     }
 
-    static func getFriendRequests() async throws -> [Friend] {
+    struct FriendRequestsResponse: Decodable {
+        let sent: [Friend]
+        let received: [Friend]
+    }
+
+    static func getFriendRequests() async throws -> FriendRequestsResponse {
         try await APIClient.shared.request(path: APIEndpoints.socialFriendRequests)
     }
 

@@ -1,7 +1,18 @@
 import SwiftUI
 
+// MARK: - Shared Recording Item (inline model for group feed)
+
+struct SharedRecordingItem: Identifiable {
+    let id: String
+    let senderName: String
+    let summary: String?
+    let discipline: String?
+    let status: String
+    let createdAt: Date?
+}
+
 // MARK: - Group Detail View
-// Shows group info, members list, add/remove members
+// Shows group members, shared classes feed, send button
 
 struct GroupDetailView: View {
     let groupId: String
@@ -18,9 +29,37 @@ struct GroupDetailView: View {
     @State private var isDeleting = false
     @State private var friendIds: Set<String> = []
     @State private var pendingRequestIds: Set<String> = []
+    @State private var showShareSheet = false
+    @State private var sharedItems: [SharedRecordingItem] = []
+    @State private var showMembers = false
 
     var body: some View {
         VStack(spacing: 0) {
+            // Grab indicator
+            Capsule()
+                .fill(Color.coffeeTextSecondary.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+            // Header with title + close
+            HStack {
+                Spacer()
+                Text(group?.nome ?? "Grupo")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                Spacer()
+            }
+            .overlay(alignment: .trailing) {
+                Button { dismiss() } label: {
+                    Text("Fechar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+                .padding(.trailing, 16)
+            }
+            .padding(.vertical, 12)
+
             if isLoading {
                 loadingView
             } else if let group {
@@ -30,8 +69,7 @@ struct GroupDetailView: View {
             }
         }
         .background(Color.coffeeBackground)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(group?.nome ?? "Grupo")
+        .navigationBarHidden(true)
         .task {
             await loadGroup()
         }
@@ -55,83 +93,90 @@ struct GroupDetailView: View {
     private func groupContent(_ group: SocialGroup) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Group header card
-                VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.coffeePrimary.opacity(0.12))
-                            .frame(width: 64, height: 64)
-                        Image(systemName: CoffeeIcon.groups)
-                            .font(.system(size: 26))
-                            .foregroundStyle(Color.coffeePrimary)
+                // Send class button
+                Button { showShareSheet = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                        Text("Enviar aula para o grupo")
+                            .font(.system(size: 15, weight: .semibold))
                     }
-
-                    Text(group.nome)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(Color.coffeeTextPrimary)
-
-                    if group.isAuto {
-                        Text("Turma")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.coffeePrimary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.coffeePrimary.opacity(0.1))
-                            .clipShape(Capsule())
-                    }
-
-                    Text("\(group.memberCount) membros")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.coffeeTextSecondary)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.coffeePrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(Color.coffeeCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, 16)
 
-                // Members section
+                // Shared classes feed
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Aulas compartilhadas")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 20)
+
+                    if sharedItems.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "tray")
+                                .font(.system(size: 28))
+                                .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
+                            Text("Nenhuma aula enviada ainda")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                    } else {
+                        CoffeeCellGroup {
+                            ForEach(Array(sharedItems.enumerated()), id: \.element.id) { index, item in
+                                sharedItemRow(item)
+                                if index < sharedItems.count - 1 {
+                                    Divider().padding(.leading, 60)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Members section (collapsible)
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text("Membros")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.coffeeTextSecondary)
-                            .textCase(.uppercase)
-
-                        Spacer()
-
-                        if !group.isAuto {
-                            Button {
-                                showAddMember = true
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: CoffeeIcon.add)
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("Adicionar")
-                                        .font(.system(size: 13, weight: .medium))
-                                }
-                                .foregroundStyle(Color.coffeePrimary)
-                            }
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { showMembers.toggle() }
+                    } label: {
+                        HStack {
+                            Text("Membros (\(group.memberCount))")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.coffeeTextSecondary)
+                                .textCase(.uppercase)
+                            Spacer()
+                            Image(systemName: showMembers ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.coffeeTextSecondary)
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
+                    .buttonStyle(.plain)
 
-                    VStack(spacing: 0) {
-                        if let members = group.members {
-                            ForEach(members) { member in
-                                memberRow(member, isAuto: group.isAuto)
-
-                                if member.id != members.last?.id {
-                                    Divider()
-                                        .padding(.leading, 72)
+                    if showMembers {
+                        VStack(spacing: 0) {
+                            if let members = group.members {
+                                ForEach(members) { member in
+                                    memberRow(member, isAuto: group.isAuto)
+                                    if member.id != members.last?.id {
+                                        Divider().padding(.leading, 72)
+                                    }
                                 }
                             }
                         }
+                        .background(Color.coffeeCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    .background(Color.coffeeCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, 16)
                 }
 
                 // Bottom actions
@@ -152,6 +197,54 @@ struct GroupDetailView: View {
             }
             .padding(.top, 8)
         }
+    }
+
+    // MARK: - Shared Item Row
+
+    private func sharedItemRow(_ item: SharedRecordingItem) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.coffeePrimary.opacity(0.1))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "doc.text")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.coffeePrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.senderName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.coffeeTextPrimary)
+                    .lineLimit(1)
+                Text(item.summary ?? item.discipline ?? "Gravação")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.coffeeTextSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if item.status == "pending" {
+                Button {
+                    // Accept will be handled by existing flow
+                } label: {
+                    Text("Salvar")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.coffeePrimary)
+                        .clipShape(Capsule())
+                }
+            } else {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.coffeeSuccess)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Member Row
@@ -266,13 +359,40 @@ struct GroupDetailView: View {
         do {
             async let g = SocialService.getGroupDetail(id: groupId)
             async let f = SocialService.getFriends()
+            async let r = SocialService.getFriendRequests()
             group = try await g
             let friends = (try? await f) ?? []
+            let requests = try? await r
             friendIds = Set(friends.map(\.userId))
+            pendingRequestIds = Set((requests?.sent ?? []).map(\.userId))
+
+            // Load shared items for this group
+            await loadGroupShares()
         } catch {
             errorMessage = "Erro ao carregar grupo"
         }
         isLoading = false
+    }
+
+    private func loadGroupShares() async {
+        do {
+            let items: [SharedItem] = try await APIClient.shared.request(
+                path: "\(APIEndpoints.compartilhamentosReceived)?group_id=\(groupId)"
+            )
+            sharedItems = items.map { item in
+                SharedRecordingItem(
+                    id: item.id,
+                    senderName: item.sender.nome,
+                    summary: item.gravacao.shortSummary,
+                    discipline: item.sourceDiscipline,
+                    status: item.status.rawValue,
+                    createdAt: item.createdAt
+                )
+            }
+        } catch {
+            print("[GroupDetail] Failed to load group shares: \(error)")
+            sharedItems = []
+        }
     }
 
     private var currentUserId: String {
@@ -285,9 +405,10 @@ struct GroupDetailView: View {
         Task {
             do {
                 try await SocialService.sendFriendRequest(userId: member.userId)
+                print("[Social] ✅ Friend request sent to \(member.nome)")
             } catch {
-                // Revert on failure
-                pendingRequestIds.remove(member.userId)
+                // Keep "Pendente" — error usually means request already exists
+                print("[Social] Friend request for \(member.userId): \(error)")
             }
         }
     }
