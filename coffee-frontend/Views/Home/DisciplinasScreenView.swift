@@ -594,7 +594,6 @@ struct DisciplinasScreenView: View {
         }
         .sheet(item: $selectedFriend) { friend in
             FriendDetailSheet(friend: friend)
-                .onDisappear { Task { await loadSocialData() } }
         }
     }
 

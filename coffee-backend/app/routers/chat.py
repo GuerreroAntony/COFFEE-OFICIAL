@@ -455,13 +455,14 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                JOIN materiais m ON e.fonte_id = m.id
+               LEFT JOIN user_material_preferences ump ON ump.material_id = m.id AND ump.user_id = $4
                WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'material'
-                 AND m.ai_enabled = true
+                 AND COALESCE(ump.ai_enabled, m.ai_enabled) = true
                  AND 1 - (e.embedding <=> $1::vector) >= $3
                ORDER BY e.embedding <=> $1::vector
                LIMIT 12""",
-            vec_str, disc_filter_val, _MIN_SIMILARITY,
+            vec_str, disc_filter_val, _MIN_SIMILARITY, user_id,
         )
         fts_transcription_task = fetch_all(
             f"""SELECT e.texto_chunk, e.metadata, e.fonte_tipo, e.fonte_id, e.chunk_index,
@@ -488,13 +489,14 @@ async def send_message(
                FROM embeddings e
                LEFT JOIN disciplinas d ON e.disciplina_id = d.id
                JOIN materiais m ON e.fonte_id = m.id
+               LEFT JOIN user_material_preferences ump ON ump.material_id = m.id AND ump.user_id = $3
                WHERE {disc_filter_sql}
                  AND e.fonte_tipo = 'material'
-                 AND m.ai_enabled = true
+                 AND COALESCE(ump.ai_enabled, m.ai_enabled) = true
                  AND e.tsv @@ plainto_tsquery('portuguese', $1)
                ORDER BY similarity DESC
                LIMIT 12""",
-            body.text, disc_filter_val,
+            body.text, disc_filter_val, user_id,
         )
 
         vec_trans, vec_mat, fts_trans, fts_mat = await asyncio.gather(

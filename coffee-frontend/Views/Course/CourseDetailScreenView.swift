@@ -626,11 +626,9 @@ struct CourseDetailScreenView: View {
                         materials[idx].aiEnabled = newValue
                         Task {
                             do {
-                                let updated = try await MaterialService.toggleAI(materialId: material.id)
-                                if let i = materials.firstIndex(where: { $0.id == material.id }) {
-                                    materials[i] = updated
-                                }
+                                _ = try await MaterialService.toggleAI(materialId: material.id)
                             } catch {
+                                // Revert on failure
                                 if let i = materials.firstIndex(where: { $0.id == material.id }) {
                                     materials[i].aiEnabled = !newValue
                                 }
