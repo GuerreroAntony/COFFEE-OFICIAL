@@ -33,11 +33,10 @@ struct DisciplinasScreenView: View {
 
     // Default styles now live on Discipline.defaultStyles
 
-    /// Calendar is only available for Black or active Trial users
-    private var calendarAvailable: Bool {
-        guard let plano = router.currentUser?.plano else { return false }
-        return plano == .black || plano == .trial
-    }
+    /// Calendar icon is always visible; access is gated via PlanAccess
+    private var calendarAvailable: Bool { true }
+
+    private var plano: UserPlan? { router.currentUser?.plano }
 
     private var socialBadgeCount: Int {
         let friendPending = friends.compactMap(\.pendingCount).reduce(0, +)
@@ -84,7 +83,13 @@ struct DisciplinasScreenView: View {
                     subtitle: dynamicSubtitle,
                     planStatus: router.currentUser?.plano,
                     trialEnd: router.currentUser?.trialEnd,
-                    onCalendarTap: calendarAvailable ? { showCalendar = true } : nil,
+                    onCalendarTap: calendarAvailable ? {
+                        if PlanAccess.canUseCalendar(plano) {
+                            showCalendar = true
+                        } else {
+                            router.showPremiumOffer()
+                        }
+                    } : nil,
                     upcomingCount: upcomingCount,
                     onMenuTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showMenu.toggle() } },
                     onPlanTap: { showPlanGate = true }
@@ -106,7 +111,13 @@ struct DisciplinasScreenView: View {
                         switch activeTab {
                         case 0: disciplinasTab
                         case 1: outrosTab
-                        case 2: recebidosTab
+                        case 2:
+                            if PlanAccess.canUseSocial(plano) {
+                                recebidosTab
+                            } else {
+                                UpgradeGateView(feature: .social) { router.showPremiumOffer() }
+                                    .frame(minHeight: 300)
+                            }
                         default: EmptyView()
                         }
                     }

@@ -694,11 +694,15 @@ struct RecordingDetailSheet: View {
                     .foregroundStyle(Color.coffeeTextSecondary)
                 Spacer()
 
-                // Share button
+                // Share button (gated by plan)
                 Button {
-                    showShareSheet = true
+                    if PlanAccess.canShare(router.currentUser?.plano) {
+                        showShareSheet = true
+                    } else {
+                        router.showPremiumOffer()
+                    }
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: PlanAccess.canShare(router.currentUser?.plano) ? "square.and.arrow.up" : "lock.fill")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.coffeePrimary)
                         .frame(width: 36, height: 36)
@@ -828,38 +832,47 @@ struct RecordingDetailSheet: View {
     // MARK: - Mind Map
 
     private func mindMapView(_ detail: RecordingDetail) -> some View {
-        VStack(spacing: 16) {
-            if let mindMap = detail.mindMap {
-                MindMapCanvasView(
-                    mindMap: mindMap,
-                    onFullscreen: { showMindMapFullscreen = true }
-                )
-                .padding(.top, 8)
-
-                // Download mind map image
-                downloadButton(label: "Baixar mapa mental") {
-                    let exportView = MindMapCanvasView(mindMap: mindMap)
-                    if let image = exportView.renderAsImage() {
-                        PDFExportService.shareImage(
-                            image,
-                            fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).png"
+        Group {
+            if !PlanAccess.canUseMindMap(router.currentUser?.plano) {
+                UpgradeGateView(feature: .mindMap) { router.showPremiumOffer() }
+                    .frame(minHeight: 300)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
+            } else {
+                VStack(spacing: 16) {
+                    if let mindMap = detail.mindMap {
+                        MindMapCanvasView(
+                            mindMap: mindMap,
+                            onFullscreen: { showMindMapFullscreen = true }
                         )
+                        .padding(.top, 8)
+
+                        // Download mind map image
+                        downloadButton(label: "Baixar mapa mental") {
+                            let exportView = MindMapCanvasView(mindMap: mindMap)
+                            if let image = exportView.renderAsImage() {
+                                PDFExportService.shareImage(
+                                    image,
+                                    fileName: "Mapa Mental - \(disciplineName) - \(recording.dateLabel).png"
+                                )
+                            }
+                        }
+                    } else {
+                        CoffeeEmptyState(
+                            icon: CoffeeIcon.mindMap,
+                            title: "Sem mapa mental",
+                            message: "Mapas mentais são gerados automaticamente pela IA."
+                        )
+                        .padding(.top, 40)
                     }
                 }
-            } else {
-                CoffeeEmptyState(
-                    icon: CoffeeIcon.mindMap,
-                    title: "Sem mapa mental",
-                    message: "Mapas mentais são gerados automaticamente pela IA."
-                )
-                .padding(.top, 40)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 32)
-        .fullScreenCover(isPresented: $showMindMapFullscreen) {
-            if let mindMap = detail.mindMap {
-                MindMapFullscreenSheet(mindMap: mindMap)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
+                .fullScreenCover(isPresented: $showMindMapFullscreen) {
+                    if let mindMap = detail.mindMap {
+                        MindMapFullscreenSheet(mindMap: mindMap)
+                    }
+                }
             }
         }
     }

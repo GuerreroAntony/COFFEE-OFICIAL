@@ -104,7 +104,9 @@ struct AIChatScreenView: View {
 
     var body: some View {
         ZStack {
-            if showIntro == true {
+            if !PlanAccess.canUseBarista(router.currentUser?.plano) {
+                UpgradeGateView(feature: .barista) { router.showPremiumOffer() }
+            } else if showIntro == true {
                 // Clean background while intro is visible — no flash of empty chat
                 Color.coffeeBackground
                     .ignoresSafeArea()

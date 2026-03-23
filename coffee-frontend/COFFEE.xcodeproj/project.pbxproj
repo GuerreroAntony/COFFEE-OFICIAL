@@ -57,6 +57,8 @@
 		A4E74BD7FDF3D65AD9FCBCBB /* SwipeableRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */; };
 		A63920A88B015D50E2C71F90 /* LinkESPMScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E5F840B9AAA439825417E1 /* LinkESPMScreenView.swift */; };
 		AB7723A68644AC65D8746D82 /* PremiumGateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1451BA160B4ABE12798039A8 /* PremiumGateSheet.swift */; };
+		AC1E0D40D5E7F8A10C000101 /* PlanAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1E0D41D5E7F8A10C000102 /* PlanAccess.swift */; };
+		AC1E0D42D5E7F8A10C000103 /* UpgradeGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1E0D43D5E7F8A10C000104 /* UpgradeGateView.swift */; };
 		ADA1811A2EEE5443141DBA43 /* LiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7991BBEE016FEE6BF91000 /* LiveActivityService.swift */; };
 		AEB68CF85EF048A102421743 /* Discipline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C9A0D38E081704E65C258F /* Discipline.swift */; };
 		AF0D55BF760D9914D53F257C /* DeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348CCE1A291B7252344893D0 /* DeviceService.swift */; };
@@ -183,6 +185,8 @@
 		96F23A600BF8EE69CC2854BE /* PromoCodesScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromoCodesScreenView.swift; sourceTree = "<group>"; };
 		9A3D00DF78B1B2930062CF76 /* circular-book.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "circular-book.ttf"; sourceTree = "<group>"; };
 		A3F76B83E08B70F64DE4E41A /* SubscriptionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPlan.swift; sourceTree = "<group>"; };
+		AC1E0D41D5E7F8A10C000102 /* PlanAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanAccess.swift; sourceTree = "<group>"; };
+		AC1E0D43D5E7F8A10C000104 /* UpgradeGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeGateView.swift; sourceTree = "<group>"; };
 		A5247846C793FF600148D445 /* DisciplineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisciplineService.swift; sourceTree = "<group>"; };
 		B16BCD02E0922B60B03C836D /* COFFEEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = COFFEEApp.swift; sourceTree = "<group>"; };
 		B1C9A0D38E081704E65C258F /* Discipline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discipline.swift; sourceTree = "<group>"; };
@@ -253,6 +257,7 @@
 				3301338DA4775F332D257989 /* IconPickerSheet.swift */,
 				CB1E0D22B4C5D6E7F80A0003 /* SkeletonViews.swift */,
 				7DBD05FC908B8EFD4A92F3B4 /* SwipeableRow.swift */,
+				AC1E0D43D5E7F8A10C000104 /* UpgradeGateView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -431,6 +436,7 @@
 				4B78620E993D03DC3BAB791F /* Extensions.swift */,
 				ECF76FF11042B710F86A7C7A /* KeychainManager.swift */,
 				24E96DF62154295968A79973 /* NavigationRouter.swift */,
+				AC1E0D41D5E7F8A10C000102 /* PlanAccess.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -702,8 +708,10 @@
 				31AFA9221091254AF28E813B /* NotificationService.swift in Sources */,
 				9126D8FE00A9DA845AFD6EBE /* OnboardingScreenView.swift in Sources */,
 				76C90C0E3F67DDCD0711CB83 /* PDFExportService.swift in Sources */,
+				AC1E0D40D5E7F8A10C000101 /* PlanAccess.swift in Sources */,
 				AB7723A68644AC65D8746D82 /* PremiumGateSheet.swift in Sources */,
 				0FA5F481901263A2DA44AC00 /* PremiumLockedTabView.swift in Sources */,
+				AC1E0D42D5E7F8A10C000103 /* UpgradeGateView.swift in Sources */,
 				EB715D985CD0E30D30DBBF2E /* PremiumOfferScreenView.swift in Sources */,
 				3DAF1DB1BF68C12F305E1D3F /* ProfileScreenView.swift in Sources */,
 				491553AD90929AB701846760 /* ProfileService.swift in Sources */,

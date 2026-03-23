@@ -331,9 +331,18 @@ async def _process_group(
 
         # === Non-critical: mind map, push, cleanup (failures don't change status) ===
 
-        # Mind map
+        # Mind map (cafe_curto users don't get mind maps on their gravacoes)
         if best_upload["gravacao_id"] and word_count >= 10:
             try:
+                # Build set of cafe_curto user IDs so we can skip them
+                _user_ids = list({u["user_id"] for u in all_uploads if u["user_id"]})
+                _plan_rows = await fetch_all(
+                    "SELECT id, plano FROM users WHERE id = ANY($1)", _user_ids,
+                )
+                _cafe_curto_users = {
+                    r["id"] for r in _plan_rows if (r["plano"] or "cafe_curto") == "cafe_curto"
+                }
+
                 await generate_mindmap_for_gravacao(best_upload["gravacao_id"])
                 mm_row = await fetch_one(
                     "SELECT mind_map FROM gravacoes WHERE id = $1", best_upload["gravacao_id"],
@@ -344,8 +353,17 @@ async def _process_group(
                         "UPDATE aula_transcripts SET mind_map = $1::jsonb WHERE id = $2",
                         mind_map_val, transcript_id,
                     )
+                    # Clear mind map from best_upload's gravacao if user is cafe_curto
+                    if best_upload["user_id"] in _cafe_curto_users:
+                        await execute_query(
+                            "UPDATE gravacoes SET mind_map = NULL WHERE id = $1",
+                            best_upload["gravacao_id"],
+                        )
+                    # Copy mind map only to non-cafe_curto users
                     for upload in all_uploads:
                         if upload["gravacao_id"] and upload["gravacao_id"] != best_upload["gravacao_id"]:
+                            if upload["user_id"] in _cafe_curto_users:
+                                continue
                             await execute_query(
                                 "UPDATE gravacoes SET mind_map = $1::jsonb WHERE id = $2",
                                 mind_map_val, upload["gravacao_id"],
