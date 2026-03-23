@@ -121,12 +121,12 @@ struct FriendDetailSheet: View {
 
     private func loadShares() async {
         isLoading = true
-        // Load shares from this specific friend (no group_id, sender = friend)
         do {
+            // group_id=none → only direct shares (not via group)
             let all: [SharedItem] = try await APIClient.shared.request(
-                path: APIEndpoints.compartilhamentosReceived
+                path: "\(APIEndpoints.compartilhamentosReceived)?group_id=none"
             )
-            // Filter to only shares from this friend (no group)
+            // Filter to only shares from this friend
             sharedItems = all.filter { $0.sender.nome == friend.nome }
         } catch {
             print("[FriendDetail] Failed to load shares: \(error)")

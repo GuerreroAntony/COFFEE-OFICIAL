@@ -253,7 +253,9 @@ async def list_received_shares(
     params: list = [user_id]
     param_idx = 2
 
-    if group_id:
+    if group_id == "none":
+        query += " AND c.group_id IS NULL"
+    elif group_id:
         from uuid import UUID as UUIDType
         query += f" AND c.group_id = ${param_idx}"
         params.append(UUIDType(group_id))
