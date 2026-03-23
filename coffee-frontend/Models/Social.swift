@@ -9,11 +9,13 @@ struct Friend: Codable, Identifiable {
     let email: String
     let initials: String
     let status: FriendStatus
+    let pendingCount: Int?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, nome, email, initials, status
         case userId = "user_id"
+        case pendingCount = "pending_count"
         case createdAt = "created_at"
     }
 }
@@ -32,6 +34,7 @@ struct SocialGroup: Codable, Identifiable {
     let isAuto: Bool
     let disciplinaId: String?
     let memberCount: Int
+    let pendingCount: Int?
     let members: [GroupMember]?
     let createdAt: Date?
 
@@ -40,6 +43,7 @@ struct SocialGroup: Codable, Identifiable {
         case isAuto = "is_auto"
         case disciplinaId = "disciplina_id"
         case memberCount = "member_count"
+        case pendingCount = "pending_count"
         case createdAt = "created_at"
     }
 }

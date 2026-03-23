@@ -101,6 +101,7 @@
 		DB1E0D36C5D6E7F80B0007 /* SocialService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1E0D31C5D6E7F80B0002 /* SocialService.swift */; };
 		DB1E0D37C5D6E7F80B0008 /* AddFriendSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1E0D32C5D6E7F80B0003 /* AddFriendSheet.swift */; };
 		DB1E0D38C5D6E7F80B0009 /* GroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1E0D33C5D6E7F80B0004 /* GroupDetailView.swift */; };
+		DB2F0A41D7E8F9A10C0001 /* FriendDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2F0A41D7E8F9A10C0002 /* FriendDetailSheet.swift */; };
 		DB1E0D39C5D6E7F80B0010 /* CreateGroupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1E0D34C5D6E7F80B0005 /* CreateGroupSheet.swift */; };
 /* End PBXBuildFile section */
 
@@ -213,6 +214,7 @@
 		DB1E0D31C5D6E7F80B0002 /* SocialService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialService.swift; sourceTree = "<group>"; };
 		DB1E0D32C5D6E7F80B0003 /* AddFriendSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFriendSheet.swift; sourceTree = "<group>"; };
 		DB1E0D33C5D6E7F80B0004 /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
+		DB2F0A41D7E8F9A10C0002 /* FriendDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendDetailSheet.swift; sourceTree = "<group>"; };
 		DB1E0D34C5D6E7F80B0005 /* CreateGroupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateGroupSheet.swift; sourceTree = "<group>"; };
 		DE2206869A659CCD5106F77F /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		E1B2BB73E15F56A56C394FEC /* ProfileScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileScreenView.swift; sourceTree = "<group>"; };
@@ -526,6 +528,7 @@
 				DB1E0D32C5D6E7F80B0003 /* AddFriendSheet.swift */,
 				DB1E0D34C5D6E7F80B0005 /* CreateGroupSheet.swift */,
 				DB1E0D33C5D6E7F80B0004 /* GroupDetailView.swift */,
+				DB2F0A41D7E8F9A10C0002 /* FriendDetailSheet.swift */,
 			);
 			path = Social;
 			sourceTree = "<group>";
@@ -718,6 +721,7 @@
 				DB1E0D36C5D6E7F80B0007 /* SocialService.swift in Sources */,
 				DB1E0D37C5D6E7F80B0008 /* AddFriendSheet.swift in Sources */,
 				DB1E0D38C5D6E7F80B0009 /* GroupDetailView.swift in Sources */,
+				DB2F0A41D7E8F9A10C0001 /* FriendDetailSheet.swift in Sources */,
 				DB1E0D39C5D6E7F80B0010 /* CreateGroupSheet.swift in Sources */,
 				F364F0774F71733FE3D2079B /* SignupScreenView.swift in Sources */,
 				CB1E0D23B4C5D6E7F80A0004 /* SkeletonViews.swift in Sources */,

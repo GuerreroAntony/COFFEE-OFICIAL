@@ -29,6 +29,7 @@ struct DisciplinasScreenView: View {
     @State private var showAddFriend = false
     @State private var showCreateGroup = false
     @State private var selectedGroup: SocialGroup? = nil
+    @State private var selectedFriend: Friend? = nil
 
     // Default styles now live on Discipline.defaultStyles
 
@@ -38,7 +39,11 @@ struct DisciplinasScreenView: View {
         return plano == .black || plano == .trial
     }
 
-    private var socialBadgeCount: Int { sharedItems.filter(\.isNew).count + friendRequests.count }
+    private var socialBadgeCount: Int {
+        let friendPending = friends.compactMap(\.pendingCount).reduce(0, +)
+        let groupPending = groups.compactMap(\.pendingCount).reduce(0, +)
+        return friendPending + groupPending + friendRequests.count
+    }
     private var tabs: [String] { ["Disciplinas", "Outros", "Social\(socialBadgeCount > 0 ? " (\(socialBadgeCount))" : "")"] }
 
     private var dynamicSubtitle: String {
@@ -546,21 +551,35 @@ struct DisciplinasScreenView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
                         ForEach(friends) { friend in
-                            VStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.coffeePrimary.opacity(0.12))
-                                    .frame(width: 52, height: 52)
-                                    .overlay(
-                                        Text(friend.initials)
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundStyle(Color.coffeePrimary)
-                                    )
-                                Text(friend.nome.components(separatedBy: " ").first ?? friend.nome)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Color.coffeeTextSecondary)
-                                    .lineLimit(1)
+                            Button { selectedFriend = friend } label: {
+                                VStack(spacing: 6) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Circle()
+                                            .fill(Color.coffeePrimary.opacity(0.12))
+                                            .frame(width: 52, height: 52)
+                                            .overlay(
+                                                Text(friend.initials)
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundStyle(Color.coffeePrimary)
+                                            )
+                                        if let count = friend.pendingCount, count > 0 {
+                                            Text("\(count)")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .frame(width: 18, height: 18)
+                                                .background(Color.red)
+                                                .clipShape(Circle())
+                                                .offset(x: 4, y: -2)
+                                        }
+                                    }
+                                    Text(friend.nome.components(separatedBy: " ").first ?? friend.nome)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Color.coffeeTextSecondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(width: 64)
                             }
-                            .frame(width: 64)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -622,6 +641,15 @@ struct DisciplinasScreenView: View {
 
                                 Spacer()
 
+                                if let count = group.pendingCount, count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(minWidth: 20, minHeight: 20)
+                                        .background(Color.red)
+                                        .clipShape(Capsule())
+                                }
+
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
@@ -641,27 +669,6 @@ struct DisciplinasScreenView: View {
                 .padding(.bottom, 20)
             }
 
-            // ── Received Shares ──
-            let newItems = sharedItems.filter(\.isNew)
-            let olderItems = sharedItems.filter { !$0.isNew }
-
-            if !sharedItems.isEmpty {
-                CoffeeSectionHeader(title: "Recebidos\(newItems.isEmpty ? "" : " (\(newItems.count))")")
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
-
-                CoffeeCellGroup {
-                    let allItems = newItems + olderItems
-                    ForEach(Array(allItems.enumerated()), id: \.element.id) { index, item in
-                        sharedItemRow(item, isNew: item.isNew)
-                        if index < allItems.count - 1 {
-                            Divider().padding(.leading, 62)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-
             Spacer().frame(height: 20)
         }
         .sheet(isPresented: $showAddFriend) {
@@ -676,6 +683,9 @@ struct DisciplinasScreenView: View {
             NavigationStack {
                 GroupDetailView(groupId: group.id)
             }
+        }
+        .sheet(item: $selectedFriend) { friend in
+            FriendDetailSheet(friend: friend)
         }
     }
 

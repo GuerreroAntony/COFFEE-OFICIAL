@@ -50,14 +50,21 @@ logger = logging.getLogger(__name__)
 
 @router.get("/friends")
 async def list_friends(user_id: UUID = Depends(get_current_user)):
-    """List accepted friends."""
+    """List accepted friends with pending share count."""
     rows = await fetch_all(
         """
         SELECT f.id,
                f.created_at,
                CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END AS other_id,
                u.nome,
-               u.email
+               u.email,
+               COALESCE((
+                   SELECT COUNT(*) FROM compartilhamentos c
+                   WHERE c.recipient_id = $1
+                     AND c.sender_id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
+                     AND c.status = 'pending'
+                     AND c.group_id IS NULL
+               ), 0) AS pending_count
         FROM friends f
         JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
         WHERE (f.requester_id = $1 OR f.addressee_id = $1)
@@ -67,8 +74,9 @@ async def list_friends(user_id: UUID = Depends(get_current_user)):
         user_id,
     )
 
-    friends = [
-        FriendResponse(
+    friends = []
+    for r in rows:
+        d = FriendResponse(
             id=r["id"],
             user_id=r["other_id"],
             nome=r["nome"],
@@ -77,8 +85,9 @@ async def list_friends(user_id: UUID = Depends(get_current_user)):
             status="accepted",
             created_at=r["created_at"],
         ).model_dump(mode="json")
-        for r in rows
-    ]
+        d["pending_count"] = r["pending_count"]
+        friends.append(d)
+
     return success_response(friends)
 
 
@@ -403,11 +412,17 @@ async def search_users(
 
 @router.get("/groups")
 async def list_groups(user_id: UUID = Depends(get_current_user)):
-    """List groups where the current user is a member."""
+    """List groups where the current user is a member, with pending share count."""
     rows = await fetch_all(
         """
         SELECT g.id, g.nome, g.is_auto, g.turma, g.disciplina_id, g.created_at,
-               (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count
+               (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count,
+               COALESCE((
+                   SELECT COUNT(*) FROM compartilhamentos c
+                   WHERE c.group_id = g.id
+                     AND c.recipient_id = $1
+                     AND c.status = 'pending'
+               ), 0) AS pending_count
         FROM groups g
         JOIN group_members gm ON gm.group_id = g.id
         WHERE gm.user_id = $1
@@ -416,8 +431,9 @@ async def list_groups(user_id: UUID = Depends(get_current_user)):
         user_id,
     )
 
-    groups = [
-        GroupResponse(
+    groups = []
+    for r in rows:
+        d = GroupResponse(
             id=r["id"],
             nome=r["nome"],
             is_auto=r["is_auto"],
@@ -427,8 +443,9 @@ async def list_groups(user_id: UUID = Depends(get_current_user)):
             members=None,
             created_at=r["created_at"],
         ).model_dump(mode="json")
-        for r in rows
-    ]
+        d["pending_count"] = r["pending_count"]
+        groups.append(d)
+
     return success_response(groups)
 
 
