@@ -14,6 +14,11 @@ struct LoginScreenView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var highlightSignup = false
+    @State private var showForgotPassword = false
+    @State private var forgotEmail = ""
+    @State private var forgotLoading = false
+    @State private var forgotSuccess = false
+    @State private var forgotError: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,7 +109,12 @@ struct LoginScreenView: View {
             // Forgot password
             HStack {
                 Spacer()
-                Button("Esqueci minha senha") { }
+                Button("Esqueci minha senha") {
+                    forgotEmail = email
+                    forgotError = nil
+                    forgotSuccess = false
+                    showForgotPassword = true
+                }
                     .font(.system(size: 15))
                     .foregroundStyle(Color.coffeePrimary)
             }
@@ -163,6 +173,41 @@ struct LoginScreenView: View {
         .background(Color.coffeeBackground)
         .onTapGesture {
             hideKeyboard()
+        }
+        .alert("Recuperar senha", isPresented: $showForgotPassword) {
+            TextField("Seu e-mail", text: $forgotEmail)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+            Button("Cancelar", role: .cancel) { }
+            Button("Enviar") {
+                Task { await handleForgotPassword() }
+            }
+        } message: {
+            Text("Digite seu e-mail e enviaremos um link para redefinir sua senha.")
+        }
+        .alert("E-mail enviado", isPresented: $forgotSuccess) {
+            Button("OK") { }
+        } message: {
+            Text("Verifique sua caixa de entrada (e spam) para o link de recuperação.")
+        }
+        .alert("Erro", isPresented: Binding(get: { forgotError != nil }, set: { if !$0 { forgotError = nil } })) {
+            Button("OK") { forgotError = nil }
+        } message: {
+            Text(forgotError ?? "")
+        }
+    }
+
+    private func handleForgotPassword() async {
+        let trimmed = forgotEmail.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            forgotError = "Digite seu e-mail."
+            return
+        }
+        do {
+            try await AuthService.forgotPassword(email: trimmed)
+            forgotSuccess = true
+        } catch {
+            forgotError = "Não foi possível enviar o e-mail. Verifique o endereço e tente novamente."
         }
     }
 
