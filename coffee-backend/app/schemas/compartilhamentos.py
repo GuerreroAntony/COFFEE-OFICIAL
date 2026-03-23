@@ -45,6 +45,8 @@ class ReceivedShareItem(BaseModel):
     sender: ReceivedShareSender
     gravacao: ReceivedShareGravacao
     source_discipline: Optional[str] = None
+    source_type: Optional[str] = None
+    source_id: Optional[UUID] = None
     shared_content: list[str]
     message: Optional[str] = None
     status: str  # "pending", "accepted", "rejected"

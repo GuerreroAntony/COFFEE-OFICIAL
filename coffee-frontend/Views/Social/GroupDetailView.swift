@@ -7,7 +7,10 @@ struct SharedRecordingItem: Identifiable {
     let senderName: String
     let summary: String?
     let discipline: String?
+    let date: String?
     let status: String
+    let sourceType: String?
+    let sourceId: String?
     let createdAt: Date?
 }
 
@@ -203,31 +206,46 @@ struct GroupDetailView: View {
 
     private func sharedItemRow(_ item: SharedRecordingItem) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.coffeePrimary.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                Image(systemName: "doc.text")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.coffeePrimary)
+            // Date column
+            VStack(spacing: 1) {
+                if let dateStr = item.date {
+                    let parts = dateStr.prefix(10).split(separator: "-")
+                    if parts.count >= 3 {
+                        Text(String(parts[2]))
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.coffeePrimary)
+                        Text(Self.monthAbbrev(String(parts[1])))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.coffeeTextSecondary)
+                    }
+                } else {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
             }
+            .frame(width: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.senderName)
-                    .font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.discipline ?? item.summary ?? "Gravação")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.coffeeTextPrimary)
                     .lineLimit(1)
-                Text(item.summary ?? item.discipline ?? "Gravação")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text("por")
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                    Text(item.senderName)
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+                .font(.system(size: 12))
+                .lineLimit(1)
             }
 
             Spacer()
 
             if item.status == "pending" {
                 Button {
-                    // Accept will be handled by existing flow
+                    acceptShare(item)
                 } label: {
                     Text("Salvar")
                         .font(.system(size: 12, weight: .semibold))
@@ -374,6 +392,48 @@ struct GroupDetailView: View {
         isLoading = false
     }
 
+    static func monthAbbrev(_ m: String) -> String {
+        switch m {
+        case "01": return "JAN"
+        case "02": return "FEV"
+        case "03": return "MAR"
+        case "04": return "ABR"
+        case "05": return "MAI"
+        case "06": return "JUN"
+        case "07": return "JUL"
+        case "08": return "AGO"
+        case "09": return "SET"
+        case "10": return "OUT"
+        case "11": return "NOV"
+        case "12": return "DEZ"
+        default: return m
+        }
+    }
+
+    private func acceptShare(_ item: SharedRecordingItem) {
+        guard let sourceType = item.sourceType,
+              let sourceId = item.sourceId else {
+            print("[GroupDetail] Missing source info for accept")
+            return
+        }
+        Task {
+            do {
+                let body = AcceptShareRequest(
+                    destinationType: sourceType,
+                    destinationId: sourceId
+                )
+                let _: AcceptShareResponse = try await APIClient.shared.request(
+                    path: APIEndpoints.compartilhamentoAccept(id: item.id),
+                    method: .POST,
+                    body: body
+                )
+                await loadGroupShares()
+            } catch {
+                print("[GroupDetail] Accept failed: \(error)")
+            }
+        }
+    }
+
     private func loadGroupShares() async {
         do {
             let items: [SharedItem] = try await APIClient.shared.request(
@@ -385,7 +445,10 @@ struct GroupDetailView: View {
                     senderName: item.sender.nome,
                     summary: item.gravacao.shortSummary,
                     discipline: item.sourceDiscipline,
+                    date: item.gravacao.date,
                     status: item.status.rawValue,
+                    sourceType: item.sourceType,
+                    sourceId: item.sourceId,
                     createdAt: item.createdAt
                 )
             }

@@ -79,36 +79,53 @@ struct FriendDetailSheet: View {
 
     private func friendShareRow(_ item: SharedItem) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.coffeePrimary.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                Image(systemName: "doc.text")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.coffeePrimary)
+            // Date column
+            VStack(spacing: 1) {
+                let parts = item.gravacao.date.prefix(10).split(separator: "-")
+                if parts.count >= 3 {
+                    Text(String(parts[2]))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.coffeePrimary)
+                    Text(Self.monthAbbrev(String(parts[1])))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                } else {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.coffeePrimary)
+                }
             }
+            .frame(width: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.sender.nome)
-                    .font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.sourceDiscipline)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.coffeeTextPrimary)
                     .lineLimit(1)
-                Text(item.gravacao.shortSummary ?? item.sourceDiscipline)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.coffeeTextSecondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text("por")
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                    Text(item.sender.nome.components(separatedBy: " ").first ?? item.sender.nome)
+                        .foregroundStyle(Color.coffeePrimary)
+                }
+                .font(.system(size: 12))
+                .lineLimit(1)
             }
 
             Spacer()
 
             if item.status == .pending {
-                Text("Salvar")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.coffeePrimary)
-                    .clipShape(Capsule())
+                Button {
+                    acceptShare(item)
+                } label: {
+                    Text("Salvar")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.coffeePrimary)
+                        .clipShape(Capsule())
+                }
             } else {
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .bold))
@@ -117,6 +134,48 @@ struct FriendDetailSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    static func monthAbbrev(_ m: String) -> String {
+        switch m {
+        case "01": return "JAN"
+        case "02": return "FEV"
+        case "03": return "MAR"
+        case "04": return "ABR"
+        case "05": return "MAI"
+        case "06": return "JUN"
+        case "07": return "JUL"
+        case "08": return "AGO"
+        case "09": return "SET"
+        case "10": return "OUT"
+        case "11": return "NOV"
+        case "12": return "DEZ"
+        default: return m
+        }
+    }
+
+    private func acceptShare(_ item: SharedItem) {
+        guard let sourceType = item.sourceType,
+              let sourceId = item.sourceId else {
+            print("[FriendDetail] Missing source info for accept")
+            return
+        }
+        Task {
+            do {
+                let body = AcceptShareRequest(
+                    destinationType: sourceType,
+                    destinationId: sourceId
+                )
+                let _: AcceptShareResponse = try await APIClient.shared.request(
+                    path: APIEndpoints.compartilhamentoAccept(id: item.id),
+                    method: .POST,
+                    body: body
+                )
+                await loadShares()
+            } catch {
+                print("[FriendDetail] Accept failed: \(error)")
+            }
+        }
     }
 
     private func loadShares() async {

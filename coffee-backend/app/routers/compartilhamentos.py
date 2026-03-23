@@ -243,7 +243,9 @@ async def list_received_shares(
                g.duration_seconds,
                g.short_summary,
                g.mind_map IS NOT NULL AS has_mind_map,
-               d.nome AS source_discipline
+               d.nome AS source_discipline,
+               g.source_type AS gravacao_source_type,
+               g.source_id AS gravacao_source_id
         FROM compartilhamentos c
         JOIN users u ON c.sender_id = u.id
         LEFT JOIN gravacoes g ON c.gravacao_id = g.id
@@ -293,6 +295,8 @@ async def list_received_shares(
                 has_mind_map=r["has_mind_map"] or False,
             ),
             source_discipline=r["source_discipline"],
+            source_type=r["gravacao_source_type"],
+            source_id=r["gravacao_source_id"],
             shared_content=shared_content,
             message=r["message"],
             status=r["status"],
