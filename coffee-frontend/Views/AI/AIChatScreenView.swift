@@ -105,7 +105,26 @@ struct AIChatScreenView: View {
     var body: some View {
         ZStack {
             if !PlanAccess.canUseBarista(router.currentUser?.plano) {
-                UpgradeGateView(feature: .barista) { router.showPremiumOffer() }
+                VStack(spacing: 0) {
+                    HStack {
+                        Button {
+                            router.activeTab = .home
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Voltar")
+                                    .font(.system(size: 17))
+                            }
+                            .foregroundStyle(Color.coffeePrimary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    UpgradeGateView(feature: .barista) { router.showPremiumOffer() }
+                }
             } else if showIntro == true {
                 // Clean background while intro is visible — no flash of empty chat
                 Color.coffeeBackground
