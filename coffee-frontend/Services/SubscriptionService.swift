@@ -66,9 +66,40 @@ final class SubscriptionService {
                 return
             }
             
-            // Map RevenueCat packages to SubscriptionPlan
-            // TODO: Configurar ofertas no RevenueCat Dashboard
-            availablePlans = MockData.subscriptionPlans
+            // Map RevenueCat packages to SubscriptionPlan with real prices
+            var mapped: [SubscriptionPlan] = []
+            for mockPlan in MockData.subscriptionPlans {
+                let targetProductID: String
+                switch mockPlan.planId {
+                case "cafe_curto": targetProductID = Self.cafeCurtoProductID
+                case "cafe_com_leite": targetProductID = Self.cafeComLeiteProductID
+                case "black": targetProductID = Self.blackProductID
+                default: continue
+                }
+                
+                if let package = currentOffering.availablePackages.first(where: {
+                    $0.storeProduct.productIdentifier == targetProductID
+                }) {
+                    let realPrice = package.storeProduct.price as Decimal
+                    mapped.append(SubscriptionPlan(
+                        id: mockPlan.id,
+                        planId: mockPlan.planId,
+                        name: mockPlan.name,
+                        price: NSDecimalNumber(decimal: realPrice).doubleValue,
+                        originalPrice: mockPlan.originalPrice,
+                        isPromo: mockPlan.isPromo,
+                        features: mockPlan.features,
+                        isHighlighted: mockPlan.isHighlighted,
+                        badge: mockPlan.badge
+                    ))
+                } else {
+                    mapped.append(mockPlan)
+                }
+            }
+            
+            if !mapped.isEmpty {
+                availablePlans = mapped
+            }
             print("✅ Produtos carregados do RevenueCat: \(currentOffering.availablePackages.count) pacotes")
         } catch {
             print("❌ Erro ao carregar produtos: \(error)")
@@ -126,23 +157,21 @@ final class SubscriptionService {
 
     // MARK: - Start Free Trial (7 dias grátis do plano Black)
 
-    /// Activate 7-day free trial with Black limits
-    func startFreeTrial() async {
-        // Mock: instantly activate with trial limits (= Black)
-        try? await Task.sleep(for: .seconds(0.8))
-        isSubscribed = true
+    /// Activate 7-day free trial via RevenueCat (Introductory Offer on Black plan)
+    func startFreeTrial() async throws {
+        guard let blackPlan = availablePlans.first(where: { $0.planId == "black" }) else {
+            throw NSError(domain: "SubscriptionService", code: -3,
+                         userInfo: [NSLocalizedDescriptionKey: "Plano Black não encontrado"])
+        }
+        let _ = try await purchase(plan: blackPlan)
         hasUsedTrial = true
-        userPlan = .trial
     }
 
     // MARK: - Cancel Subscription
 
-    /// Cancel the current subscription — locks premium features immediately
-    func cancelSubscription() {
-        isSubscribed = false
-        currentPlan = nil
-        userPlan = .expired
-        hasUsedTrial = true
+    /// Cancel the current subscription — opens Apple subscription management
+    func cancelSubscription() async {
+        await manageSubscription()
     }
 
     // MARK: - Restore Purchases

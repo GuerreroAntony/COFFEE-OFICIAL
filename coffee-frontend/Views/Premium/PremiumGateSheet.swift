@@ -458,7 +458,7 @@ struct PremiumGateSheet: View {
     private func handleFreeTrial() {
         isStartingTrial = true
         Task {
-            await subscription.startFreeTrial()
+            let _ = try? await subscription.startFreeTrial()
             isStartingTrial = false
             if subscription.isPremium { dismiss() }
         }
@@ -477,9 +477,15 @@ struct PremiumGateSheet: View {
     private func handleApplyCode() {
         let code = promoCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty else { return }
-        let validCodes = ["COFFEE2026", "ESPM", "BARISTA", "AMIGO"]
-        withAnimation {
-            codeStatus = validCodes.contains(code) ? .valid : .invalid
+        Task {
+            do {
+                let response = try await subscription.validateGiftCode(code)
+                withAnimation {
+                    codeStatus = response.valid ? .valid : .invalid
+                }
+            } catch {
+                withAnimation { codeStatus = .invalid }
+            }
         }
     }
 }

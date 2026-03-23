@@ -313,7 +313,7 @@ struct ProfileScreenView: View {
             }
             .sheet(isPresented: $showCancellation) {
                 CancellationView(onCancelled: {
-                    subscription.cancelSubscription()
+                    Task { await subscription.cancelSubscription() }
                 })
             }
             .sheet(isPresented: $showPlanSheet) {

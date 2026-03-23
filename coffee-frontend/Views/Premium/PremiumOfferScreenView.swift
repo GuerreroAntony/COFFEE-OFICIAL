@@ -541,7 +541,7 @@ struct PremiumOfferScreenView: View {
     private func handleStartTrial() {
         isStartingTrial = true
         Task {
-            await subscription.startFreeTrial()
+            let _ = try? await subscription.startFreeTrial()
             isStartingTrial = false
             if let user = router.currentUser {
                 router.login(user: user)
@@ -564,12 +564,15 @@ struct PremiumOfferScreenView: View {
     private func handleApplyCode() {
         let code = promoCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty else { return }
-
-        let validCodes = ["COFFEE2026", "ESPM", "BARISTA", "AMIGO"]
-        if validCodes.contains(code) {
-            withAnimation { codeStatus = .valid }
-        } else {
-            withAnimation { codeStatus = .invalid }
+        Task {
+            do {
+                let response = try await subscription.validateGiftCode(code)
+                withAnimation {
+                    codeStatus = response.valid ? .valid : .invalid
+                }
+            } catch {
+                withAnimation { codeStatus = .invalid }
+            }
         }
     }
 }
