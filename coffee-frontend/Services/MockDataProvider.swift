@@ -265,6 +265,8 @@ enum MockData {
                 hasMindMap: true
             ),
             sourceDiscipline: "Gestão de Marketing",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-1",
             sharedContent: ["resumo", "mapa"],
             message: "Olha o resumo da aula que você perdeu!",
             status: .pending,
@@ -282,6 +284,8 @@ enum MockData {
                 hasMindMap: false
             ),
             sourceDiscipline: "Finanças I",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-2",
             sharedContent: ["resumo"],
             message: nil,
             status: .pending,
@@ -299,6 +303,8 @@ enum MockData {
                 hasMindMap: false
             ),
             sourceDiscipline: "Gestão de Marketing",
+            sourceType: "disciplina",
+            sourceId: "mock-disc-1",
             sharedContent: ["resumo"],
             message: "Resumo da prova!",
             status: .pending,

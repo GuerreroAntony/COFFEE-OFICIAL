@@ -27,7 +27,7 @@ struct DisciplinasScreenView: View {
     @State private var friendRequests: [Friend] = []
     @State private var groups: [SocialGroup] = []
     @State private var showAddFriend = false
-    @State private var showCreateGroup = false
+    // @State private var showCreateGroup = false  // Groups disabled for now
     @State private var selectedGroup: SocialGroup? = nil
     @State private var selectedFriend: Friend? = nil
 
@@ -41,8 +41,7 @@ struct DisciplinasScreenView: View {
 
     private var socialBadgeCount: Int {
         let friendPending = friends.compactMap(\.pendingCount).reduce(0, +)
-        let groupPending = groups.compactMap(\.pendingCount).reduce(0, +)
-        return friendPending + groupPending + friendRequests.count
+        return friendPending + friendRequests.count
     }
     private var tabs: [String] { ["Disciplinas", "Outros", "Social\(socialBadgeCount > 0 ? " (\(socialBadgeCount))" : "")"] }
 
@@ -569,9 +568,10 @@ struct DisciplinasScreenView: View {
                                                 .frame(width: 18, height: 18)
                                                 .background(Color.red)
                                                 .clipShape(Circle())
-                                                .offset(x: 4, y: -2)
                                         }
                                     }
+                                    .padding(.top, 2)
+                                    .padding(.trailing, 2)
                                     Text(friend.nome.components(separatedBy: " ").first ?? friend.nome)
                                         .font(.system(size: 11))
                                         .foregroundStyle(Color.coffeeTextSecondary)
@@ -587,105 +587,14 @@ struct DisciplinasScreenView: View {
                 .padding(.bottom, 16)
             }
 
-            // ── Groups ──
-            HStack {
-                CoffeeSectionHeader(title: "Grupos\(groups.isEmpty ? "" : " (\(groups.count))")")
-                Spacer()
-                Button { showCreateGroup = true } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.coffeePrimary)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-
-            if groups.isEmpty {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 6) {
-                        Image(systemName: "person.3")
-                            .font(.system(size: 28))
-                            .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
-                        Text("Grupos de turma aparecem ao conectar a ESPM")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.coffeeTextSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    Spacer()
-                }
-                .padding(.vertical, 16)
-            } else {
-                CoffeeCellGroup {
-                    ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                        Button { selectedGroup = group } label: {
-                            HStack(spacing: 14) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(group.isAuto ? Color.coffeePrimary.opacity(0.1) : Color.coffeeTextSecondary.opacity(0.08))
-                                        .frame(width: 44, height: 44)
-                                    Image(systemName: group.isAuto ? "graduationcap.fill" : "person.3.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundStyle(group.isAuto ? Color.coffeePrimary : Color.coffeeTextSecondary)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(group.nome)
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundStyle(Color.coffeeTextPrimary)
-                                        .lineLimit(1)
-                                    Text("\(group.memberCount) membro\(group.memberCount == 1 ? "" : "s")")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Color.coffeeTextSecondary)
-                                }
-
-                                Spacer()
-
-                                if let count = group.pendingCount, count > 0 {
-                                    Text("\(count)")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .frame(minWidth: 20, minHeight: 20)
-                                        .background(Color.red)
-                                        .clipShape(Capsule())
-                                }
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.coffeeTextSecondary.opacity(0.4))
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if index < groups.count - 1 {
-                            Divider().padding(.leading, 74)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
-            }
-
             Spacer().frame(height: 20)
         }
         .sheet(isPresented: $showAddFriend) {
             AddFriendSheet()
         }
-        .sheet(isPresented: $showCreateGroup) {
-            CreateGroupSheet { _ in
-                Task { groups = (try? await SocialService.getGroups()) ?? groups }
-            }
-        }
-        .sheet(item: $selectedGroup) { group in
-            NavigationStack {
-                GroupDetailView(groupId: group.id)
-            }
-        }
         .sheet(item: $selectedFriend) { friend in
             FriendDetailSheet(friend: friend)
+                .onDisappear { Task { await loadSocialData() } }
         }
     }
 
