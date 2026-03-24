@@ -111,9 +111,14 @@ struct LoginScreenView: View {
             HStack {
                 Spacer()
                 Button("Esqueci minha senha") {
-                    forgotEmail = email
                     forgotError = nil
                     forgotSuccess = false
+                    let trimmed = email.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty, trimmed.contains("@") else {
+                        forgotError = "Digite seu e-mail no campo acima primeiro."
+                        return
+                    }
+                    forgotEmail = trimmed
                     showForgotPassword = true
                 }
                     .font(.system(size: 15))
@@ -176,15 +181,12 @@ struct LoginScreenView: View {
             hideKeyboard()
         }
         .alert("Recuperar senha", isPresented: $showForgotPassword) {
-            TextField("Seu e-mail", text: $forgotEmail)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
             Button("Cancelar", role: .cancel) { }
-            Button("Enviar") {
+            Button("Enviar para \(forgotEmail)") {
                 Task { await handleForgotPassword() }
             }
         } message: {
-            Text("Digite seu e-mail e enviaremos um link para redefinir sua senha.")
+            Text("Enviaremos um código de recuperação para:\n\(forgotEmail)")
         }
         .alert("Código enviado", isPresented: $forgotSuccess) {
             Button("Digitar código") { showResetPassword = true }
