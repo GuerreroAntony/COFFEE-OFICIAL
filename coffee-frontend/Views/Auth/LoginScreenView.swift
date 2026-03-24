@@ -298,9 +298,9 @@ struct ResetPasswordView: View {
                         HStack {
                             Group {
                                 if showPassword {
-                                    TextField("Mínimo 6 caracteres", text: $newPassword)
+                                    TextField("Mínimo 8 caracteres", text: $newPassword)
                                 } else {
-                                    SecureField("Mínimo 6 caracteres", text: $newPassword)
+                                    SecureField("Mínimo 8 caracteres", text: $newPassword)
                                 }
                             }
                             .font(.coffeeBody)
@@ -396,8 +396,8 @@ struct ResetPasswordView: View {
             errorMessage = "Digite o código de 6 dígitos."
             return
         }
-        guard newPassword.count >= 6 else {
-            errorMessage = "A senha deve ter no mínimo 6 caracteres."
+        guard newPassword.count >= 8 else {
+            errorMessage = "A senha deve ter no mínimo 8 caracteres."
             return
         }
         guard newPassword == confirmPassword else {
@@ -409,8 +409,17 @@ struct ResetPasswordView: View {
             do {
                 try await AuthService.resetPassword(email: email, code: trimmedCode, newPassword: newPassword)
                 isSuccess = true
+            } catch let error as APIError {
+                switch error {
+                case .invalidCode:
+                    errorMessage = "Código inválido ou expirado. Tente novamente."
+                case .validationError(let msg):
+                    errorMessage = msg
+                default:
+                    errorMessage = error.localizedDescription ?? "Erro ao redefinir senha."
+                }
             } catch {
-                errorMessage = "Código inválido ou expirado. Tente novamente."
+                errorMessage = "Erro de conexão. Tente novamente."
             }
             isLoading = false
         }

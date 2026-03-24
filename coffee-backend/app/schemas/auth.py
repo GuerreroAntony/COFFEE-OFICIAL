@@ -11,20 +11,20 @@ class SignupRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     gift_code: Optional[str] = None
 
-    @field_validator("email")
+    @field_validator("email", mode="before")
     @classmethod
     def normalize_email(cls, v: str) -> str:
-        return v.lower()
+        return v.strip().lower()
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-    @field_validator("email")
+    @field_validator("email", mode="before")
     @classmethod
     def normalize_email(cls, v: str) -> str:
-        return v.lower()
+        return v.strip().lower()
 
 
 class LogoutRequest(BaseModel):
@@ -34,11 +34,21 @@ class LogoutRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
+
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
     code: str = Field(min_length=6, max_length=6)
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class UserResponse(BaseModel):
