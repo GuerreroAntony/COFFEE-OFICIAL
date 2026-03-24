@@ -58,30 +58,31 @@ struct CalendarioScreenView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Nav bar
-            navBar
+        ZStack {
+            VStack(spacing: 0) {
+                // Nav bar
+                navBar
 
-            // Calendar view (week strip or month grid)
-            if viewMode == .week {
-                CalendarWeekStripView(
-                    selectedDate: $selectedDate,
-                    events: events,
-                    onDateSelected: { date in
-                        selectedDate = date
-                    }
-                )
-            } else {
-                CalendarMonthGridView(
-                    selectedDate: $selectedDate,
-                    events: events,
-                    onDateSelected: { date in
-                        selectedDate = date
-                    }
-                )
-            }
+                // Calendar view (week strip or month grid)
+                if viewMode == .week {
+                    CalendarWeekStripView(
+                        selectedDate: $selectedDate,
+                        events: events,
+                        onDateSelected: { date in
+                            selectedDate = date
+                        }
+                    )
+                } else {
+                    CalendarMonthGridView(
+                        selectedDate: $selectedDate,
+                        events: events,
+                        onDateSelected: { date in
+                            selectedDate = date
+                        }
+                    )
+                }
 
-            Divider()
+                Divider()
 
             // Sync message toast
             if let msg = lastSyncMessage {
@@ -210,6 +211,22 @@ struct CalendarioScreenView: View {
         }
         .task {
             await loadData()
+        }
+            
+            // Loading overlay (initial load only)
+            if isLoading && events.isEmpty {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(Color.coffeePrimary)
+                    
+                    Text("Carregando calendário...")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.coffeeTextSecondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.coffeeBackground)
+            }
         }
     }
 
