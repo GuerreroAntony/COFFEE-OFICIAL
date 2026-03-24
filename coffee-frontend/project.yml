@@ -48,6 +48,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: br.com.mdwbravo.coffee
         SWIFT_VERSION: "5.9"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_CFBundleDisplayName: coffee
@@ -56,28 +58,13 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_NSSupportsLiveActivities: true
         INFOPLIST_KEY_UIBackgroundModes: audio
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
-      - target: CoffeeWidgets
       - package: MarkdownUI
       - package: RevenueCat
         product: RevenueCat
 
-  CoffeeWidgets:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: CoffeeWidgets
-        excludes:
-          - Info.plist
-          - "*.entitlements"
-      - path: Audio/RecordingActivity.swift
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: br.com.mdwbravo.coffee.CoffeeWidgets
-        SWIFT_VERSION: "5.9"
-        INFOPLIST_FILE: CoffeeWidgets/Info.plist
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
-        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
-        # CODE_SIGN_ENTITLEMENTS removed — App Groups not needed yet
+  # CoffeeWidgets temporariamente removido para App Store submission
+  # Será re-adicionado após aprovação inicial
