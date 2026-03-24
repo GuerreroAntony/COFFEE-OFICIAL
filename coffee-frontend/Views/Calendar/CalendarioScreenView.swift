@@ -64,7 +64,25 @@ struct CalendarioScreenView: View {
                 navBar
 
                 // Calendar view (week strip or month grid)
-                if viewMode == .week {
+                if isLoading && events.isEmpty {
+                    // Skeleton during initial load
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            ForEach(0..<7) { _ in
+                                VStack(spacing: 6) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.coffeeTextSecondary.opacity(0.15))
+                                        .frame(height: 12)
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.coffeeTextSecondary.opacity(0.15))
+                                        .frame(height: 44)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                } else if viewMode == .week {
                     CalendarWeekStripView(
                         selectedDate: $selectedDate,
                         events: events,
