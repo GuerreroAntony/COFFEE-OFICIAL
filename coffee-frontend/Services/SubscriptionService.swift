@@ -52,6 +52,33 @@ final class SubscriptionService {
         let trialValid = user.plano == .trial && (user.trialEnd ?? .distantPast) > Date()
         isSubscribed = user.subscriptionActive || user.plano.isPaid || trialValid
         hasUsedTrial = user.plano != .trial
+
+        // Immediately check RevenueCat for real subscription state
+        Task { await syncWithRevenueCat() }
+    }
+
+    /// Check RevenueCat for active subscriptions and update plan accordingly.
+    /// This overrides backend plan when RevenueCat has a real subscription.
+    func syncWithRevenueCat() async {
+        do {
+            let customerInfo = try await Purchases.shared.customerInfo()
+            let active = customerInfo.activeSubscriptions
+
+            if !active.isEmpty {
+                isSubscribed = true
+                hasUsedTrial = true
+
+                if active.contains(Self.blackProductID) {
+                    userPlan = .black
+                } else if active.contains(Self.cafeComLeiteProductID) {
+                    userPlan = .cafeComLeite
+                } else if active.contains(Self.cafeCurtoProductID) {
+                    userPlan = .cafeCurto
+                }
+            }
+        } catch {
+            print("⚠️ Erro ao sincronizar com RevenueCat: \(error)")
+        }
     }
 
     // MARK: - Load Products
