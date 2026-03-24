@@ -581,6 +581,10 @@ struct LinkESPMScreenView: View {
                 withAnimation { connectStep = 2 }
                 try? await Task.sleep(for: .seconds(0.8))
 
+                // Update user state so profile shows connected immediately
+                router.currentUser?.espmConnected = true
+                router.currentUser?.espmLogin = userEmail
+
                 withAnimation {
                     showAutomationOverlay = false
                     phase = .success(response.disciplinasFound)

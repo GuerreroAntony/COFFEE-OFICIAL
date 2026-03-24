@@ -16,6 +16,8 @@ struct ProfileScreenView: View {
     @State private var profile: UserProfile? = nil
     @State private var espmStatus: ESPMStatus? = nil
     @State private var isLoading = true
+    @State private var showDisconnectESPM = false
+    @State private var isDisconnecting = false
 
     private var userName: String {
         router.currentUser?.nome ?? profile?.nome ?? "Aluno"
@@ -165,15 +167,15 @@ struct ProfileScreenView: View {
                             subtitle: nil,
                             trailing: .text((router.currentUser?.espmConnected ?? false) ? "Conectado" : "Desconectado")
                         )
-                        if let login = router.currentUser?.espmLogin {
+                        if let login = router.currentUser?.espmLogin, router.currentUser?.espmConnected == true {
                             CoffeeCell(
                                 icon: "person.text.rectangle.fill",
-                                title: "Matrícula",
+                                title: "Conta",
                                 subtitle: nil,
                                 trailing: .text(login)
                             )
                         }
-                        if let expiresAt = espmStatus?.tokenExpiresAt {
+                        if let expiresAt = espmStatus?.tokenExpiresAt, router.currentUser?.espmConnected == true {
                             let daysLeft = max(0, Calendar.current.dateComponents([.day], from: Date(), to: expiresAt).day ?? 0)
                             CoffeeCell(
                                 icon: "key.fill",
@@ -182,6 +184,37 @@ struct ProfileScreenView: View {
                                 trailing: .text(daysLeft > 0 ? "Expira em \(daysLeft) dias" : "Expirado")
                             )
 
+                            if daysLeft <= 7 {
+                                Button {
+                                    dismiss()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        router.showLinkESPM = true
+                                    }
+                                } label: {
+                                    CoffeeCell(
+                                        icon: "arrow.triangle.2.circlepath",
+                                        title: "Reconectar ESPM",
+                                        subtitle: daysLeft <= 0 ? "Token expirado" : "Expira em breve",
+                                        trailing: .chevron
+                                    )
+                                }
+                                .buttonStyle(CoffeeCellButtonStyle())
+                            }
+                        }
+                        if router.currentUser?.espmConnected == true {
+                            Button {
+                                showDisconnectESPM = true
+                            } label: {
+                                CoffeeCell(
+                                    icon: "xmark.circle.fill",
+                                    title: "Desconectar ESPM",
+                                    subtitle: nil,
+                                    trailing: isDisconnecting ? .custom(ProgressView().tint(Color.coffeePrimary)) : .chevron
+                                )
+                            }
+                            .buttonStyle(CoffeeCellButtonStyle())
+                            .disabled(isDisconnecting)
+                        } else {
                             Button {
                                 dismiss()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -189,15 +222,13 @@ struct ProfileScreenView: View {
                                 }
                             } label: {
                                 CoffeeCell(
-                                    icon: "arrow.triangle.2.circlepath",
-                                    title: "Reconectar ESPM",
-                                    subtitle: daysLeft <= 0 ? "Token expirado" : daysLeft <= 7 ? "Expira em breve" : nil,
+                                    icon: "link",
+                                    title: "Conectar ESPM",
+                                    subtitle: "Vincular conta do Canvas",
                                     trailing: .chevron
                                 )
                             }
                             .buttonStyle(CoffeeCellButtonStyle())
-                            .disabled(daysLeft > 7)
-                            .opacity(daysLeft <= 7 ? 1 : 0.4)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -329,6 +360,25 @@ struct ProfileScreenView: View {
                 }
             } message: {
                 Text("Tem certeza que deseja excluir sua conta? Esta ação é irreversível.")
+            }
+            .alert("Desconectar ESPM", isPresented: $showDisconnectESPM) {
+                Button("Cancelar", role: .cancel) { }
+                Button("Desconectar", role: .destructive) {
+                    Task {
+                        isDisconnecting = true
+                        do {
+                            try await DisciplineService.disconnectESPM()
+                            router.currentUser?.espmConnected = false
+                            router.currentUser?.espmLogin = nil
+                            espmStatus = nil
+                        } catch {
+                            print("❌ Erro ao desconectar ESPM: \(error)")
+                        }
+                        isDisconnecting = false
+                    }
+                }
+            } message: {
+                Text("Suas disciplinas e materiais importados serão removidos. Deseja continuar?")
             }
             .task { await loadProfile() }
         }

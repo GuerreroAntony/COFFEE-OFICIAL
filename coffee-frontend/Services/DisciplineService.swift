@@ -147,7 +147,7 @@ enum DisciplineService {
             return
         }
 
-        let _: EmptyData = try await APIClient.shared.request(
+        try await APIClient.shared.requestVoid(
             path: APIEndpoints.espmDisconnect,
             method: .POST
         )
