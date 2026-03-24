@@ -118,6 +118,45 @@ final class APIClient: @unchecked Sendable {
         }
     }
 
+    // MARK: - Void Request (for endpoints that return data: null)
+
+    func requestVoid(
+        path: String,
+        method: HTTPMethod = .GET,
+        body: Encodable? = nil,
+        authenticated: Bool = true
+    ) async throws {
+        let request = try buildRequest(
+            path: path,
+            method: method,
+            body: body,
+            authenticated: authenticated
+        )
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.unknown("Resposta invalida")
+        }
+
+        if httpResponse.statusCode == 426 {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .forceUpdateRequired, object: nil)
+            }
+            throw APIError.updateRequired
+        }
+
+        if httpResponse.statusCode >= 400 {
+            if let errorResponse = try? decoder.decode(APIResponse<EmptyData>.self, from: data) {
+                throw APIError.from(
+                    code: errorResponse.error ?? "UNKNOWN",
+                    message: errorResponse.message
+                )
+            }
+            throw APIError.unknown("Erro HTTP \(httpResponse.statusCode)")
+        }
+    }
+
     // MARK: - Paginated Request
 
     func paginatedRequest<T: Decodable>(

@@ -17,7 +17,7 @@ enum AuthService {
             return response
         }
 
-        let body = LoginRequest(email: email, password: password)
+        let body = LoginRequest(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), password: password)
         let auth: AuthResponse = try await APIClient.shared.request(
             path: APIEndpoints.login,
             method: .POST,
@@ -73,8 +73,8 @@ enum AuthService {
             return
         }
 
-        let body = ForgotPasswordRequest(email: email)
-        let _: EmptyData = try await APIClient.shared.request(
+        let body = ForgotPasswordRequest(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        try await APIClient.shared.requestVoid(
             path: APIEndpoints.forgotPassword,
             method: .POST,
             body: body,
@@ -90,8 +90,8 @@ enum AuthService {
             return
         }
 
-        let body = ResetPasswordRequest(email: email, code: code, newPassword: newPassword)
-        let _: EmptyData = try await APIClient.shared.request(
+        let body = ResetPasswordRequest(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), code: code, newPassword: newPassword)
+        try await APIClient.shared.requestVoid(
             path: APIEndpoints.resetPassword,
             method: .POST,
             body: body,
