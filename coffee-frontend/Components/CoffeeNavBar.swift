@@ -171,28 +171,32 @@ struct CoffeeLargeTitleHeader: View {
             badgeCapsule(
                 icon: "cup.and.saucer",
                 text: "Café Curto",
-                color: Color.coffeePrimaryLight
+                fgColor: Color(hex: "D4A574"),
+                bgColor: Color(hex: "6F4E37")
             )
 
         case .cafeComLeite:
             badgeCapsule(
                 icon: "cup.and.saucer.fill",
                 text: "Café com Leite",
-                color: Color.coffeePrimaryLight
+                fgColor: Color(hex: "F5E6D0"),
+                bgColor: Color(hex: "C4A882")
             )
 
         case .black:
             badgeCapsule(
                 icon: "flame.fill",
                 text: "Black",
-                color: Color.coffeePrimaryLight
+                fgColor: Color(hex: "FFD700"),
+                bgColor: Color(hex: "1A1008")
             )
 
         case .trial:
             badgeCapsule(
                 icon: nil,
                 text: trialDaysText,
-                color: Color.coffeeWarning,
+                fgColor: Color.coffeeWarning,
+                bgColor: Color.coffeeWarning,
                 showDot: true
             )
 
@@ -200,17 +204,18 @@ struct CoffeeLargeTitleHeader: View {
             badgeCapsule(
                 icon: nil,
                 text: "Expirado",
-                color: Color.coffeeDanger,
+                fgColor: Color.coffeeDanger,
+                bgColor: Color.coffeeDanger,
                 showDot: true
             )
         }
     }
 
-    private func badgeCapsule(icon: String?, text: String, color: Color, showDot: Bool = false) -> some View {
+    private func badgeCapsule(icon: String?, text: String, fgColor: Color, bgColor: Color, showDot: Bool = false) -> some View {
         HStack(spacing: 5) {
             if showDot {
                 Circle()
-                    .fill(color)
+                    .fill(fgColor)
                     .frame(width: 6, height: 6)
             }
             if let icon {
@@ -220,10 +225,10 @@ struct CoffeeLargeTitleHeader: View {
             Text(text)
                 .font(.system(size: 11, weight: .bold))
         }
-        .foregroundStyle(color)
+        .foregroundStyle(fgColor)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(Color.white.opacity(0.15))
+        .background(bgColor.opacity(0.35))
         .clipShape(Capsule())
     }
 

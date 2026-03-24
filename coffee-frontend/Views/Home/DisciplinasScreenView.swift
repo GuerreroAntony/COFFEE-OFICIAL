@@ -6,6 +6,7 @@ import SwiftUI
 
 struct DisciplinasScreenView: View {
     @Environment(\.router) private var router
+    @Environment(\.subscriptionService) private var subscriptionService
 
     @State private var activeTab = 0
     @State private var disciplines: [Discipline] = []
@@ -81,7 +82,7 @@ struct DisciplinasScreenView: View {
                 CoffeeLargeTitleHeader(
                     greeting: "Olá, \((router.currentUser?.nome ?? "Aluno").components(separatedBy: " ").first ?? "Aluno")",
                     subtitle: dynamicSubtitle,
-                    planStatus: router.currentUser?.plano,
+                    planStatus: subscriptionService.userPlan,
                     trialEnd: router.currentUser?.trialEnd,
                     onCalendarTap: calendarAvailable ? {
                         if PlanAccess.canUseCalendar(plano) {
