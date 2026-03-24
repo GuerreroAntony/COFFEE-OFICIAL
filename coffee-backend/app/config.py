@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
+    # SendGrid (HTTP API — works even when SMTP ports are blocked)
+    SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: str = "contato@mdwbravo.com.br"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
