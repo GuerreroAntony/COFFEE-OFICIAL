@@ -20,6 +20,8 @@ async def smtp_check():
     """Temporary debug endpoint to check SMTP config. Remove after verifying."""
     from app.config import settings
     return success_response({
+        "sendgrid_configured": bool(settings.SENDGRID_API_KEY),
+        "sendgrid_from": settings.SENDGRID_FROM_EMAIL,
         "smtp_host": settings.SMTP_HOST or "(empty)",
         "smtp_port": settings.SMTP_PORT,
         "smtp_user": settings.SMTP_USER or "(empty)",
