@@ -114,7 +114,7 @@ struct ProfileScreenView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 14)
                             // Barista usage bar (hidden for plans without Barista access)
-                            if PlanAccess.canUseBarista(router.currentUser?.plano), let barista = usage.baristaUsage {
+                            if PlanAccess.canUseBarista(subscription.userPlan), let barista = usage.baristaUsage {
                                 VStack(spacing: 10) {
                                     HStack {
                                         Image(systemName: "sparkles")

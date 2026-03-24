@@ -66,6 +66,7 @@ enum AIModeOption: String, CaseIterable, Identifiable {
 
 struct AIChatScreenView: View {
     @Environment(\.router) private var router
+    @Environment(\.subscriptionService) private var subscriptionService
 
     @State private var messages: [ChatBubbleItem] = []
     @State private var input = ""
@@ -104,7 +105,7 @@ struct AIChatScreenView: View {
 
     var body: some View {
         ZStack {
-            if !PlanAccess.canUseBarista(router.currentUser?.plano) {
+            if !PlanAccess.canUseBarista(subscriptionService.userPlan) {
                 VStack(spacing: 0) {
                     HStack {
                         Button {

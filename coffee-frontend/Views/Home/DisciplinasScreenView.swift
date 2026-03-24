@@ -37,7 +37,7 @@ struct DisciplinasScreenView: View {
     /// Calendar icon is always visible; access is gated via PlanAccess
     private var calendarAvailable: Bool { true }
 
-    private var plano: UserPlan? { router.currentUser?.plano }
+    private var plano: UserPlan? { subscriptionService.userPlan }
 
     private var socialBadgeCount: Int {
         let friendPending = friends.compactMap(\.pendingCount).reduce(0, +)

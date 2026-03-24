@@ -696,13 +696,13 @@ struct RecordingDetailSheet: View {
 
                 // Share button (gated by plan)
                 Button {
-                    if PlanAccess.canShare(router.currentUser?.plano) {
+                    if PlanAccess.canShare(subscriptionService.userPlan) {
                         showShareSheet = true
                     } else {
                         router.showPremiumOffer()
                     }
                 } label: {
-                    Image(systemName: PlanAccess.canShare(router.currentUser?.plano) ? "square.and.arrow.up" : "lock.fill")
+                    Image(systemName: PlanAccess.canShare(subscriptionService.userPlan) ? "square.and.arrow.up" : "lock.fill")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.coffeePrimary)
                         .frame(width: 36, height: 36)
@@ -833,7 +833,7 @@ struct RecordingDetailSheet: View {
 
     private func mindMapView(_ detail: RecordingDetail) -> some View {
         Group {
-            if !PlanAccess.canUseMindMap(router.currentUser?.plano) {
+            if !PlanAccess.canUseMindMap(subscriptionService.userPlan) {
                 UpgradeGateView(feature: .mindMap) { router.showPremiumOffer() }
                     .frame(minHeight: 300)
                     .padding(.horizontal, 16)
