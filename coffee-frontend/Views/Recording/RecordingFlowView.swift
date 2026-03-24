@@ -643,6 +643,26 @@ struct RecordingStoppedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Back button
+            HStack {
+                Button {
+                    onDiscard()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .medium))
+                        Text("Voltar")
+                            .font(.system(size: 17))
+                    }
+                    .foregroundStyle(Color.coffeePrimary)
+                }
+                .disabled(isSaving)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.coffeeCardBackground)
+            
             ScrollView {
                 VStack(spacing: 0) {
                     successHeader
