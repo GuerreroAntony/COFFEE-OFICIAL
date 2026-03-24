@@ -25,8 +25,6 @@ struct CalendarioScreenView: View {
     @State private var disciplines: [Discipline] = []
     @State private var lastSyncMessage: String? = nil
     @State private var viewMode: CalendarViewMode = .week
-    @AppStorage("hasLoadedCalendarOnce") private var hasLoadedCalendarOnce = false
-    @State private var showFirstLoadBanner = false
 
     private let calendar = Calendar.current
 
@@ -104,8 +102,8 @@ struct CalendarioScreenView: View {
 
                 Divider()
 
-            // First load banner
-            if showFirstLoadBanner && !hasLoadedCalendarOnce {
+            // Loading banner (shown when loading without cached data)
+            if isLoading && events.isEmpty {
                 HStack(spacing: 10) {
                     ProgressView()
                         .scaleEffect(0.9)
@@ -113,7 +111,7 @@ struct CalendarioScreenView: View {
                         Text("Carregando eventos do Canvas...")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.coffeeTextPrimary)
-                        Text("Primeira sincronização pode levar alguns minutos")
+                        Text("Isso pode levar alguns minutos")
                             .font(.system(size: 12))
                             .foregroundStyle(Color.coffeeTextSecondary)
                     }
@@ -380,10 +378,6 @@ struct CalendarioScreenView: View {
             isLoading = false
         } else {
             isLoading = true
-            // Show first load banner if never loaded before
-            if !hasLoadedCalendarOnce {
-                showFirstLoadBanner = true
-            }
         }
 
         // Request notification permission
@@ -398,8 +392,6 @@ struct CalendarioScreenView: View {
         // Cache fresh events
         cache.set("calendar_events", data: events)
         isLoading = false
-        showFirstLoadBanner = false
-        hasLoadedCalendarOnce = true
 
         // Schedule local notifications for upcoming events
         scheduleLocalNotifications()
