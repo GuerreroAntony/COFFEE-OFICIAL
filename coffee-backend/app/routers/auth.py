@@ -167,7 +167,9 @@ async def forgot_password(body: ForgotPasswordRequest):
             code_hash, expires, user["id"],
         )
 
-        await send_password_reset_email(body.email, code)
+        # Fire-and-forget: don't block the HTTP response waiting for SMTP
+        import asyncio
+        asyncio.create_task(send_password_reset_email(body.email, code))
 
     # Always return 200 — don't reveal if email exists
     return success_response(None, "Se o email existir, enviaremos instrucoes de recuperacao.")

@@ -1,4 +1,5 @@
 """Email service for sending support emails."""
+import asyncio
 import logging
 
 import httpx
@@ -6,6 +7,44 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def _smtp_send(msg) -> bool:
+    """Try to send email via SMTP. Tries port 465 (TLS) then 587 (STARTTLS)."""
+    import aiosmtplib
+
+    # Attempt 1: port 465 with implicit TLS
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=465,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
+            use_tls=True,
+            timeout=15,
+        )
+        logger.info("Email sent via port 465 (TLS)")
+        return True
+    except Exception as exc:
+        logger.warning("SMTP port 465 failed: %s. Trying 587...", exc)
+
+    # Attempt 2: port 587 with STARTTLS
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=587,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
+            start_tls=True,
+            timeout=15,
+        )
+        logger.info("Email sent via port 587 (STARTTLS)")
+        return True
+    except Exception as exc:
+        logger.error("SMTP port 587 also failed: %s", exc)
+        return False
 
 
 async def send_support_email(user_email: str, user_nome: str, subject: str, message: str) -> bool:
@@ -22,7 +61,6 @@ async def send_support_email(user_email: str, user_nome: str, subject: str, mess
 
     if settings.SMTP_HOST and settings.SMTP_USER:
         try:
-            import aiosmtplib
             from email.message import EmailMessage
 
             msg = EmailMessage()
@@ -32,15 +70,9 @@ async def send_support_email(user_email: str, user_nome: str, subject: str, mess
             msg["Reply-To"] = user_email
             msg.set_content(full_body)
 
-            await aiosmtplib.send(
-                msg,
-                hostname=settings.SMTP_HOST,
-                port=settings.SMTP_PORT,
-                username=settings.SMTP_USER,
-                password=settings.SMTP_PASSWORD,
-                use_tls=True,
-            )
-            return True
+            sent = await _smtp_send(msg)
+            if sent:
+                return True
         except Exception as exc:
             logger.error("Failed to send support email via SMTP: %s", exc)
             # Fall through to log
@@ -64,7 +96,6 @@ async def send_password_reset_email(to_email: str, code: str) -> bool:
 
     if settings.SMTP_HOST and settings.SMTP_USER:
         try:
-            import aiosmtplib
             from email.message import EmailMessage
 
             msg = EmailMessage()
@@ -73,16 +104,10 @@ async def send_password_reset_email(to_email: str, code: str) -> bool:
             msg["Subject"] = "[Coffee] Recuperacao de senha"
             msg.set_content(body)
 
-            await aiosmtplib.send(
-                msg,
-                hostname=settings.SMTP_HOST,
-                port=settings.SMTP_PORT,
-                username=settings.SMTP_USER,
-                password=settings.SMTP_PASSWORD,
-                use_tls=True,
-            )
-            logger.info("Password reset email sent to %s", to_email)
-            return True
+            sent = await _smtp_send(msg)
+            if sent:
+                logger.info("Password reset email sent to %s", to_email)
+                return True
         except Exception as exc:
             logger.error("Failed to send password reset email via SMTP: %s", exc)
 
